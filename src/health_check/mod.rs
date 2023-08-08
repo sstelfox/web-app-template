@@ -8,6 +8,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 mod data_source;
 mod liveness;
 mod readiness;
+mod version;
 
 use crate::app::State;
 
@@ -27,5 +28,6 @@ pub fn router(state: State) -> Router<State> {
         .layer(RequestBodyLimitLayer::new(HEALTHCHECK_REQUEST_SIZE_LIMIT))
         .route("/healthz", get(liveness::handler))
         //.route("/readyz", get(readiness::handler))
+        .route("/version", get(version::handler))
         .with_state(state)
 }

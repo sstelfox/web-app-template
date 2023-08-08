@@ -18,7 +18,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_valid_json_response() {
+    async fn test_handler_direct() {
         let response = handler().await;
         assert_eq!(response.status(), StatusCode::OK);
 
