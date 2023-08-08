@@ -29,6 +29,16 @@ pub struct ApiKeyIdentity {
     key_id: String,
 }
 
+impl ApiKeyIdentity {
+    pub fn key_id(&self) -> &str {
+        self.key_id.as_str()
+    }
+
+    pub fn user_id(&self) -> &Uuid {
+        &self.user_id
+    }
+}
+
 #[async_trait]
 impl<S> FromRequestParts<S> for ApiKeyIdentity
 where
