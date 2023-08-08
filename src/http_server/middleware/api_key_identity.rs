@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use axum::{async_trait, Json, RequestPartsExt};
@@ -14,7 +15,10 @@ use uuid::Uuid;
 
 use crate::http_server::middleware::JwtKey;
 
-pub const EXPIRATION_WINDOW_SECS: usize = 900;
+/// Defines the maximum length of time we consider any individual token valid in seconds. If the
+/// expiration is still in the future, but it was issued more than this many seconds in the past
+/// we'll reject the token even if its otherwise valid.
+const MAXIMUM_TOKEN_AGE: u64 = 900;
 
 static KEY_ID_PATTERN: &str = r"^[0-9a-f]{64}$";
 
@@ -22,6 +26,7 @@ static KEY_ID_VALIDATOR: OnceLock<Regex> = OnceLock::new();
 
 pub struct ApiKeyIdentity {
     user_id: Uuid,
+    key_id: String,
 }
 
 #[async_trait]
@@ -38,15 +43,15 @@ where
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
-            .map_err(ApiKeyIdentityError::missing_header)?;
+            .map_err(Self::Rejection::missing_header)?;
 
         let raw_token = bearer.token();
 
-        let unvalidated_header = Token::decode_metadata(&raw_token).map_err(ApiKeyIdentityError::corrupt_header)?;
-        let _key_id = match unvalidated_header.key_id() {
-            Some(kid) if key_validator.is_match(kid) => kid,
-            Some(_) => return Err(ApiKeyIdentityError::InvalidKeyId),
-            None => return Err(ApiKeyIdentityError::MissingKeyId),
+        let unvalidated_header = Token::decode_metadata(&raw_token).map_err(Self::Rejection::corrupt_header)?;
+        let key_id = match unvalidated_header.key_id() {
+            Some(kid) if key_validator.is_match(kid) => kid.to_string(),
+            Some(_) => return Err(Self::Rejection::InvalidKeyId),
+            None => return Err(Self::Rejection::MissingKeyId),
         };
 
         // todo create a generic "SessionKeyProvider" that takes a key ID and returns an
@@ -60,13 +65,41 @@ where
         //
         //    async fn lookup(key_id: &str) -> Result<SessionKey, Self::Error>;
         //}
-        let _jwt_key = JwtKey::from_request_parts(parts, state)
+        let jwt_key = JwtKey::from_request_parts(parts, state)
             .await
-            .map_err(|_| ApiKeyIdentityError::key_unavailable())?;
+            .map_err(|_| Self::Rejection::key_unavailable())?;
 
-        Ok(ApiKeyIdentity {
-            user_id: Uuid::new_v4(),
-        })
+        let mut token_audience_set = HashSet::new();
+        token_audience_set.insert("web-app-template".to_string());
+
+        let verification_options = VerificationOptions {
+            accept_future: false,
+            // todo: tokens should be intended for us, make this a configurable service name we can
+            // re-use and reference
+            allowed_audiences: Some(HashSet::from_strings(&["web-app-template"])),
+            max_validity: Some(Duration::from_secs(MAXIMUM_TOKEN_AGE)),
+            time_tolerance: Some(Duration::from_secs(15)),
+            ..Default::default()
+        };
+
+        let claims = jwt_key
+            .as_ref()
+            .public_key()
+            .verify_token::<NoCustomClaims>(&raw_token, Some(verification_options))
+            .map_err(Self::Rejection::validation_failed)?;
+
+        if claims.nonce.is_none() {
+            return Err(Self::Rejection::NonceMissing);
+        }
+
+        // todo: validate subject is present, do I need any extra validation?
+        tracing::info!("{claims:?}");
+        let user_id = match &claims.subject {
+            Some(sub) => Uuid::parse_str(sub).map_err(|_| Self::Rejection::SubjectInvalid)?,
+            None => return Err(Self::Rejection::SubjectMissing),
+        };
+
+        Ok(ApiKeyIdentity { user_id, key_id })
     }
 }
 
@@ -86,6 +119,18 @@ pub enum ApiKeyIdentityError {
 
     #[error("no key ID was included in the JWT header")]
     MissingKeyId,
+
+    #[error("no nonce was included in the token")]
+    NonceMissing,
+
+    #[error("provided subject was not a valid UUID")]
+    SubjectInvalid,
+
+    #[error("no subject was included in the token")]
+    SubjectMissing,
+
+    #[error("validation of the provided JWT failed")]
+    ValidationFailed(jwt_simple::Error),
 }
 
 impl ApiKeyIdentityError {
@@ -100,6 +145,10 @@ impl ApiKeyIdentityError {
     fn missing_header(err: TypedHeaderRejection) -> Self {
         Self::MissingHeader(err)
     }
+
+    fn validation_failed(err: jwt_simple::Error) -> Self {
+        Self::ValidationFailed(err)
+    }
 }
 
 impl IntoResponse for ApiKeyIdentityError {
@@ -107,13 +156,13 @@ impl IntoResponse for ApiKeyIdentityError {
         use ApiKeyIdentityError::*;
 
         match self {
-            CorruptHeader(_) | InvalidKeyId | MissingHeader(_) | MissingKeyId => {
-                let err_msg = serde_json::json!({ "status": "invalid bearer token" });
-                (StatusCode::BAD_REQUEST, Json(err_msg)).into_response()
-            },
             KeyUnavailable => {
                 let err_msg = serde_json::json!({ "status": "authentication services unavailable" });
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(err_msg)).into_response()
+            },
+            _ => {
+                let err_msg = serde_json::json!({ "status": "invalid bearer token" });
+                (StatusCode::BAD_REQUEST, Json(err_msg)).into_response()
             },
         }
     }
