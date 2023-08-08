@@ -8,7 +8,7 @@ use crate::app::Error;
 #[derive(Debug)]
 pub struct Config {
     listen_addr: SocketAddr,
-    session_key_path: Option<PathBuf>,
+    jwt_key_path: Option<PathBuf>,
 }
 
 impl Config {
@@ -23,16 +23,16 @@ impl Config {
             .opt_value_from_str("--listen")?
             .unwrap_or(SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 3000));
 
-        let session_key_path = args
+        let jwt_key_path = args
             .opt_value_from_str("--session-key")?;
 
         Ok(Config {
             listen_addr,
-            session_key_path,
+            jwt_key_path,
         })
     }
 
-    pub fn session_key_path(&self) -> Option<&PathBuf> {
-        self.session_key_path.as_ref()
+    pub fn jwt_key_path(&self) -> Option<&PathBuf> {
+        self.jwt_key_path.as_ref()
     }
 }

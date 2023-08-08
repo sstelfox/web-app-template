@@ -2051,6 +2051,7 @@ dependencies = [
  "jwt-simple",
  "pico-args",
  "proptest",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
