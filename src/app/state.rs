@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use jwt_simple::algorithms::ES384KeyPair;
+use jwt_simple::algorithms::ECDSAP384KeyPairLike;
+use sha2::Digest;
 
 use crate::app::{Config, Error};
 
@@ -21,12 +23,24 @@ impl State {
             None => ES384KeyPair::generate(),
         };
 
-        // todo: this probably isn't needed but elsewhere this ID is important, I should properly
-        // fingerprint the session_key_raw and set that as the value here
-        session_key_raw = session_key_raw.with_key_id("fingerprint");
-
+        let fingerprint = fingerprint_session_key(&session_key_raw);
+        session_key_raw = session_key_raw.with_key_id(&fingerprint);
         let session_key = Arc::new(session_key_raw);
 
         Ok(Self { session_key })
     }
+}
+
+fn fingerprint_session_key(jwt_keys: &ES384KeyPair) -> String {
+    let public_key = jwt_keys.key_pair().public_key();
+    let compressed_point = public_key.as_ref().to_encoded_point(true);
+
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(compressed_point);
+    let hashed_bytes = hasher.finalize();
+
+    hashed_bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
