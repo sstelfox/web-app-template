@@ -6,7 +6,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 
 mod data_source;
-mod liveness_check;
+mod liveness;
+mod readiness;
 
 use crate::app::State;
 
@@ -24,6 +25,7 @@ pub fn router(state: State) -> Router<State> {
     Router::new()
         .layer(cors_layer)
         .layer(RequestBodyLimitLayer::new(HEALTHCHECK_REQUEST_SIZE_LIMIT))
-        .route("/healthz", get(liveness_check::handler))
+        .route("/healthz", get(liveness::handler))
+        //.route("/readyz", get(readiness::handler))
         .with_state(state)
 }

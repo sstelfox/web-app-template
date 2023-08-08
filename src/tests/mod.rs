@@ -6,5 +6,4 @@ pub(crate) mod prelude {
 }
 
 #[derive(Clone)]
-pub(crate) struct MockState {
-}
+pub(crate) struct MockState;
