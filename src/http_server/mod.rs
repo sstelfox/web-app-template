@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use axum::error_handling::HandleErrorLayer;
@@ -20,6 +19,13 @@ use crate::app::{Config, Error, State};
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
+const SENSITIVE_HEADERS: &[http::HeaderName] = &[
+    header::AUTHORIZATION,
+    header::COOKIE,
+    header::PROXY_AUTHORIZATION,
+    header::SET_COOKIE,
+];
+
 mod error_handlers;
 mod middleware;
 
@@ -31,7 +37,8 @@ async fn graceful_shutdown_blocker() {
     let mut sig_term_handler =
         unix::signal(unix::SignalKind::terminate()).expect("to be able to install signal handler");
 
-    // todo: need to follow k8s signal handling rules for these different signals
+    // todo: need to follow k8s signal handling rules for these different signals, aka stop
+    // accepting clients 
     tokio::select! {
         _ = sig_int_handler.recv() => tracing::debug!("gracefully exiting on an interrupt signal"),
         _ = sig_term_handler.recv() => tracing::debug!("gracefully exiting on an terminate signal"),
@@ -39,13 +46,6 @@ async fn graceful_shutdown_blocker() {
 }
 
 pub async fn run(config: Config) -> Result<(), Error> {
-    let sensitive_headers: Arc<[_]> = Arc::new([
-        header::AUTHORIZATION,
-        header::COOKIE,
-        header::PROXY_AUTHORIZATION,
-        header::SET_COOKIE,
-    ]);
-
     let trace_layer = TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
         .on_response(
@@ -61,16 +61,16 @@ pub async fn run(config: Config) -> Result<(), Error> {
         .load_shed()
         .concurrency_limit(1024)
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .layer(SetSensitiveRequestHeadersLayer::from_shared(Arc::clone(
-            &sensitive_headers,
-        )))
+        .layer(SetSensitiveRequestHeadersLayer::from_shared(
+            SENSITIVE_HEADERS.into()
+        ))
         .set_x_request_id(MakeRequestUuid)
         .layer(trace_layer)
         .propagate_x_request_id()
         .layer(DefaultBodyLimit::disable())
         .layer(ValidateRequestHeaderLayer::accept("application/json"))
         .layer(SetSensitiveResponseHeadersLayer::from_shared(
-            sensitive_headers,
+            SENSITIVE_HEADERS.into()
         ));
 
     tracing::info!(addr = ?config.listen_addr(), "server listening");

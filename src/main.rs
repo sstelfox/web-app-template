@@ -22,11 +22,30 @@ async fn main() -> Result<(), Error> {
 
     tracing_subscriber::registry().with(stderr_layer).init();
 
+    register_panic_logger();
     let config = Config::parse_cli_arguments()?;
-
     http_server::run(config).await.expect("server to be happy");
 
     Ok(())
+}
+
+/// Sets up system panics to use the tracing infrastructure to log reported issues. This doesn't
+/// prevent the panic from taking out the service but ensures that it and any available information
+/// is properly reported using the standard logging mechanism.
+fn register_panic_logger() {
+    std::panic::set_hook(Box::new(|panic| {
+        match panic.location() {
+            Some(loc) => {
+                tracing::error!(
+                    message = %panic,
+                    panic.file = loc.file(),
+                    panic.line = loc.line(),
+                    panic.column = loc.column(),
+                );
+            },
+            None => tracing::error!(message = %panic),
+        }
+    }));
 }
 
 #[cfg(test)]
