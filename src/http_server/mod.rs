@@ -41,7 +41,7 @@ const SENSITIVE_HEADERS: &[http::HeaderName] = &[
 
 fn create_trace_layer(log_level: Level) -> TraceLayer<SharedClassifier<ServerErrorsAsFailures>> {
     TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+        .make_span_with(DefaultMakeSpan::new().level(log_level))
         .on_response(
             DefaultOnResponse::new()
                 .include_headers(false)
@@ -97,7 +97,7 @@ async fn graceful_shutdown_blocker() {
 }
 
 pub async fn run(config: Config) -> Result<(), Error> {
-    let trace_layer = create_trace_layer(Level::INFO);
+    let trace_layer = create_trace_layer(config.log_level());
 
     // The order of these layers and configuration extensions was carefully chosen as they will see
     // the requests to responses effectively in the order they're defined.

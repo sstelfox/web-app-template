@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use axum::{async_trait, Json, RequestPartsExt};
-use axum::extract::{FromRef, FromRequestParts, TypedHeader};
+use axum::extract::{FromRequestParts, TypedHeader};
 use axum::extract::rejection::TypedHeaderRejection;
 use axum::headers::Authorization;
 use axum::headers::authorization::Bearer;
@@ -49,14 +49,18 @@ where
             None => return Err(ApiKeyIdentityError::MissingKeyId),
         };
 
-        // todo extract key ID, do header verification, whatever else we need
-
         // todo create a generic "SessionKeyProvider" that takes a key ID and returns an
         //   appropriate verification key, should use that instead of a JwtKey directly
         //   I can implement a static provider that matches the token key against our regular
         //   one.
-
-        let jwt_key = JwtKey::from_request_parts(parts, state)
+        //
+        //#[axum::async_trait]
+        //trait SessionKeyProvider {
+        //    type Error: std::error::Error + Send + Sync;
+        //
+        //    async fn lookup(key_id: &str) -> Result<SessionKey, Self::Error>;
+        //}
+        let _jwt_key = JwtKey::from_request_parts(parts, state)
             .await
             .map_err(|_| ApiKeyIdentityError::key_unavailable())?;
 
