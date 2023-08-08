@@ -1239,32 +1239,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "refined"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytes",
- "futures",
- "http",
- "hyper",
- "jwt-simple",
- "pico-args",
- "proptest",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-appender",
- "tracing-futures",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "regex"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2063,6 +2037,32 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "web-app-template"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "futures",
+ "http",
+ "hyper",
+ "jwt-simple",
+ "pico-args",
+ "proptest",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-appender",
+ "tracing-futures",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

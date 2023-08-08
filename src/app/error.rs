@@ -5,4 +5,20 @@ pub enum Error {
 
     #[error("axum web server experienced critical error")]
     AxumServerError(#[from] hyper::Error),
+
+    #[error("session key provided could not be parsed as a PEM encoded ES384 private key")]
+    InvalidSessionKey(jwt_simple::Error),
+
+    #[error("provided session key was unable to be read")]
+    UnreadableSessionKey(std::io::Error),
+}
+
+impl Error {
+    pub fn invalid_key(err: jwt_simple::Error) -> Self {
+        Self::InvalidSessionKey(err)
+    }
+
+    pub fn unreadable_key(err: std::io::Error) -> Self {
+        Self::UnreadableSessionKey(err)
+    }
 }

@@ -11,7 +11,6 @@ pub async fn server_error_handler(error: tower::BoxError) -> Response {
         source = inner_err.source();
     }
 
-    // todo: should report this event as a critical error to some bug reporting system
     tracing::error!(errors = ?errors, "unhandled error");
 
     // Some of our errors have specific error handling requirements

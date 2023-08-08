@@ -7,6 +7,7 @@ use axum::{Server, ServiceExt};
 use http::header;
 use tokio::signal::unix::{signal, SignalKind};
 use tower::ServiceBuilder;
+use tower_http::classify::{ServerErrorsAsFailures, SharedClassifier};
 use tower_http::request_id::MakeRequestUuid;
 use tower_http::sensitive_headers::{
     SetSensitiveRequestHeadersLayer, SetSensitiveResponseHeadersLayer,
@@ -18,8 +19,17 @@ use tracing::Level;
 
 use crate::app::{Config, Error, State};
 
+mod error_handlers;
+mod middleware;
+
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
+/// The largest size content that any client can send us before we reject it. This is a pretty
+/// heavily restricted default but most JSON responses are relatively tiny.
+const REQUEST_MAX_SIZE: usize = 256 * 1_024;
+
+/// The maximum number of seconds that any individual request can take before it is dropped with an
+/// error.
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
 const SENSITIVE_HEADERS: &[http::HeaderName] = &[
@@ -29,8 +39,17 @@ const SENSITIVE_HEADERS: &[http::HeaderName] = &[
     header::SET_COOKIE,
 ];
 
-mod error_handlers;
-mod middleware;
+fn create_trace_layer(log_level: Level) -> TraceLayer<SharedClassifier<ServerErrorsAsFailures>> {
+    TraceLayer::new_for_http()
+        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+        .on_response(
+            DefaultOnResponse::new()
+                .include_headers(false)
+                .level(log_level)
+                .latency_unit(LatencyUnit::Micros),
+        )
+        .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros))
+}
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:
 ///
@@ -78,43 +97,54 @@ async fn graceful_shutdown_blocker() {
 }
 
 pub async fn run(config: Config) -> Result<(), Error> {
-    let trace_layer = TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
-        .on_response(
-            DefaultOnResponse::new()
-                .include_headers(false)
-                .level(Level::INFO)
-                .latency_unit(LatencyUnit::Micros),
-        )
-        .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros));
+    let trace_layer = create_trace_layer(Level::INFO);
 
+    // The order of these layers and configuration extensions was carefully chosen as they will see
+    // the requests to responses effectively in the order they're defined.
     let middleware_stack = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(error_handlers::server_error_handler))
-        .load_shed()
-        .concurrency_limit(1024)
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .layer(SetSensitiveRequestHeadersLayer::from_shared(
-            SENSITIVE_HEADERS.into()
-        ))
-        .set_x_request_id(MakeRequestUuid)
+        // Tracing and log handling get setup before anything else
         .layer(trace_layer)
+        .layer(HandleErrorLayer::new(error_handlers::server_error_handler))
+        // From here on out our requests might be logged, ensure any sensitive headers are stripped
+        // before we do any logging
+        .layer(SetSensitiveRequestHeadersLayer::from_shared(SENSITIVE_HEADERS.into()))
+        // If requests are queued or take longer than this duration we want the cut them off
+        // regardless of any other protections that are inplace
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        // If any future services or middleware indicate they're not available, reject them with a
+        // service too busy error
+        .load_shed()
+        // Restrict the number of concurrent in flight requests, desired value for this is going to
+        // vary from service to service, make sure it reflects the number of concurrent requests
+        // your service can handle.
+        .concurrency_limit(1024)
+        // Make sure our request has a unique identifier if we don't already have one. This does
+        // allow our upstream to arbitrarily set headers so this service should have protection
+        // against arbitrary untrusted injections of this header.
+        .set_x_request_id(MakeRequestUuid)
         .propagate_x_request_id()
-        .layer(DefaultBodyLimit::disable())
+        // By default limit any request to this size. Individual handlers can opt-out of this limit
+        // if they so choose (such as an upload handler).
+        .layer(DefaultBodyLimit::max(REQUEST_MAX_SIZE))
+        // Our clients should only ever be sending us JSON requests, any other type is an error.
+        // This won't be true of all APIs and this will accept the wildcards sent by most clients.
+        // Debatable whether I actually want this...
         .layer(ValidateRequestHeaderLayer::accept("application/json"))
+        // Finally make sure any responses successfully generated from our service is also
+        // filtering out any sensitive headers from our logs.
         .layer(SetSensitiveResponseHeadersLayer::from_shared(
             SENSITIVE_HEADERS.into()
         ));
 
-    tracing::info!(addr = ?config.listen_addr(), "server listening");
-
-    let state = State::from_config(&config).await;
+    let state = State::from_config(&config).await?;
     let root_router = Router::new()
         //.nest("/api/v1", api::router(app_state.clone()))
         //.nest("/_status", health_check::router(app_state.clone()))
         .with_state(state)
         .fallback(error_handlers::not_found_handler);
-
     let app = middleware_stack.service(root_router);
+
+    tracing::info!(addr = ?config.listen_addr(), "server listening");
     Server::bind(config.listen_addr())
         .serve(app.into_make_service())
         .with_graceful_shutdown(graceful_shutdown_blocker())
