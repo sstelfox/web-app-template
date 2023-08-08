@@ -20,7 +20,6 @@ use tracing::Level;
 use crate::app::{Config, Error, State};
 
 mod error_handlers;
-mod middleware;
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 

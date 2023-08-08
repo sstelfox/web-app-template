@@ -13,7 +13,7 @@ use jwt_simple::prelude::*;
 use regex::Regex;
 use uuid::Uuid;
 
-use crate::http_server::middleware::JwtKey;
+use crate::middleware::JwtKey;
 
 /// Defines the maximum length of time we consider any individual token valid in seconds. If the
 /// expiration is still in the future, but it was issued more than this many seconds in the past

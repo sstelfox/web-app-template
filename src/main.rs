@@ -6,6 +6,7 @@ use tracing_subscriber::{EnvFilter, Layer};
 mod app;
 mod health_check;
 mod http_server;
+mod middleware;
 
 use app::{Config, Error};
 
