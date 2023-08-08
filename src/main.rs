@@ -4,6 +4,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 
 mod app;
+mod health_check;
 mod http_server;
 
 use app::{Config, Error};
