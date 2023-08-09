@@ -1,0 +1,29 @@
+#!/bin/bash
+
+set -o errexit
+
+cd $(dirname %0)
+
+PG_URL="postgres://postgres:test_password@127.0.0.1:5432/service"
+
+# Relative paths don't work reliably with sqlx
+SQLITE_URL="sqlite://$(pwd)/data/server.db"
+
+function postgres_setup() {
+  sqlx database setup --database-url ${PG_URL} --source ./migrations/postgres
+  cargo sqlx prepare --database-url ${PG_URL} -- --no-default-features \
+    --features postgres --tests
+}
+
+function sqlite_setup() {
+  mkdir -p data
+  rm -f data/server.db* &>/dev/null
+
+  sqlx database setup --database-url ${SQLITE_URL} --source ./migrations/sqlite \
+    --sqlite-create-db-wal true
+  cargo sqlx prepare --database-url ${SQLITE_URL} -- --no-default-features \
+    --features sqlite --tests
+}
+
+postgres_setup
+sqlite_setup

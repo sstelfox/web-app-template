@@ -4,6 +4,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 
 mod app;
+mod database;
 mod health_check;
 mod http_server;
 mod middleware;
@@ -25,6 +26,9 @@ async fn main() -> Result<(), Error> {
     tracing_subscriber::registry().with(stderr_layer).init();
 
     register_panic_logger();
+
+    database::config_database();
+
     let config = Config::parse_cli_arguments()?;
     http_server::run(config).await.expect("server to be happy");
 
