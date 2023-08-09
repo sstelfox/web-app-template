@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+
+set -o errexit
+
+cd $(dirname %0)
+
+# Should probably make these configurable or source them from the project...
+DEPLOY_HOST="hollow-twilight-ocean.stelfox.net"
+DEPLOY_BASE_FOLDER="~/containers"
+
+SERVICE_NAME="${1:-web-app-template}"
+SERVICE_PORT="${2:-3000}"
+
+SERVICE_NEEDS_POSTGRES="${SERVICE_NEEDS_POSTGRES:-true}"
+POSTGRES_PASSWORD=test_password
+
+# These are generally going to be fixed variables
+REPOSITORY_HOST="repo.stelfox.net"
+NAMESPACE="sstelfox"
+IMAGE="${SERVICE_NAME}"
+
+DEPLOY_IMAGE_ARCHIVE="${DEPLOY_BASE_FOLDER}/library"
+DEPLOY_PERSISTENT_DATA="${DEPLOY_BASE_FOLDER}/data"
+DEPLOY_SERVICE_DIRECTORY="${DEPLOY_BASE_FOLDER}/services"
+
+COMMIT_ID="$(git describe --always --dirty --long --tags)"
+TIMESTAMP="$(date -u +%Y%m%d-%H%M%S%z | tr '+' '-')"
+
+IMAGE_BASE_NAME="${NAMESPACE}_${IMAGE}_${TIMESTAMP}_${COMMIT_ID}"
+FULL_IMAGE_NAME="${REPOSITORY_HOST}/${NAMESPACE}/${IMAGE}:${COMMIT_ID}"
+
+# Create the actual container
+podman build -t ${FULL_IMAGE_NAME} ./
+podman save -o target/${IMAGE_BASE_NAME}.tar ${FULL_IMAGE_NAME}
+
+# Ensure the place we store our service configs are present
+mkdir -p configs
+cd configs
+
+podman pod create --name=${SERVICE} -h ${SERVICE}.services.stelfox.net \
+  --security-opt=label=disable --network=pasta:-T,${SERVICE_PORT}
+
+if [ "${SERVICE_NEEDS_POSTGRES}" = "true" ]; then
+  podman create --pod=${SERVICE} --name=db-postgres -e POSTGRES_PASSWORD -t repo.stelfox.net/library/postgres:alpine
+fi
+
+# podman create --pod=web-app-template --name=api-http -e POSTGRES_PASSWORD -t repo.stelfox.net/sstelfox/web-app-template:latest
+
+# Transfer the container archive to the remote host
+ssh ${REMOTE_HOST} "mkdir -p ${DEPLOY_IMAGE_ARCHIVE} ${DEPLOY_SERVICE_DIRECTORY}"
+scp -O target/${IMAGE_BASE_NAME}.tar ${REMOTE_HOST}:${REMOTE_IMAGE_ARCHIVE}/
+
+# Repo setup:
+# * Create cloudflare records (just a cname between the domain and deploy host)
+# * mkdir -p /srv/http/stelfox.net/repo
+# * sudo certbot certonly --webroot -w /srv/http/challenges -d repo.stelfox.net
+# * Create nginx configuration at /etc/nginx/conf.d/stelfox.net/repo:
+#
+#```conf
+#server {
+#  listen [::]:80 ipv6only=false;
+#  listen [::]:443 ssl http2 ipv6only=false;
+#
+#  server_name repo.stelfox.net;
+#  root /srv/http/stelfox.net/repo;
+#
+#  include /etc/nginx/conf.d/common/_ssl_settings.conf;
+#
+#  ssl_certificate /etc/letsencrypt/live/repo.stelfox.net/fullchain.pem;
+#  ssl_certificate_key /etc/letsencrypt/live/repo.stelfox.net/privkey.pem;
+#
+#  error_page 404 /404.html;
+#
+#  include /etc/nginx/conf.d/common/_lets_encrypt_challenges.conf;
+#
+#  location / {
+#    try_files $uri $uri/index.html =404;
+#  }
+#}
+#```
+
+#LOCAL_CACHE_MAX=5
+#ARCHIVE_MAX=15
+
+# On the remote system:
+# ```sh
+# podman load < ${REMOTE_IMAGE_ARCHIVE}/${IMAGE_BASE_NAME}.tar
+#
+# # This doesn't work.. json format is wrong
+# for image in $(podman images $NAMESPACE/$IMAGE --format json | jq -r .RepoTags[0] | tail -n +\$((LOCAL_CACHE_MAX+1))\`; do
+#   podman rmi $image
+# done
+#
+# ls -ltr ${REMOTE_IMAGE_ARCHIVE}/${NAMESPACE}_${IMAGE}*.tar | head -n -${ARCHIVE_MAX} | xargs --no-run-if-empty rm
+# ```
+
+# I'm going to use systemd user units to manage podman instances in the user
+# namespace but hosting on the host itself using configurable ports.
+#
+# To make sure the processes run after my SSH session logout I need to enable
+# linger on my user by running the following command as root:
+#
+# ```
+# loginctl enable-linger sstelfox
+# ```
+#
+# Sample user systemd instance:
+#
+# ```
+# ~/.config/systemd/user/mpd.service
+# ```
+#
+# ```
+# skopeo copy docker://library/postgres:alpine docker-archive:containers/docker-library_postgres_$(date +%Y%m%d%H%M%S)_alpine.tar
+# ```
+#
+# Seems like this isn't enough to serve things statically, its possible and I found
+# a script that is doing it... Probably can do better...
+#
+# * https://github.com/NicolasT/static-container-registry
+# * https://github.com/NicolasT/static-container-registry/blob/master/static-container-registry.py
+#
+# Generate podman container definitions:
+#
+# ```
+# podman pod create --name=${SERVICE} -h web-app-template.service.stelfox.net --security-opt=label=disable --network=pasta:-T,3000
+# podman create --pod=web-app-template --name=db-postgres -e POSTGRES_PASSWORD=test_password -t repo.stelfox.net/library/postgres:alpine
+# podman create --pod=web-app-template --name=api-http -e POSTGRES_PASSWORD=test_password -t repo.stelfox.net/sstelfox/web-app-template:latest
+#
+# mkdir -p configs
+# cd configs
+#
+# podman generate systemd --files --name web-app-template --pod-prefix "" --container-prefix web-app-template
+# podman pod rm web-app-template
+#
+# cp * $HOME/config/systemd/user
+# systemctl --user daemon-reload
+# systemctl --user start web-app-template.service
+# ```
+#
+#
+# Deploy script:
+#
+#!/usr/bin/env bash
+
+#set -e
+#cd $(dirname $0)
+#
+#if [ "$#" -ne 2 ]; then
+#	echo "usage: $0 user@server-address /path/to/remote/directory/"
+#	exit 1
+#fi
+#
+#SERVER_SSH=$1
+#SERVER_PATH=$2
+#BINARY_NAME="example"
+#SERVER_RESTART_COMMAND="systemctl restart $BINARY_NAME"
+#
+#./build.sh
+#
+#OUTFILE="./target/x86_64-unknown-linux-musl/release/$BINARY_NAME"
+#COMMIT_HASH=$(git rev-parse HEAD)
+#BUILD_TIMESTAMP=$(TZ=UTC date -u +"%s")
+#FILE_HASH=$(b2sum $OUTFILE | cut -f1 -d' ')
+#REMOTE_FILENAME="$BINARY_NAME-$BUILD_TIMESTAMP-$COMMIT_HASH-$FILE_HASH"
+#
+#ssh $SERVER_SSH "mkdir -p $SERVER_PATH/versions/"
+#scp "$OUTFILE" "$SERVER_SSH:$SERVER_PATH/versions/$REMOTE_FILENAME"
+#ssh -q -T $SERVER_SSH <<EOL
+#	nohup sh -c "\
+#	rm "$SERVER_PATH/$BINARY_NAME" && \
+#	ln -s "$SERVER_PATH/versions/$REMOTE_FILENAME" "$SERVER_PATH/$BINARY_NAME" && \
+#	$SERVER_RESTART_COMMAND"
+#EOL
