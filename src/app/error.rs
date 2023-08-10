@@ -1,3 +1,5 @@
+use crate::database::DatabaseSetupError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unable to parse program command lines")]
@@ -5,6 +7,9 @@ pub enum Error {
 
     #[error("axum web server experienced critical error")]
     AxumServerError(#[from] hyper::Error),
+
+    #[error("failed to initial the database")]
+    DatabaseFailure(#[from] DatabaseSetupError),
 
     #[error("session key provided could not be parsed as a PEM encoded ES384 private key")]
     InvalidSessionKey(jwt_simple::Error),

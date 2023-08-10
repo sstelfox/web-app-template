@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use sqlx::migrate::Migrator;
 
+use crate::app::Config;
+
 #[cfg(feature="postgres")]
 use sqlx::postgres::{PgConnectOptions, PgPool};
 
@@ -22,7 +24,7 @@ pub enum Database {
     Sqlite(SqlitePool),
 }
 
-pub async fn config_database() -> Result<Database, DatabaseSetupError> {
+pub async fn config_database(_config: &Config) -> Result<Database, DatabaseSetupError> {
     let database_url = std::env::var("DATABASE_URL").unwrap();
 
     // todo: I should figure out a way to delay the actual running of migrations, and reflect the
@@ -31,7 +33,11 @@ pub async fn config_database() -> Result<Database, DatabaseSetupError> {
     match database_url {
         #[cfg(feature="postgres")]
         db_url if db_url.starts_with("postgres://") => {
-            let pool = sqlx::PgPool::connect(&db_url)
+            let connection_options = PgConnectOptions::from_str(&db_url)
+                .map_err(|err| DatabaseSetupError::BadUrl(err))?
+                .statement_cache_capacity(250);
+
+            let pool = sqlx::PgPool::connect_with(connection_options)
                 .await
                 .map_err(|err| DatabaseSetupError::BadUrl(err))?;
 

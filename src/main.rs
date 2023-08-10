@@ -27,10 +27,10 @@ async fn main() -> Result<(), Error> {
 
     register_panic_logger();
 
-    database::config_database();
-
     let config = Config::parse_cli_arguments()?;
-    http_server::run(config).await.expect("server to be happy");
+    let database = database::config_database(&config).await?;
+
+    http_server::run(config, database).await.expect("server to be happy");
 
     Ok(())
 }
