@@ -24,11 +24,22 @@ pub enum Database {
     Sqlite(SqlitePool),
 }
 
-pub async fn config_database(_config: &Config) -> Result<Database, DatabaseSetupError> {
-    let database_url = std::env::var("DATABASE_URL").unwrap();
+pub async fn config_database(config: &Config) -> Result<Database, DatabaseSetupError> {
+    let database_url = match config.db_url() {
+        Some(db_url) => db_url.to_string(),
+        None => {
+            match std::env::var("DATABASE_URL") {
+                Ok(db_url) => db_url,
+                Err(_) => "sqlite://data/database.db".to_string(),
+            }
+        }
+    };
 
     // todo: I should figure out a way to delay the actual running of migrations, and reflect the
     // service being unavailable in the readiness check until they're complete
+    //
+    // maybe a tokio task with a channel or shared state directly that can be consumed by the
+    // healthcheck and database extractor...
 
     match database_url {
         #[cfg(feature="postgres")]

@@ -10,10 +10,16 @@ use crate::app::Error;
 pub struct Config {
     listen_addr: SocketAddr,
     log_level: Level,
+
+    db_url: Option<String>,
     jwt_key_path: Option<PathBuf>,
 }
 
 impl Config {
+    pub fn db_url(&self) -> Option<&str> {
+        self.db_url.as_ref().map(String::as_ref)
+    }
+
     pub fn listen_addr(&self) -> &SocketAddr {
         &self.listen_addr
     }
@@ -24,6 +30,9 @@ impl Config {
 
     pub fn parse_cli_arguments() -> Result<Self, Error> {
         let mut args = Arguments::from_env();
+
+        let db_url = args
+            .opt_value_from_str("--db-url")?;
 
         let listen_addr = args
             .opt_value_from_str("--listen")?
@@ -39,6 +48,7 @@ impl Config {
         Ok(Config {
             listen_addr,
             log_level,
+            db_url,
             jwt_key_path,
         })
     }

@@ -4,7 +4,6 @@ use jwt_simple::algorithms::{ES384KeyPair, ECDSAP384KeyPairLike};
 use sha2::Digest;
 
 use crate::app::{Config, Error};
-use crate::database::DatabaseSetupError;
 
 #[derive(Clone)]
 pub struct State {
