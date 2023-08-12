@@ -8,9 +8,13 @@ fn report_build_profile() {
 fn report_enabled_features() {
     let mut enabled_features: Vec<&str> = Vec::new();
 
-    // NOTE: When features are added or removed, they need to be manually listed here
-    //#[cfg(feature = "sqlite")]
-    //enabled_features.push("sqlite");
+    if cfg!(feature = "postgres") {
+        enabled_features.push("postgres");
+    }
+
+    if cfg!(feature = "sqlite") {
+        enabled_features.push("sqlite");
+    }
 
     if enabled_features.is_empty() {
         enabled_features.push("none");

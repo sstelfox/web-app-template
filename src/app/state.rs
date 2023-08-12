@@ -35,6 +35,12 @@ impl State {
     }
 }
 
+impl axum::extract::FromRef<State> for Database {
+    fn from_ref(state: &State) -> Self {
+        state.database.clone()
+    }
+}
+
 impl axum::extract::FromRef<State> for Arc<ES384KeyPair> {
     fn from_ref(state: &State) -> Self {
         state.jwt_key.clone()
