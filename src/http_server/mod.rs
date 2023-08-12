@@ -18,7 +18,6 @@ use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::Level;
 
 use crate::app::{Config, Error, State};
-use crate::database::Database;
 
 mod error_handlers;
 
@@ -96,7 +95,7 @@ async fn graceful_shutdown_blocker() {
     tokio::time::sleep(REQUEST_GRACE_PERIOD).await
 }
 
-pub async fn run(config: Config, database: Database) -> Result<(), Error> {
+pub async fn run(config: Config) -> Result<(), Error> {
     let trace_layer = create_trace_layer(config.log_level());
 
     // The order of these layers and configuration extensions was carefully chosen as they will see

@@ -4,15 +4,19 @@ use jwt_simple::algorithms::{ES384KeyPair, ECDSAP384KeyPairLike};
 use sha2::Digest;
 
 use crate::app::{Config, Error};
+use crate::database::{config_database, Database};
 
 #[derive(Clone)]
 pub struct State {
+    database: Database,
     jwt_key: Arc<ES384KeyPair>,
 }
 
 impl State {
     // not implemented as a From trait so it can be async
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
+        let database = config_database(&config).await?;
+
         let mut jwt_key_raw = match config.jwt_key_path() {
             Some(path) => {
                 let key_bytes = std::fs::read(path).map_err(Error::unreadable_key)?;
@@ -27,7 +31,7 @@ impl State {
         jwt_key_raw = jwt_key_raw.with_key_id(&fingerprint);
         let jwt_key = Arc::new(jwt_key_raw);
 
-        Ok(Self { jwt_key })
+        Ok(Self { database, jwt_key })
     }
 }
 

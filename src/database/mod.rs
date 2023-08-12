@@ -16,6 +16,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSy
 #[cfg(feature="sqlite")]
 static SQLITE_MIGRATOR: Migrator = sqlx::migrate!("migrations/sqlite");
 
+#[derive(Clone)]
 pub enum Database {
     #[cfg(feature="postgres")]
     Postgres(PgPool),
