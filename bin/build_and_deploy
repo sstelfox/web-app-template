@@ -41,25 +41,36 @@ podman pod create --name=${SERVICE} -h ${SERVICE}.services.stelfox.net \
   --security-opt=label=disable --network=pasta:-T,${SERVICE_PORT}
 
 if [ "${SERVICE_NEEDS_POSTGRES}" = "true" ]; then
-  podman create --pod=${SERVICE} --name=db-postgres -e POSTGRES_PASSWORD -t repo.stelfox.net/library/postgres:alpine
+  podman create --pod=${SERVICE} --name=db-postgres -e POSTGRES_PASSWORD \
+    -t repo.stelfox.net/library/postgres:alpine
 fi
 
-# podman create --pod=web-app-template --name=api-http -e POSTGRES_PASSWORD -t repo.stelfox.net/sstelfox/web-app-template:latest
+podman create --pod=${SERVICE} --name=api-http -e POSTGRES_PASSWORD \
+  -t ${FULL_IMAGE_NAME}
+
+podman generate systemd --files --name=${SERVICE} --pod-prefix "" \
+  --container-prefix ${SERVICE}
+
+podman pod rm ${SERVICE}
 
 # Transfer the container archive to the remote host
 ssh ${REMOTE_HOST} "mkdir -p ${DEPLOY_IMAGE_ARCHIVE} ${DEPLOY_SERVICE_DIRECTORY}"
 scp -O target/${IMAGE_BASE_NAME}.tar ${REMOTE_HOST}:${REMOTE_IMAGE_ARCHIVE}/
 
 # Repo setup:
-# * Create cloudflare records (just a cname between the domain and deploy host)
+#
+# * Create cloudflare records (just cname between the domain and deploy host)
 # * mkdir -p /srv/http/stelfox.net/repo
 # * sudo certbot certonly --webroot -w /srv/http/challenges -d repo.stelfox.net
-# * Create nginx configuration at /etc/nginx/conf.d/stelfox.net/repo:
+# * Create nginx configuration at /etc/nginx/conf.d/stelfox.net/repo.conf:
 #
 #```conf
 #server {
-#  listen [::]:80 ipv6only=false;
-#  listen [::]:443 ssl http2 ipv6only=false;
+#  listen 80;
+#  listen [::]:80;
+#
+#  listen 443 ssl http2;
+#  listen [::]:443 ssl http2;
 #
 #  server_name repo.stelfox.net;
 #  root /srv/http/stelfox.net/repo;
@@ -130,8 +141,6 @@ scp -O target/${IMAGE_BASE_NAME}.tar ${REMOTE_HOST}:${REMOTE_IMAGE_ARCHIVE}/
 # mkdir -p configs
 # cd configs
 #
-# podman generate systemd --files --name web-app-template --pod-prefix "" --container-prefix web-app-template
-# podman pod rm web-app-template
 #
 # cp * $HOME/config/systemd/user
 # systemctl --user daemon-reload

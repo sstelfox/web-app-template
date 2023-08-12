@@ -4,7 +4,8 @@ set -o errexit
 
 cd $(dirname %0)
 
-PG_URL="postgres://postgres:test_password@127.0.0.1:5432/service"
+POSTGRES_PASSWORD=test_password
+PG_URL="postgres://postgres:${POSTGRES_PASSWORD}@127.0.0.1:5432/service"
 
 # Relative paths don't work reliably with sqlx
 SQLITE_URL="sqlite://$(pwd)/data/server.db"
@@ -13,6 +14,15 @@ function postgres_setup() {
   sqlx database setup --database-url ${PG_URL} --source ./migrations/postgres
   cargo sqlx prepare --database-url ${PG_URL} -- --no-default-features \
     --features postgres --tests
+}
+
+function postgres_init() {
+  podman run -e POSTGRES_PASSWORD --name sqlx-migration-pg -t docker.io/library/postgres:alpine
+}
+
+function postgres_teardown() {
+  podman kill --name sqlx-migration-pg || true
+  podman rm -fv --name sqlx-migration-pg || true
 }
 
 function sqlite_setup() {
@@ -25,5 +35,8 @@ function sqlite_setup() {
     --features sqlite --tests
 }
 
-postgres_setup
 sqlite_setup
+
+postgres_init
+postgres_setup
+postgres_teardown

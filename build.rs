@@ -37,7 +37,17 @@ fn report_repository_version() {
 }
 
 fn main() {
+    // When this script changes, the changes will likely affect the produced binary (or why is it
+    // being done here)? Not sure why this isn't the default but here it is...
     println!("cargo:rerun-if-changed=build.rs");
+
+    // Because we're including tags, commit IDs, and dirty status we want to build a new binary
+    // with the correct information when we make a commit or tag a commit.
+    println!("cargo:rerun-if-changed=.git/refs/heads");
+    println!("cargo:rerun-if-changed=.git/refs/tags");
+
+    // Migrations lie outside of our normal source but are both embedded in our code, and our code
+    // is dependent on the changes they represent. We should be building when this changes
     println!("cargo:rerun-if-changed=migrations");
 
     report_build_profile();

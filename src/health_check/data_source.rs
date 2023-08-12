@@ -25,6 +25,7 @@ pub type DynDataSource = Arc<dyn DataSource + Send + Sync>;
 pub struct StateDataSource(DynDataSource);
 
 impl StateDataSource {
+    #[cfg(test)]
     pub fn new(dds: DynDataSource) -> Self {
         Self(dds)
     }
