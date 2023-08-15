@@ -15,11 +15,12 @@ pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DatabaseSetu
         .statement_cache_capacity(250)
         .synchronous(SqliteSynchronous::Normal);
 
-    let pool = sqlx::SqlitePool::connect_with(connection_options)
-        .await
-        .map_err(|err| DatabaseSetupError::DatabaseUnavailable(err))?;
-
-    run_migrations(&pool).await?;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .idle_timeout(std::time::Duration::from_secs(90))
+        .max_lifetime(std::time::Duration::from_secs(1_800))
+        .min_connections(1)
+        .max_connections(16)
+        .connect_lazy_with(connection_options);
 
     Ok(pool)
 }

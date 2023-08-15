@@ -10,13 +10,15 @@ static MIGRATOR: Migrator = sqlx::migrate!("migrations/postgres");
 pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DatabaseSetupError> {
     let connection_options = PgConnectOptions::from_str(&url)
         .map_err(|err| DatabaseSetupError::BadUrl(err))?
+        .application_name(env!("CARGO_PKG_NAME"))
         .statement_cache_capacity(250);
 
-    let pool = sqlx::PgPool::connect_with(connection_options)
-        .await
-        .map_err(|err| DatabaseSetupError::BadUrl(err))?;
-
-    run_migrations(&pool).await?;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .idle_timeout(std::time::Duration::from_secs(90))
+        .max_lifetime(std::time::Duration::from_secs(1_800))
+        .min_connections(1)
+        .max_connections(16)
+        .connect_lazy_with(connection_options);
 
     Ok(pool)
 }

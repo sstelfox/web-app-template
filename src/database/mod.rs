@@ -15,6 +15,15 @@ pub enum Database {
     Sqlite(SqliteDb),
 }
 
+impl Database {
+    pub fn sql_flavor(&self) -> SqlFlavor {
+        match self {
+            Database::Postgres(_) => SqlFlavor::Postgres,
+            Database::Sqlite(_) => SqlFlavor::Sqlite,
+        }
+    }
+}
+
 #[axum::async_trait]
 pub trait DbConn: Sized {
     type Database: sqlx::database::Database;
@@ -29,6 +38,14 @@ pub trait DbConn: Sized {
 pub enum DbExecutor<'a, T: sqlx::database::Database> {
     Pool(sqlx::pool::Pool<T>),
     Transaction(sqlx::Transaction<'a, T>),
+}
+
+pub enum SqlFlavor {
+    #[cfg(feature="postgres")]
+    Postgres,
+
+    #[cfg(feature="sqlite")]
+    Sqlite,
 }
 
 pub enum DbState {
