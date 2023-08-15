@@ -4,11 +4,11 @@ use jwt_simple::algorithms::{ES384KeyPair, ECDSAP384KeyPairLike};
 use sha2::Digest;
 
 use crate::app::{Config, Error};
-use crate::database::{config_database, Database};
+use crate::database::{config_database, Db};
 
 #[derive(Clone)]
 pub struct State {
-    database: Database,
+    database: Db,
     jwt_key: Arc<ES384KeyPair>,
 }
 
@@ -35,7 +35,7 @@ impl State {
     }
 }
 
-impl axum::extract::FromRef<State> for Database {
+impl axum::extract::FromRef<State> for Db {
     fn from_ref(state: &State) -> Self {
         state.database.clone()
     }

@@ -1,31 +1,79 @@
 use crate::app::Config;
 
 #[cfg(feature="postgres")]
-mod postgres;
+mod postgres {
+    use std::str::FromStr;
 
-#[cfg(feature="sqlite")]
-mod sqlite;
+    use sqlx::migrate::Migrator;
+    use sqlx::postgres::{PgConnectOptions, PgPool};
 
-#[derive(Clone)]
-pub enum Database {
-    #[cfg(feature="postgres")]
-    Postgres(PostgresDb),
+    use crate::database::DatabaseSetupError;
 
-    #[cfg(feature="sqlite")]
-    Sqlite(SqliteDb),
+    static MIGRATOR: Migrator = sqlx::migrate!("migrations/postgres");
+
+    pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DatabaseSetupError> {
+        let connection_options = PgConnectOptions::from_str(&url)
+            .map_err(|err| DatabaseSetupError::BadUrl(err))?
+            .application_name(env!("CARGO_PKG_NAME"))
+            .statement_cache_capacity(250);
+
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .idle_timeout(std::time::Duration::from_secs(90))
+            .max_lifetime(std::time::Duration::from_secs(1_800))
+            .min_connections(1)
+            .max_connections(16)
+            .connect_lazy_with(connection_options);
+
+        Ok(pool)
+    }
+
+    pub(super) async fn run_migrations(pool: &PgPool) -> Result<(), DatabaseSetupError> {
+        MIGRATOR
+            .run(pool)
+            .await
+            .map_err(|err| DatabaseSetupError::MigrationFailed(err))
+    }
 }
 
-impl Database {
-    pub fn sql_flavor(&self) -> SqlFlavor {
-        match self {
-            Database::Postgres(_) => SqlFlavor::Postgres,
-            Database::Sqlite(_) => SqlFlavor::Sqlite,
-        }
+#[cfg(feature="sqlite")]
+mod sqlite {
+    use std::str::FromStr;
+
+    use sqlx::migrate::Migrator;
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
+
+    use crate::database::DatabaseSetupError;
+
+    static MIGRATOR: Migrator = sqlx::migrate!("migrations/sqlite");
+
+    pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DatabaseSetupError> {
+        let connection_options = SqliteConnectOptions::from_str(url)
+            .map_err(|err| DatabaseSetupError::BadUrl(err))?
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .statement_cache_capacity(250)
+            .synchronous(SqliteSynchronous::Normal);
+
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .idle_timeout(std::time::Duration::from_secs(90))
+            .max_lifetime(std::time::Duration::from_secs(1_800))
+            .min_connections(1)
+            .max_connections(16)
+            .connect_lazy_with(connection_options);
+
+        Ok(pool)
+    }
+
+    pub(super) async fn run_migrations(pool: &SqlitePool) -> Result<(), DatabaseSetupError> {
+        MIGRATOR
+            .run(pool)
+            .await
+            .map_err(|err| DatabaseSetupError::MigrationFailed(err))
     }
 }
 
 #[axum::async_trait]
-pub trait DbConn: Sized {
+pub trait DbPool: Sized {
     type Database: sqlx::database::Database;
 
     async fn begin(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError>;
@@ -35,34 +83,54 @@ pub trait DbConn: Sized {
     async fn run_migrations(&self) -> Result<(), DatabaseSetupError>;
 }
 
+#[derive(Clone)]
+pub enum Db {
+    #[cfg(feature="postgres")]
+    Postgres(ProtectedDb<sqlx::Postgres>),
+
+    #[cfg(feature="sqlite")]
+    Sqlite(ProtectedDb<sqlx::Sqlite>),
+}
+
+impl Db {
+    pub fn sql_flavor(&self) -> SqlFlavor {
+        match self {
+            #[cfg(feature="postgres")]
+            Db::Postgres(_) => SqlFlavor::Postgres,
+
+            #[cfg(feature="sqlite")]
+            Db::Sqlite(_) => SqlFlavor::Sqlite,
+        }
+    }
+}
+
 pub enum DbExecutor<'a, T: sqlx::database::Database> {
     Pool(sqlx::pool::Pool<T>),
     Transaction(sqlx::Transaction<'a, T>),
 }
 
-pub enum SqlFlavor {
-    #[cfg(feature="postgres")]
-    Postgres,
-
-    #[cfg(feature="sqlite")]
-    Sqlite,
-}
-
 pub enum DbState {
     Setup,
     Migrating,
-    // need a failed state...
     Ready,
 }
 
-#[derive(Clone)]
-pub struct PostgresDb {
-    pool: sqlx::pool::Pool<sqlx::Postgres>,
+pub struct ProtectedDb<T: sqlx::database::Database> {
+    pool: sqlx::pool::Pool<T>,
     state: std::sync::Arc<tokio::sync::Mutex<DbState>>,
 }
 
-impl PostgresDb {
-    fn new(pool: sqlx::pool::Pool<sqlx::Postgres>) -> Self {
+impl<T: sqlx::database::Database> Clone for ProtectedDb<T> {
+    fn clone(&self) -> Self {
+        Self {
+            pool: self.pool.clone(),
+            state: self.state.clone(),
+        }
+    }
+}
+
+impl<T: sqlx::database::Database> ProtectedDb<T> {
+    fn new(pool: sqlx::pool::Pool<T>) -> Self {
         Self {
             pool,
             state: std::sync::Arc::new(tokio::sync::Mutex::new(DbState::Setup)),
@@ -71,7 +139,7 @@ impl PostgresDb {
 }
 
 #[axum::async_trait]
-impl DbConn for PostgresDb {
+impl DbPool for ProtectedDb<sqlx::Postgres> {
     type Database = sqlx::Postgres;
 
     async fn begin(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError> {
@@ -121,23 +189,8 @@ impl DbConn for PostgresDb {
     }
 }
 
-#[derive(Clone)]
-pub struct SqliteDb {
-    pool: sqlx::pool::Pool<sqlx::Sqlite>,
-    state: std::sync::Arc<tokio::sync::Mutex<DbState>>,
-}
-
-impl SqliteDb {
-    fn new(pool: sqlx::pool::Pool<sqlx::Sqlite>) -> Self {
-        Self {
-            pool,
-            state: std::sync::Arc::new(tokio::sync::Mutex::new(DbState::Setup)),
-        }
-    }
-}
-
 #[axum::async_trait]
-impl DbConn for SqliteDb {
+impl DbPool for ProtectedDb<sqlx::Sqlite> {
     type Database = sqlx::Sqlite;
 
     async fn begin(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError> {
@@ -189,7 +242,15 @@ impl DbConn for SqliteDb {
     }
 }
 
-pub async fn config_database(config: &Config) -> Result<Database, DatabaseSetupError> {
+pub enum SqlFlavor {
+    #[cfg(feature="postgres")]
+    Postgres,
+
+    #[cfg(feature="sqlite")]
+    Sqlite,
+}
+
+pub async fn config_database(config: &Config) -> Result<Db, DatabaseSetupError> {
     let database_url = match config.db_url() {
         Some(db_url) => db_url.to_string(),
         None => {
@@ -213,13 +274,13 @@ pub async fn config_database(config: &Config) -> Result<Database, DatabaseSetupE
         #[cfg(feature="postgres")]
         db_url if db_url.starts_with("postgres://") => {
             let pool = postgres::configure_pool(db_url.as_str()).await?;
-            Database::Postgres(PostgresDb::new(pool))
+            Db::Postgres(ProtectedDb::new(pool))
         }
 
         #[cfg(feature="sqlite")]
         db_url if db_url.starts_with("sqlite://") => {
             let pool = sqlite::configure_pool(db_url.as_str()).await?;
-            Database::Sqlite(SqliteDb::new(pool))
+            Db::Sqlite(ProtectedDb::new(pool))
         }
 
         _ => panic!("unknown database type, unable to setup database"),

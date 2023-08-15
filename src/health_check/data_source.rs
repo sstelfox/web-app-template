@@ -5,7 +5,7 @@ use axum::async_trait;
 use axum::extract::{FromRef, FromRequestParts};
 use http::request::Parts;
 
-use crate::database::{Database, DbConn};
+use crate::database::Db;
 
 #[async_trait]
 pub trait DataSource {
@@ -42,7 +42,7 @@ impl Deref for StateDataSource {
 }
 
 struct DbSource {
-    db: Database,
+    db: Db,
 }
 
 #[async_trait]
@@ -56,7 +56,7 @@ impl DataSource for DbSource {
 #[async_trait]
 impl<S> FromRequestParts<S> for StateDataSource
 where
-    Database: FromRef<S>,
+    Db: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = ();
@@ -65,7 +65,7 @@ where
         _parts: &mut Parts,
         state: &S,
     ) -> Result<Self, Self::Rejection> {
-        let db = Database::from_ref(state);
+        let db = Db::from_ref(state);
         Ok(StateDataSource(std::sync::Arc::new(DbSource { db })))
     }
 }
