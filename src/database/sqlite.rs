@@ -7,12 +7,7 @@ use crate::database::DatabaseSetupError;
 
 static MIGRATOR: Migrator = sqlx::migrate!("migrations/sqlite");
 
-#[derive(Clone)]
-pub struct Executor {
-    pool: SqlitePool,
-}
-
-pub(super) async fn create_executor(url: &str) -> Result<Executor, DatabaseSetupError> {
+pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DatabaseSetupError> {
     let connection_options = SqliteConnectOptions::from_str(url)
         .map_err(|err| DatabaseSetupError::BadUrl(err))?
         .create_if_missing(true)
@@ -24,10 +19,14 @@ pub(super) async fn create_executor(url: &str) -> Result<Executor, DatabaseSetup
         .await
         .map_err(|err| DatabaseSetupError::DatabaseUnavailable(err))?;
 
-    MIGRATOR
-        .run(&pool)
-        .await
-        .map_err(|err| DatabaseSetupError::MigrationFailed(err))?;
+    run_migrations(&pool).await?;
 
-    return Ok(Executor { pool });
+    Ok(pool)
+}
+
+pub(super) async fn run_migrations(pool: &SqlitePool) -> Result<(), DatabaseSetupError> {
+    MIGRATOR
+        .run(pool)
+        .await
+        .map_err(|err| DatabaseSetupError::MigrationFailed(err))
 }

@@ -9,10 +9,62 @@ mod sqlite;
 #[derive(Clone)]
 pub enum Database {
     #[cfg(feature="postgres")]
-    Postgres(postgres::Executor),
+    Postgres(PostgresDb),
 
     #[cfg(feature="sqlite")]
-    Sqlite(sqlite::Executor),
+    Sqlite(SqliteDb),
+}
+
+#[axum::async_trait]
+pub trait DbConn: Sized {
+    type Database: sqlx::database::Database;
+
+    async fn begin(&self) -> sqlx::Result<DbExecutor<Self::Database>>;
+    async fn direct(&self) -> sqlx::Result<DbExecutor<Self::Database>>;
+
+    async fn is_migrated(&self) -> Result<(), &str>;
+    async fn run_migrations(&self) -> sqlx::Result<()>;
+}
+
+pub enum DbExecutor<'a, T: sqlx::database::Database> {
+    Pool(sqlx::pool::Pool<T>),
+    Transaction(sqlx::Transaction<'a, T>),
+}
+
+pub enum DbState {
+    Setup,
+    Migrating,
+    Ready,
+}
+
+#[derive(Clone)]
+pub struct PostgresDb {
+    pool: sqlx::pool::Pool<sqlx::Postgres>,
+    state: std::sync::Arc<tokio::sync::Mutex<DbState>>,
+}
+
+impl PostgresDb {
+    fn new(pool: sqlx::pool::Pool<sqlx::Postgres>) -> Self {
+        Self {
+            pool,
+            state: std::sync::Arc::new(tokio::sync::Mutex::new(DbState::Setup)),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SqliteDb {
+    pool: sqlx::pool::Pool<sqlx::Sqlite>,
+    state: std::sync::Arc<tokio::sync::Mutex<DbState>>,
+}
+
+impl SqliteDb {
+    fn new(pool: sqlx::pool::Pool<sqlx::Sqlite>) -> Self {
+        Self {
+            pool,
+            state: std::sync::Arc::new(tokio::sync::Mutex::new(DbState::Setup)),
+        }
+    }
 }
 
 pub async fn config_database(config: &Config) -> Result<Database, DatabaseSetupError> {
@@ -38,17 +90,17 @@ pub async fn config_database(config: &Config) -> Result<Database, DatabaseSetupE
     let db = match database_url {
         #[cfg(feature="postgres")]
         db_url if db_url.starts_with("postgres://") => {
-            let executor = postgres::create_executor(db_url.as_str()).await?;
-            Database::Postgres(executor)
+            let pool = postgres::configure_pool(db_url.as_str()).await?;
+            Database::Postgres(PostgresDb::new(pool))
         }
 
         #[cfg(feature="sqlite")]
         db_url if db_url.starts_with("sqlite://") => {
-            let executor = sqlite::create_executor(db_url.as_str()).await?;
-            Database::Sqlite(executor)
+            let pool = sqlite::configure_pool(db_url.as_str()).await?;
+            Database::Sqlite(SqliteDb::new(pool))
         }
 
-        _ => panic!("invalid database url"),
+        _ => panic!("unknown database type, unable to setup database"),
     };
 
     Ok(db)

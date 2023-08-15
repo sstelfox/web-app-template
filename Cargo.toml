@@ -37,7 +37,7 @@ proptest = "^1.1"
 reqwest = { version = "^0.11", default-features = false, features = ["json", "multipart", "stream"] }
 
 [features]
-default = ["sqlite"]
+default = ["postgres", "sqlite"]
 
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]

@@ -7,12 +7,7 @@ use crate::database::DatabaseSetupError;
 
 static MIGRATOR: Migrator = sqlx::migrate!("migrations/postgres");
 
-#[derive(Clone)]
-pub struct Executor {
-    pool: PgPool,
-}
-
-pub(super) async fn create_executor(url: &str) -> Result<Executor, DatabaseSetupError> {
+pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DatabaseSetupError> {
     let connection_options = PgConnectOptions::from_str(&url)
         .map_err(|err| DatabaseSetupError::BadUrl(err))?
         .statement_cache_capacity(250);
@@ -21,10 +16,14 @@ pub(super) async fn create_executor(url: &str) -> Result<Executor, DatabaseSetup
         .await
         .map_err(|err| DatabaseSetupError::BadUrl(err))?;
 
-    MIGRATOR
-        .run(&pool)
-        .await
-        .map_err(|err| DatabaseSetupError::MigrationFailed(err))?;
+    run_migrations(&pool).await?;
 
-    Ok(Executor { pool })
+    Ok(pool)
+}
+
+pub(super) async fn run_migrations(pool: &PgPool) -> Result<(), DatabaseSetupError> {
+    MIGRATOR
+        .run(pool)
+        .await
+        .map_err(|err| DatabaseSetupError::MigrationFailed(err))
 }
