@@ -9,7 +9,7 @@ mod health_check;
 mod http_server;
 mod middleware;
 
-use app::{Config, Error};
+use app::{Config, Error, Version};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -24,6 +24,14 @@ async fn main() -> Result<(), Error> {
         .with_filter(env_filter);
 
     tracing_subscriber::registry().with(stderr_layer).init();
+
+    let version = Version::new();
+    tracing::info!(
+        build_profile = ?version.build_profile,
+        features = ?version.features,
+        version = ?version.version,
+        "service starting up"
+    );
 
     register_panic_logger();
 
