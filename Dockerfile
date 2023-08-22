@@ -35,8 +35,6 @@ FROM gcr.io/distroless/cc-debian11:nonroot
 # Bring in just our final compiled artifact
 COPY --from=build /usr/local/cargo/bin/service /usr/bin/service
 
-USER 5000:5000
-
 VOLUME /data
 
 ENTRYPOINT ["/usr/bin/service"]
