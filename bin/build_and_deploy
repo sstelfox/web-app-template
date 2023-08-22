@@ -51,6 +51,23 @@ if [ "${SERVICE_NEEDS_POSTGRES}" = "true" ]; then
   DEPENDENT_SERVICES="${DEPENDENT_SERVICES} ${SERVICE_NAME}-db-postgres.service"
 fi
 
+# Another reference:
+#
+#[Unit]
+#Description=Podman in Systemd
+#
+#[Service]
+#Restart=on-failure
+#ExecStartPre=/usr/bin/rm -f /%t/%n-pid /%t/%n-cid
+#ExecStart=/usr/bin/podman run --conmon-pidfile /%t/%n-pid --cidfile /%t/%n-cid -d busybox:latest top
+#ExecStop=/usr/bin/sh -c "/usr/bin/podman rm -f `cat /%t/%n-cid`"
+#KillMode=none
+#Type=forking
+#PIDFile=/%t/%n-pid
+#
+#[Install]
+#WantedBy=multi-user.target
+
 cat << EOS > ${SERVICE_NAME}.service
 [Unit]
 Description=${SERVICE_NAME}
