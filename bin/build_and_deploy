@@ -62,7 +62,8 @@ Before=${DEPENDENT_SERVICES}
 [Service]
 Restart=on-failure
 TimeoutStopSec=30
-ExecStartPre=podman pod create --name=${SERVICE_NAME} -h ${SERVICE_NAME}.services.stelfox.net --exit-policy stop --network=pasta:-T,3000 --restart=on-failure:3 --replace
+ExecStartPre=-podman pod rm -f ${SERVICE_NAME}
+ExecStartPre=podman pod create --name=${SERVICE_NAME} -h ${SERVICE_NAME}.services.stelfox.net --exit-policy stop --restart=on-failure:3 --replace
 ExecStart=podman pod start ${SERVICE_NAME}
 ExecStop=podman pod stop -t 10 ${SERVICE_NAME}
 Type=forking
@@ -80,10 +81,10 @@ After=${SERVICE_NAME}.service
 [Service]
 Restart=on-failure
 TimeoutStopSec=30
-EnvironmentFile-=${DEPLOY_ENV}/${SERVICE_NAME}
-EnvironmentFile-=${DEPLOY_ENV}/${SERVICE_NAME}.db
-ExecStartPre-=podman rm -f ${SERVICE_NAME}-db-postgres
-ExecStart=podman run --pod ${SERVICE_NAME} -d --name ${SERVICE_NAME}-db-postgres docker.io/library/postgres:alpine
+EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}
+EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}.db
+ExecStartPre=-podman rm -f ${SERVICE_NAME}-db-postgres
+ExecStart=podman run --pod ${SERVICE_NAME} -d --env-host --name ${SERVICE_NAME}-db-postgres docker.io/library/postgres:alpine
 ExecStop=podman stop --pod ${SERVICE_NAME} -t 10 --name ${SERVICE_NAME}-db-postgres
 EOS
 fi
@@ -99,11 +100,11 @@ After=${SERVICE_NAME}.service
 [Service]
 Restart=on-failure
 TimeoutStopSec=30
-EnvironmentFile-=${DEPLOY_ENV}/${SERVICE_NAME}
-EnvironmentFile-=${DEPLOY_ENV}/${SERVICE_NAME}.api
+EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}
+EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}.api
 ExecStartPre=podman load -q --input=${DEPLOY_IMAGE_ARCHIVE}/${IMAGE_BASE_NAME}.tar
-ExecStartPre-=podman rm -f ${SERVICE_NAME}-api-http
-ExecStart=podman run --pod ${SERVICE_NAME} --name ${SERVICE_NAME}-api-http ${FULL_IMAGE_NAME}
+ExecStartPre=-podman rm -f ${SERVICE_NAME}-api-http
+ExecStart=podman run --pod ${SERVICE_NAME} -d --env-host -p ${SERVICE_PORT}:${SERVICE_PORT} --name ${SERVICE_NAME}-api-http ${FULL_IMAGE_NAME}
 ExecStop=podman stop --pod ${SERVICE_NAME} -t 10 --name ${SERVICE_NAME}-api-http
 EOS
 
@@ -116,8 +117,6 @@ echo 'Deployed version transferred to service host'
 ssh -T ${DEPLOY_HOST} <<EOS
 nohup sh -c "\
   set -o errexit
-
-  mkdir -p "${DEPLOY_STATE}"
 
   echo 'Overwriting current version with new service data...'
   mkdir -p "\${HOME}/.config/systemd/user"

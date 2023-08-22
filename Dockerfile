@@ -25,16 +25,21 @@ COPY migrations /usr/src/build/migrations
 COPY src /usr/src/build/src
 
 RUN cargo install --bins --path ./
-RUN strip --strip-unneeded /usr/local/cargo/bin/${SERVICE_NAME}
+RUN ls -alh /usr/local/cargo/bin/$SERVICE_NAME
+RUN ldd /usr/local/cargo/bin/$SERVICE_NAME
+#RUN strip --strip-unneeded 
 
 # Use an absolutely minimal container with the barest permissions to limit
 # sources of security vulnerabilities, and ensure that any security issues are
 # extremely scoped in how they can be exploited.
 FROM gcr.io/distroless/cc-debian11:nonroot
 
+# We still want this argument (I think it will inherit the default if set above)
+ARG SERVICE_NAME=web-app-template
+
 # Bring in just our final compiled artifact
-COPY --from=build /usr/local/cargo/bin/${SERVICE_NAME} /usr/bin/${SERVICE_NAME}
+COPY --from=build /usr/local/cargo/bin/$SERVICE_NAME /usr/bin/service
 
 VOLUME /data
 
-CMD ["/usr/bin/${SERVICE_NAME}", "--port", "$PORT"]
+CMD ["/usr/bin/service", "--port", "$PORT"]
