@@ -35,7 +35,6 @@ FROM gcr.io/distroless/cc-debian11:nonroot
 # Bring in just our final compiled artifact
 COPY --from=build /usr/local/cargo/bin/${SERVICE_NAME} /usr/bin/${SERVICE_NAME}
 
-EXPOSE $PORT
 VOLUME /data
 
 CMD ["/usr/bin/${SERVICE_NAME}", "--port", "$PORT"]
