@@ -33,7 +33,7 @@ FULL_IMAGE_NAME="${REPOSITORY_HOST}/${NAMESPACE}/${IMAGE}:${COMMIT_ID}"
 TMP_IMAGE="$(mktemp /tmp/${SERVICE_NAME}.XXXXX.tar)"
 
 # Create the actual container
-podman build -t ${FULL_IMAGE_NAME} ./ &>/dev/null
+podman build -t ${FULL_IMAGE_NAME}
 podman save -o ${TMP_IMAGE} ${FULL_IMAGE_NAME} &>/dev/null
 echo '==> Image successfully built and exported'
 
@@ -58,8 +58,8 @@ ExecStartPre=podman load --input \${HOME}/${DEPLOY_IMAGE_ARCHIVE}/${IMAGE_BASE_N
 #
 # --uidmap 2000:0:1 --gidmap 2000:0:1
 # --mount type=bind,src=\$HOME/${DEPLOY_PERSISTENT_DATA}/${SERVICE_NAME},dst=/data,idmap=uids=2000-1000-1;gids=2000-1000-1
-# --log-opt max-size=16mb,path=\$HOME/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.jsonl
-ExecStart=podman run -t -d --name ${SERVICE_NAME} --read-only --replace --restart=on-failure:3 --env-file \${HOME}/${DEPLOY_ENV}/${SERVICE_NAME} --log-driver=k8s-file --log-opt max-size=16kb --hostname ${SERVICE_NAME}.svc.${DEPLOY_HOST} --publish 3000:3000/tcp --conmon-pidfile /%t/%n-pid --cidfile /%t/%n-cid ${FULL_IMAGE_NAME}
+# --log-opt max-size=16mb,path=\${HOME}/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.jsonl
+ExecStart=podman run -t -d --name ${SERVICE_NAME} --read-only --replace --restart=on-failure:3 --env-file \${HOME}/${DEPLOY_ENV}/${SERVICE_NAME} --log-driver=k8s-file --log-opt max-size=128kb,path=\${HOME}/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.jsonl --hostname ${SERVICE_NAME}.svc.${DEPLOY_HOST} --publish 3000:3000/tcp --conmon-pidfile /%t/%n-pid --cidfile /%t/%n-cid ${FULL_IMAGE_NAME}
 ExecStop=podman stop -t 30 --cidfile /%t/%n-cid
 PIDFile=/%t/%n-pid
 

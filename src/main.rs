@@ -13,7 +13,18 @@ use app::{Config, Error};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    setup_global_logging();
+    let (non_blocking_writer, _guard) = tracing_appender::non_blocking(std::io::stderr());
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(Level::INFO.into())
+        .from_env_lossy();
+
+    let stderr_layer = tracing_subscriber::fmt::layer()
+        .compact()
+        .with_writer(non_blocking_writer)
+        .with_filter(env_filter);
+
+    tracing_subscriber::registry().with(stderr_layer).init();
+
     register_panic_logger();
 
     let config = Config::parse_cli_arguments()?;
@@ -40,20 +51,6 @@ fn register_panic_logger() {
             None => tracing::error!(message = %panic),
         }
     }));
-}
-
-fn setup_global_logging() {
-    let (non_blocking_writer, _guard) = tracing_appender::non_blocking(std::io::stderr());
-    let env_filter = EnvFilter::builder()
-        .with_default_directive(Level::INFO.into())
-        .from_env_lossy();
-
-    let stderr_layer = tracing_subscriber::fmt::layer()
-        .compact()
-        .with_writer(non_blocking_writer)
-        .with_filter(env_filter);
-
-    tracing_subscriber::registry().with(stderr_layer).init();
 }
 
 #[cfg(test)]
