@@ -10,9 +10,8 @@ DEPLOY_BASE_FOLDER="containers"
 
 SERVICE_NAME="${1:-web-app-template}"
 SERVICE_PORT="${2:-3000}"
-SERVICE_FEATURES="postgres,sqlite"
-
 SERVICE_ARGUMENTS="--port ${SERVICE_PORT}"
+SERVICE_FEATURES="postgres,sqlite"
 
 # Everything beyond this point isn't expected to be changed between services
 
@@ -93,26 +92,48 @@ nohup sh -c "\
     echo '##> Service is running, attempting a restart...'
 
     if ! systemctl --user restart ${SERVICE_NAME}.service &>/dev/null; then
-      echo '##> Service failed to start... Attempting to revert...'
+      echo '##> Service failed to start...'
 
-      #cp -f "${DEPLOY_STATE}/${SERVICE_NAME}/*.service" "\${HOME}/.config/systemd/user/"
-      #systemctl --user daemon-reload
-      #systemctl --user restart ${SERVICE_NAME}.service
+      if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}.service" ]; then
+        echo '##> Previous version available, attempting to revert...'
 
-      #echo '##> Reverted successfully'
+        cp -Lf "${DEPLOY_STATE}/${SERVICE_NAME}.service" "\${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
+
+        systemctl --user daemon-reload
+        systemctl --user restart ${SERVICE_NAME}.service
+
+        echo '##> Reverted successfully'
+      else
+        echo '##> No recovery version available'
+      fi
+
+      echo '##> Deploy failed'
+
       exit 1
     fi
 
     if ! curl -fqs http://127.0.0.1:${SERVICE_PORT}/_status/healthz >/dev/null; then
-      echo '##> Service failed to become healthy... Attempting to revert...'
+      echo '##> Service failed to become healthy...'
 
-      #cp -f "${DEPLOY_STATE}/${SERVICE_NAME}/*.service" "\${HOME}/.config/systemd/user/"
-      #systemctl --user daemon-reload
-      #systemctl --user restart ${SERVICE_NAME}.service
+      if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}.service" ]; then
+        echo '##> Previous version available, attempting to revert...'
 
-      #echo '##> Reverted successfully'
-      exit 1
+        cp -Lf "${DEPLOY_STATE}/${SERVICE_NAME}.service" "\${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
+
+        systemctl --user daemon-reload
+        systemctl --user restart ${SERVICE_NAME}.service
+
+        echo '##> Reverted successfully'
+      else
+        echo '##> No recovery version available'
+      fi
+
+      echo '##> Deploy failed'
+
+      exit 2
     fi
+
+    systemctl --user enable ${SERVICE_NAME}.service
 
     echo '##> Service appears to be healthy'
   else
@@ -120,8 +141,12 @@ nohup sh -c "\
   fi
 
   echo '##> Marking the new version as the "current" version'
-  #if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}" ] && mv "${DEPLOY_STATE}/${SERVICE_NAME}{,_last}"
-  #ln -s "${DEPLOY_SERVICE_DIRECTORY}/${VERSIONED_SVC_NAME}" -t "${DEPLOY_STATE}" "${SERVICE_NAME}"
+
+  if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}.service" ]; then
+    mv "${DEPLOY_STATE}/${SERVICE_NAME}.service" "${DEPLOY_STATE}/${SERVICE_NAME}.service.last"
+  fi
+
+  ln -frs "${DEPLOY_SERVICE_DIRECTORY}/${SERVICE_NAME}/${VERSIONED_SVC_NAME}.service" "${DEPLOY_STATE}/${SERVICE_NAME}.service"
 
   echo '##> Cleaning up old images...'
   podman image prune -f
