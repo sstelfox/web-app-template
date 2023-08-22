@@ -28,17 +28,15 @@ RUN cargo install --bins --path ./
 RUN ls -alh /usr/local/cargo/bin/$SERVICE_NAME
 RUN ldd /usr/local/cargo/bin/$SERVICE_NAME
 #RUN strip --strip-unneeded 
+RUN mv /usr/local/cargo/bin/$SERVICE_NAME /usr/local/cargo/bin/service
 
 # Use an absolutely minimal container with the barest permissions to limit
 # sources of security vulnerabilities, and ensure that any security issues are
 # extremely scoped in how they can be exploited.
 FROM gcr.io/distroless/cc-debian11:nonroot
 
-# We still want this argument (I think it will inherit the default if set above)
-ARG SERVICE_NAME=web-app-template
-
 # Bring in just our final compiled artifact
-COPY --from=build /usr/local/cargo/bin/$SERVICE_NAME /usr/bin/service
+COPY --from=build /usr/local/cargo/bin/service /usr/bin/service
 
 VOLUME /data
 
