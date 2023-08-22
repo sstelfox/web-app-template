@@ -10,8 +10,12 @@ DEPLOY_BASE_FOLDER="containers"
 
 SERVICE_NAME="${1:-web-app-template}"
 SERVICE_PORT="${2:-3000}"
+SERVICE_FEATURES="postgres,sqlite"
 
-# These are generally going to be fixed variables
+SERVICE_ARGUMENTS="--port ${SERVICE_PORT}"
+
+# Everything beyond this point isn't expected to be changed between services
+
 REPOSITORY_HOST="repo.stelfox.net"
 NAMESPACE="sstelfox"
 IMAGE="${SERVICE_NAME}"
@@ -33,7 +37,7 @@ FULL_IMAGE_NAME="${REPOSITORY_HOST}/${NAMESPACE}/${IMAGE}:${COMMIT_ID}"
 TMP_IMAGE="$(mktemp /tmp/${SERVICE_NAME}.XXXXX.tar)"
 
 # Create the actual container
-podman build -t ${FULL_IMAGE_NAME} .
+podman build -t ${FULL_IMAGE_NAME} --build-arg SERVICE_NAME=${SERVICE_NAME} --build-arg FEATURES=${SERVICE_FEATURES} .
 podman save -o ${TMP_IMAGE} ${FULL_IMAGE_NAME} &>/dev/null
 echo '==> Image successfully built and exported'
 
@@ -50,18 +54,12 @@ Wants=network-online.target
 Type=forking
 Restart=on-failure
 TimeoutStopSec=35
-ExecStartPre=rm -f /%n-pid /%n-cid
+ExecStartPre=rm -f %t/%n-pid %t/%n-cid
 ExecStartPre=podman load --input \${HOME}/${DEPLOY_IMAGE_ARCHIVE}/${IMAGE_BASE_NAME}.tar
-# Note: uidmap/gidmap is weird here, to map to my user ID, I want offset zero
-# as rootless mode uses an intermediate offset map instead of directly
-# converting them
-#
-# --uidmap 2000:0:1 --gidmap 2000:0:1
-# --mount type=bind,src=\$HOME/${DEPLOY_PERSISTENT_DATA}/${SERVICE_NAME},dst=/data,idmap=uids=2000-1000-1;gids=2000-1000-1
-# --log-opt max-size=16mb,path=\${HOME}/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.jsonl
-ExecStart=podman run -t -d --name ${SERVICE_NAME} --read-only --replace --restart=on-failure:3 --env-file \${HOME}/${DEPLOY_ENV}/${SERVICE_NAME} --log-driver=k8s-file --log-opt max-size=128kb,path=\${HOME}/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.jsonl --hostname ${SERVICE_NAME}.svc.${DEPLOY_HOST} --publish 3000:3000/tcp --conmon-pidfile /%t/%n-pid --cidfile /%t/%n-cid ${FULL_IMAGE_NAME}
-ExecStop=podman stop -t 30 --cidfile /%t/%n-cid
-PIDFile=/%t/%n-pid
+ExecStart=podman run -t -d --name ${SERVICE_NAME} --read-only --replace --restart=on-failure:3 --env-file \${HOME}/${DEPLOY_ENV}/${SERVICE_NAME} --mount type=bind,src=\${HOME}/${DEPLOY_PERSISTENT_DATA}/${SERVICE_NAME},dst=/data --log-driver=k8s-file --log-opt max-size=128kb,path=\${HOME}/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.log --hostname ${SERVICE_NAME}.svc.${DEPLOY_HOST} --publish ${SERVICE_PORT}:${SERVICE_PORT}/tcp --conmon-pidfile %t/%n-pid --cidfile %t/%n-cid ${FULL_IMAGE_NAME} ${SERVICE_ARGUMENTS}
+# We match the k8s container behavior of 30 seconds to kill
+ExecStop=podman stop -t 30 --cidfile %t/%n-cid
+PIDFile=%t/%n-pid
 
 [Install]
 WantedBy=default.target

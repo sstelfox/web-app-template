@@ -1,10 +1,9 @@
 # Do most of our build in one container, we don't need the intermediate
 # artifacts or build requirements in our release container. We'll copy in our
 # produced binary to the final production container later.
-FROM docker.io/library/rust:1.70.0 AS build
+FROM docker.io/library/rust:1.71.0 AS build
 
-ARG FEATURES=postgres
-ARG PORT=3000
+ARG FEATURES=sqlite
 ARG SERVICE_NAME=web-app-template
 
 RUN mkdir -p /usr/src/build
@@ -25,9 +24,7 @@ COPY migrations /usr/src/build/migrations
 COPY src /usr/src/build/src
 
 RUN cargo install --bins --path ./
-RUN ls -alh /usr/local/cargo/bin/$SERVICE_NAME
-RUN ldd /usr/local/cargo/bin/$SERVICE_NAME
-#RUN strip --strip-unneeded 
+RUN strip --strip-unneeded /usr/local/cargo/bin/$SERVICE_NAME
 RUN mv /usr/local/cargo/bin/$SERVICE_NAME /usr/local/cargo/bin/service
 
 # Use an absolutely minimal container with the barest permissions to limit
@@ -42,4 +39,4 @@ USER 5000:5000
 
 VOLUME /data
 
-CMD ["/usr/bin/service", "--port", "$PORT"]
+ENTRYPOINT ["/usr/bin/service"]
