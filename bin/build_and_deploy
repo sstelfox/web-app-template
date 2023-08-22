@@ -6,13 +6,10 @@ cd $(dirname %0)
 
 # Should probably make these configurable or source them from the project...
 DEPLOY_HOST="hollow-twilight-ocean.stelfox.net"
-DEPLOY_BASE_FOLDER="~/containers"
+DEPLOY_BASE_FOLDER="containers"
 
 SERVICE_NAME="${1:-web-app-template}"
 SERVICE_PORT="${2:-3000}"
-
-SERVICE_NEEDS_POSTGRES="${SERVICE_NEEDS_POSTGRES:-true}"
-POSTGRES_PASSWORD=test_password
 
 # These are generally going to be fixed variables
 REPOSITORY_HOST="repo.stelfox.net"
@@ -21,152 +18,121 @@ IMAGE="${SERVICE_NAME}"
 
 DEPLOY_IMAGE_ARCHIVE="${DEPLOY_BASE_FOLDER}/library"
 DEPLOY_ENV="${DEPLOY_BASE_FOLDER}/env"
+DEPLOY_LOGS="${DEPLOY_BASE_FOLDER}/logs"
 DEPLOY_PERSISTENT_DATA="${DEPLOY_BASE_FOLDER}/data"
 DEPLOY_SERVICE_DIRECTORY="${DEPLOY_BASE_FOLDER}/services"
 DEPLOY_STATE="${DEPLOY_BASE_FOLDER}/state"
 
 COMMIT_ID="$(git describe --always --dirty --long --tags)"
-TIMESTAMP="$(date -u +%Y%m%d-%H%M%S | tr '+' '-')"
+# Use the latest commit timestamp, will cause collisions with dirty branches but that's fine
+TIMESTAMP="$(git show -s --date=format:'%Y%m%d-%H%M%S' --format=%cd)"
 
 IMAGE_BASE_NAME="${NAMESPACE}_${IMAGE}_${TIMESTAMP}_${COMMIT_ID}"
 FULL_IMAGE_NAME="${REPOSITORY_HOST}/${NAMESPACE}/${IMAGE}:${COMMIT_ID}"
 
-TMP_IMAGE="$(mktemp /tmp/svc_img.XXXXX.tar)"
+TMP_IMAGE="$(mktemp /tmp/${SERVICE_NAME}.XXXXX.tar)"
 
 # Create the actual container
-podman build -t ${FULL_IMAGE_NAME} ./
-podman save -o ${TMP_IMAGE} ${FULL_IMAGE_NAME}
-echo 'Image successfully built and saved'
+podman build -t ${FULL_IMAGE_NAME} ./ &>/dev/null
+podman save -o ${TMP_IMAGE} ${FULL_IMAGE_NAME} &>/dev/null
+echo '==> Image successfully built and exported'
 
-TEMP_DIR="$(mktemp -d /tmp/svc_pod.XXXXX)"
-VERSIONED_SVC_DIR="${SERVICE_NAME}-${TIMESTAMP}-${COMMIT_ID}"
-CONFIG_DIR="${TEMP_DIR}/${VERSIONED_SVC_DIR}"
+TMP_SERVICE="$(mktemp /tmp/${SERVICE_NAME}.XXXXX.service)"
+VERSIONED_SVC_NAME="${SERVICE_NAME}-${TIMESTAMP}-${COMMIT_ID}"
 
-mkdir -p ${CONFIG_DIR}
-cd ${CONFIG_DIR}
-
-DEPENDENT_SERVICES="${SERVICE_NAME}-api-http.service"
-
-if [ "${SERVICE_NEEDS_POSTGRES}" = "true" ]; then
-  DEPENDENT_SERVICES="${DEPENDENT_SERVICES} ${SERVICE_NAME}-db-postgres.service"
-fi
-
-# Another reference:
-#
-#[Unit]
-#Description=Podman in Systemd
-#
-#[Service]
-#Restart=on-failure
-#ExecStartPre=/usr/bin/rm -f /%t/%n-pid /%t/%n-cid
-#ExecStart=/usr/bin/podman run --conmon-pidfile /%t/%n-pid --cidfile /%t/%n-cid -d busybox:latest top
-#ExecStop=/usr/bin/sh -c "/usr/bin/podman rm -f `cat /%t/%n-cid`"
-#KillMode=none
-#Type=forking
-#PIDFile=/%t/%n-pid
-#
-#[Install]
-#WantedBy=multi-user.target
-
-cat << EOS > ${SERVICE_NAME}.service
+cat << EOF > ${TMP_SERVICE}
 [Unit]
 Description=${SERVICE_NAME}
-Wants=network-online.target
 After=network-online.target
-Wants=${DEPENDENT_SERVICES}
-Before=${DEPENDENT_SERVICES}
+Wants=network-online.target
 
 [Service]
-Restart=on-failure
-TimeoutStopSec=30
-ExecStartPre=-podman pod rm -f ${SERVICE_NAME}
-ExecStartPre=podman pod create --name=${SERVICE_NAME} -h ${SERVICE_NAME}.services.stelfox.net --exit-policy stop --restart=on-failure:3 --replace
-ExecStart=podman pod start ${SERVICE_NAME}
-ExecStop=podman pod stop -t 10 ${SERVICE_NAME}
 Type=forking
-EOS
-
-if [ "${SERVICE_NEEDS_POSTGRES}" = "true" ]; then
-  cat << EOS > ${SERVICE_NAME}-db-postgres.service
-[Unit]
-Description=${SERVICE_NAME} Database (PostgreSQL)
-Wants=network-online.target
-After=network-online.target
-BindsTo=${SERVICE_NAME}.service
-After=${SERVICE_NAME}.service
-
-[Service]
 Restart=on-failure
-TimeoutStopSec=30
-EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}
-EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}.db
-ExecStartPre=-podman rm -f ${SERVICE_NAME}-db-postgres
-ExecStart=podman run --pod ${SERVICE_NAME} -d --env-host --name ${SERVICE_NAME}-db-postgres docker.io/library/postgres:alpine
-ExecStop=podman stop --pod ${SERVICE_NAME} -t 10 --name ${SERVICE_NAME}-db-postgres
-EOS
-fi
+TimeoutStopSec=35
+ExecStartPre=rm -f /%n-pid /%n-cid
+ExecStartPre=podman load --input \${HOME}/${DEPLOY_IMAGE_ARCHIVE}/${IMAGE_BASE_NAME}.tar
+# Note: uidmap/gidmap is weird here, to map to my user ID, I want offset zero
+# as rootless mode uses an intermediate offset map instead of directly
+# converting them
+#
+# --uidmap 2000:0:1 --gidmap 2000:0:1
+# --mount type=bind,src=\$HOME/${DEPLOY_PERSISTENT_DATA}/${SERVICE_NAME},dst=/data,idmap=uids=2000-1000-1;gids=2000-1000-1
+# --log-opt max-size=16mb,path=\$HOME/${DEPLOY_LOGS}/${SERVICE_NAME}/lastest.jsonl
+ExecStart=podman run -t -d --name ${SERVICE_NAME} --read-only --replace --restart=on-failure:3 --env-file \${HOME}/${DEPLOY_ENV}/${SERVICE_NAME} --log-driver=k8s-file --log-opt max-size=16kb --hostname ${SERVICE_NAME}.svc.${DEPLOY_HOST} --publish 3000:3000/tcp --conmon-pidfile /%t/%n-pid --cidfile /%t/%n-cid ${FULL_IMAGE_NAME}
+ExecStop=podman stop -t 30 --cidfile /%t/%n-cid
+PIDFile=/%t/%n-pid
 
-cat << EOS > ${SERVICE_NAME}-api-http.service
-[Unit]
-Description=${SERVICE_NAME} HTTP API
-Wants=network-online.target
-After=network-online.target
-BindsTo=${SERVICE_NAME}.service
-After=${SERVICE_NAME}.service
-
-[Service]
-Restart=on-failure
-TimeoutStopSec=30
-EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}
-EnvironmentFile=-${DEPLOY_ENV}/${SERVICE_NAME}.api
-ExecStartPre=podman load -q --input=${DEPLOY_IMAGE_ARCHIVE}/${IMAGE_BASE_NAME}.tar
-ExecStartPre=-podman rm -f ${SERVICE_NAME}-api-http
-ExecStart=podman run --pod ${SERVICE_NAME} -d --env-host -p ${SERVICE_PORT}:${SERVICE_PORT} --name ${SERVICE_NAME}-api-http ${FULL_IMAGE_NAME}
-ExecStop=podman stop --pod ${SERVICE_NAME} -t 10 --name ${SERVICE_NAME}-api-http
-EOS
+[Install]
+WantedBy=default.target
+EOF
+echo '==> Service definition successfully generated'
 
 # Transfer the container archive to the remote host
-ssh ${DEPLOY_HOST} "mkdir -p ${DEPLOY_IMAGE_ARCHIVE} ${DEPLOY_ENV} ${DEPLOY_PERSISTENT_DATA} ${DEPLOY_SERVICE_DIRECTORY} ${DEPLOY_STATE}"
+ssh ${DEPLOY_HOST} "mkdir -p \${HOME}/${DEPLOY_IMAGE_ARCHIVE} \${HOME}/${DEPLOY_SERVICE_DIRECTORY}/${SERVICE_NAME}"
 scp -O ${TMP_IMAGE} ${DEPLOY_HOST}:${DEPLOY_IMAGE_ARCHIVE}/${IMAGE_BASE_NAME}.tar
-rsync -avrz -h --progress ${CONFIG_DIR}/ ${DEPLOY_HOST}:${DEPLOY_SERVICE_DIRECTORY}/${VERSIONED_SVC_DIR}
-echo 'Deployed version transferred to service host'
+scp -O ${TMP_SERVICE} ${DEPLOY_HOST}:${DEPLOY_SERVICE_DIRECTORY}/${SERVICE_NAME}/${VERSIONED_SVC_NAME}.service
+rm -f ${TMP_IMAGE} ${TMP_SERVICE}
+
+echo '==> Transferred new version to service host'
 
 ssh -T ${DEPLOY_HOST} <<EOS
 nohup sh -c "\
   set -o errexit
 
-  echo 'Overwriting current version with new service data...'
+  mkdir -p ${DEPLOY_ENV} ${DEPLOY_STATE} ${DEPLOY_LOGS}/${SERVICE_NAME} ${DEPLOY_PERSISTENT_DATA}/${SERVICE_NAME}
+  touch ${DEPLOY_ENV}/${SERVICE_NAME}
+  chmod -R u=rwX,g=,o= ${DEPLOY_ENV}/${SERVICE_NAME} ${DEPLOY_PERSISTENT_DATA}/${SERVICE_NAME}
+
+  echo '##> Overwriting current version with new service data...'
   mkdir -p "\${HOME}/.config/systemd/user"
-  cp -f "${DEPLOY_SERVICE_DIRECTORY}/${VERSIONED_SVC_DIR}/*.service" "\${HOME}/.config/systemd/user/"
+
+  # todo: can I turn this into a symlink? is it worth it?
+  cp -f "${DEPLOY_SERVICE_DIRECTORY}/${SERVICE_NAME}/${VERSIONED_SVC_NAME}.service" "\${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
   systemctl --user daemon-reload
 
-  if systemctl is-active --quiet ${SERVICE_NAME}.service; then
-    echo 'Service is running, attempting a restart...'
+  if systemctl --user is-active --quiet ${SERVICE_NAME}.service; then
+    echo '##> Service is running, attempting a restart...'
 
     if ! systemctl --user restart ${SERVICE_NAME}.service &>/dev/null; then
-      echo 'Service failed attempting to revert...'
+      echo '##> Service failed to start... Attempting to revert...'
 
-      cp -f "${DEPLOY_STATE}/${SERVICE_NAME}/*.service" "\${HOME}/.config/systemd/user/"
-      systemctl --user daemon-reload
-      systemctl --user restart ${SERVICE_NAME}.service
+      #cp -f "${DEPLOY_STATE}/${SERVICE_NAME}/*.service" "\${HOME}/.config/systemd/user/"
+      #systemctl --user daemon-reload
+      #systemctl --user restart ${SERVICE_NAME}.service
 
-      echo 'Reverted successfully'
+      #echo '##> Reverted successfully'
       exit 1
     fi
+
+    if ! curl -fqs http://127.0.0.1:${SERVICE_PORT}/_status/healthz >/dev/null; then
+      echo '##> Service failed to become healthy... Attempting to revert...'
+
+      #cp -f "${DEPLOY_STATE}/${SERVICE_NAME}/*.service" "\${HOME}/.config/systemd/user/"
+      #systemctl --user daemon-reload
+      #systemctl --user restart ${SERVICE_NAME}.service
+
+      #echo '##> Reverted successfully'
+      exit 1
+    fi
+
+    echo '##> Service appears to be healthy'
+  else
+    echo 'Service isnt active not restarting...'
   fi
 
-  echo 'Marking new service as current...'
+  echo '##> Marking the new version as the "current" version'
   #if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}" ] && mv "${DEPLOY_STATE}/${SERVICE_NAME}{,_last}"
-  #ln -s "${DEPLOY_SERVICE_DIRECTORY}/${VERSIONED_SVC_DIR}" -t "${DEPLOY_STATE}" "${SERVICE_NAME}"
+  #ln -s "${DEPLOY_SERVICE_DIRECTORY}/${VERSIONED_SVC_NAME}" -t "${DEPLOY_STATE}" "${SERVICE_NAME}"
+
+  echo '##> Cleaning up old images...'
+  podman image prune -f
 "
 EOS
-echo 'deployed'
+echo '==> Deployed'
 
-# cp * $HOME/config/systemd/user
 # systemctl --user start web-app-template.service
-# rm "$SERVER_PATH/$BINARY_NAME"
 # ln -s "$SERVER_PATH/versions/$REMOTE_FILENAME" "$SERVER_PATH/$BINARY_NAME"
-# $SERVER_RESTART_COMMAND
 
 # Repo setup:
 #
