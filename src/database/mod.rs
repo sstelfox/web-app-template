@@ -138,6 +138,7 @@ impl<T: sqlx::database::Database> ProtectedDb<T> {
     }
 }
 
+#[cfg(feature="postgres")]
 #[axum::async_trait]
 impl DbPool for ProtectedDb<sqlx::Postgres> {
     type Database = sqlx::Postgres;
@@ -189,6 +190,7 @@ impl DbPool for ProtectedDb<sqlx::Postgres> {
     }
 }
 
+#[cfg(feature="sqlite")]
 #[axum::async_trait]
 impl DbPool for ProtectedDb<sqlx::Sqlite> {
     type Database = sqlx::Sqlite;

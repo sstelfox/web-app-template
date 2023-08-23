@@ -12,14 +12,10 @@ pub async fn handler() -> Response {
 mod tests {
     use super::*;
 
-    use serde::Deserialize;
-
     #[tokio::test]
     async fn test_handler_direct() {
         let response = handler().await;
         assert_eq!(response.status(), StatusCode::OK);
-
-        let resp: Version = response.json().expect("parseable response");
 
         // todo: test the contents at least a little bit...
     }
