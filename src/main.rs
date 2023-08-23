@@ -8,6 +8,7 @@ mod database;
 mod health_check;
 mod http_server;
 mod middleware;
+mod tasks;
 
 use app::{Config, Error, Version};
 
