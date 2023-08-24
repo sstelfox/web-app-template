@@ -40,6 +40,8 @@ async fn main() -> Result<(), Error> {
 
     http_server::run(config).await?;
 
+    tracing::info!("shutting down normally");
+
     Ok(())
 }
 
