@@ -126,7 +126,7 @@ pub enum TaskState {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Task {
-    id: Uuid,
+    pub id: Uuid,
 
     next_id: Option<Uuid>,
     previous_id: Option<Uuid>,

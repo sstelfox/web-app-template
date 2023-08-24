@@ -40,17 +40,15 @@ async fn main() -> Result<(), Error> {
     // playing around with the background task system, this is not the final API
     let mut mts = MemoryTaskStore::default();
 
-    let id = MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(78)).await.unwrap();
-    tracing::info!("enqueued task id: {id:?}");
+    for num in [78, 23, 102].iter() {
+        let id = MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(*num)).await.unwrap();
+        tracing::info!(?id, "enqueued task");
+    }
 
-    let id = MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(23)).await.unwrap();
-    tracing::info!("enqueued task id: {id:?}");
-
-    let other_queue = mts.next("other").await.unwrap();
-    tracing::info!("should be no task: {other_queue:?}");
-
-    let task_again = mts.next("default").await.unwrap();
-    tracing::info!("next task to run: {task_again:?}");
+    while let Some(task) = mts.next("default").await.unwrap() {
+        tracing::info!(id = ?task.id, "running task");
+        mts.update_state(task.id, tasks::TaskState::Complete).await.unwrap();
+    }
 
     let config = Config::parse_cli_arguments()?;
     http_server::run(config).await?;
