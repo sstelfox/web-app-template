@@ -39,16 +39,18 @@ pub trait TaskLikeExt {
 
 #[derive(Debug)]
 pub enum TaskQueueError {
+    UnknownTask(Uuid),
     Unknown,
 }
 
 impl Display for TaskQueueError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let msg = match &self {
-            TaskQueueError::Unknown => "unspecified error with the task queue",
-        };
+        use TaskQueueError::*;
 
-        f.write_str(msg)
+        match &self {
+            UnknownTask(id) => f.write_fmt(format_args!("unable to find task with ID {id}")),
+            Unknown => f.write_str("unspecified error with the task queue"),
+        }
     }
 }
 
@@ -252,6 +254,9 @@ impl TaskStore for MemoryTaskStore {
                         // todo: need to send cancel signal to the task
                         task.state = TaskState::TimedOut;
                         task.finished_at = Some(Instant::now());
+
+                        // todo: might need to retry
+
                         continue;
                     }
                 },
@@ -269,8 +274,39 @@ impl TaskStore for MemoryTaskStore {
         Ok(next_task)
     }
 
-    async fn update_state(&self, id: Uuid, state: TaskState) -> Result<(), TaskQueueError> {
-        todo!()
+    async fn update_state(&self, id: Uuid, new_state: TaskState) -> Result<(), TaskQueueError> {
+        let mut tasks = self.tasks.lock().await;
+
+        let task = match tasks.get_mut(&id) {
+            Some(t) => t,
+            None => {
+                return Err(TaskQueueError::UnknownTask(id))
+            },
+        };
+
+        if task.state != TaskState::InProgress {
+            tracing::error!("only in progress tasks are allowed to transition to other states");
+            return Err(TaskQueueError::Unknown);
+        }
+
+        match new_state {
+            // this state should only exist when the task is first created
+            TaskState::New => {
+                tracing::error!("can't transition an existing task to the New state");
+                return Err(TaskQueueError::Unknown);
+            }
+            // this is an internal transition that happens automatically when the task is picked up
+            TaskState::InProgress => {
+                tracing::error!("only the task store may transition a task to the InProgress state");
+                return Err(TaskQueueError::Unknown);
+            }
+            _ => ()
+        }
+
+        task.finished_at = Some(Instant::now());
+        task.state = new_state;
+
+        Ok(())
     }
 }
 
