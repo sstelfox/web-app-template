@@ -3,6 +3,7 @@
 # produced binary to the final production container later.
 FROM docker.io/library/rust:1.71.0 AS build
 
+ARG CI_BUILD_REF=
 ARG FEATURES=sqlite
 ARG SERVICE_NAME=web-app-template
 
@@ -22,6 +23,8 @@ RUN cargo build --release --no-default-features --features $FEATURES
 COPY build.rs /usr/src/build/build.rs
 COPY migrations /usr/src/build/migrations
 COPY src /usr/src/build/src
+
+ENV CI_BUILD_REF=$CI_BUILD_REF
 
 RUN cargo install --bins --path ./
 RUN strip --strip-unneeded /usr/local/cargo/bin/$SERVICE_NAME

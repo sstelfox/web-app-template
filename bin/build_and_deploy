@@ -36,8 +36,13 @@ FULL_IMAGE_NAME="${REPOSITORY_HOST}/${NAMESPACE}/${IMAGE}:${COMMIT_ID}"
 TMP_IMAGE="$(mktemp /tmp/${SERVICE_NAME}.XXXXX.tar)"
 
 # Create the actual container
-podman build -t ${FULL_IMAGE_NAME} --build-arg SERVICE_NAME=${SERVICE_NAME} --build-arg FEATURES=${SERVICE_FEATURES} .
+podman build -t ${FULL_IMAGE_NAME} \
+  --build-arg CI_BUILD_REF=${COMMIT_ID} \
+  --build-arg FEATURES=${SERVICE_FEATURES} \
+  --build-arg SERVICE_NAME=${SERVICE_NAME} .
+
 podman save -o ${TMP_IMAGE} ${FULL_IMAGE_NAME} &>/dev/null
+
 echo '==> Image successfully built and exported'
 
 TMP_SERVICE="$(mktemp /tmp/${SERVICE_NAME}.XXXXX.service)"

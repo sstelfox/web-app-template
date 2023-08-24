@@ -27,13 +27,19 @@ fn report_enabled_features() {
 }
 
 fn report_repository_version() {
-    let git_describe = std::process::Command::new("git")
-        .args(["describe", "--always", "--dirty", "--long", "--tags"])
-        .output()
-        .unwrap();
+    let version = match std::env::var("CI_BUILD_REF") {
+        Ok(val) if !val.is_empty() => val,
+        _ => {
+            let git_describe = std::process::Command::new("git")
+                .args(["describe", "--always", "--dirty", "--long", "--tags"])
+                .output()
+                .unwrap();
 
-    let long_version = String::from_utf8(git_describe.stdout).unwrap();
-    println!("cargo:rustc-env=REPO_VERSION={}", long_version);
+            String::from_utf8(git_describe.stdout).unwrap()
+        },
+    };
+
+    println!("cargo:rustc-env=REPO_VERSION={}", version);
 }
 
 fn main() {
