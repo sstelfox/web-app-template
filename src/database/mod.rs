@@ -1,76 +1,10 @@
 use crate::app::Config;
 
 #[cfg(feature="postgres")]
-mod postgres {
-    use std::str::FromStr;
-
-    use sqlx::migrate::Migrator;
-    use sqlx::postgres::{PgConnectOptions, PgPool};
-
-    use crate::database::DatabaseSetupError;
-
-    static MIGRATOR: Migrator = sqlx::migrate!("migrations/postgres");
-
-    pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DatabaseSetupError> {
-        let connection_options = PgConnectOptions::from_str(&url)
-            .map_err(|err| DatabaseSetupError::BadUrl(err))?
-            .application_name(env!("CARGO_PKG_NAME"))
-            .statement_cache_capacity(250);
-
-        let pool = sqlx::postgres::PgPoolOptions::new()
-            .idle_timeout(std::time::Duration::from_secs(90))
-            .max_lifetime(std::time::Duration::from_secs(1_800))
-            .min_connections(1)
-            .max_connections(16)
-            .connect_lazy_with(connection_options);
-
-        Ok(pool)
-    }
-
-    pub(super) async fn run_migrations(pool: &PgPool) -> Result<(), DatabaseSetupError> {
-        MIGRATOR
-            .run(pool)
-            .await
-            .map_err(|err| DatabaseSetupError::MigrationFailed(err))
-    }
-}
+mod postgres;
 
 #[cfg(feature="sqlite")]
-mod sqlite {
-    use std::str::FromStr;
-
-    use sqlx::migrate::Migrator;
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
-
-    use crate::database::DatabaseSetupError;
-
-    static MIGRATOR: Migrator = sqlx::migrate!("migrations/sqlite");
-
-    pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DatabaseSetupError> {
-        let connection_options = SqliteConnectOptions::from_str(url)
-            .map_err(|err| DatabaseSetupError::BadUrl(err))?
-            .create_if_missing(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .statement_cache_capacity(250)
-            .synchronous(SqliteSynchronous::Normal);
-
-        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .idle_timeout(std::time::Duration::from_secs(90))
-            .max_lifetime(std::time::Duration::from_secs(1_800))
-            .min_connections(1)
-            .max_connections(16)
-            .connect_lazy_with(connection_options);
-
-        Ok(pool)
-    }
-
-    pub(super) async fn run_migrations(pool: &SqlitePool) -> Result<(), DatabaseSetupError> {
-        MIGRATOR
-            .run(pool)
-            .await
-            .map_err(|err| DatabaseSetupError::MigrationFailed(err))
-    }
-}
+mod sqlite;
 
 #[axum::async_trait]
 pub trait DbPool: Sized {
@@ -97,16 +31,6 @@ impl Db {
         match self {
             Db::Postgres(pdb) => pdb.run_migrations().await,
             Db::Sqlite(pdb) => pdb.run_migrations().await,
-        }
-    }
-
-    pub fn sql_flavor(&self) -> SqlFlavor {
-        match self {
-            #[cfg(feature="postgres")]
-            Db::Postgres(_) => SqlFlavor::Postgres,
-
-            #[cfg(feature="sqlite")]
-            Db::Sqlite(_) => SqlFlavor::Sqlite,
         }
     }
 }
@@ -249,14 +173,6 @@ impl DbPool for ProtectedDb<sqlx::Sqlite> {
 
         Ok(())
     }
-}
-
-pub enum SqlFlavor {
-    #[cfg(feature="postgres")]
-    Postgres,
-
-    #[cfg(feature="sqlite")]
-    Sqlite,
 }
 
 pub async fn config_database(config: &Config) -> Result<Db, DatabaseSetupError> {
