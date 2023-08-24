@@ -93,6 +93,13 @@ pub enum Db {
 }
 
 impl Db {
+    pub async fn run_migrations(&self) -> Result<(), DatabaseSetupError> {
+        match self {
+            Db::Postgres(pdb) => pdb.run_migrations().await,
+            Db::Sqlite(pdb) => pdb.run_migrations().await,
+        }
+    }
+
     pub fn sql_flavor(&self) -> SqlFlavor {
         match self {
             #[cfg(feature="postgres")]
@@ -287,6 +294,8 @@ pub async fn config_database(config: &Config) -> Result<Db, DatabaseSetupError> 
 
         _ => panic!("unknown database type, unable to setup database"),
     };
+
+    db.run_migrations().await?;
 
     Ok(db)
 }

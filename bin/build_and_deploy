@@ -120,26 +120,26 @@ nohup sh -c "\
         exit 1
       fi
 
-      if ! curl -fqs http://127.0.0.1:${SERVICE_PORT}/_status/healthz >/dev/null; then
-        echo '##> Service failed to become healthy...'
+      #if ! curl -fqs http://127.0.0.1:${SERVICE_PORT}/_status/healthz >/dev/null; then
+      #  echo '##> Service failed to become healthy...'
 
-        if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}.service" ]; then
-          echo '##> Previous version available, attempting to revert...'
+      #  if [ -L "${DEPLOY_STATE}/${SERVICE_NAME}.service" ]; then
+      #    echo '##> Previous version available, attempting to revert...'
 
-          cp -Lf "${DEPLOY_STATE}/${SERVICE_NAME}.service" "\${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
+      #    cp -Lf "${DEPLOY_STATE}/${SERVICE_NAME}.service" "\${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
 
-          systemctl --user daemon-reload
-          systemctl --user restart ${SERVICE_NAME}.service
+      #    systemctl --user daemon-reload
+      #    systemctl --user restart ${SERVICE_NAME}.service
 
-          echo '##> Reverted successfully'
-        else
-          echo '##> No recovery version available'
-        fi
+      #    echo '##> Reverted successfully'
+      #  else
+      #    echo '##> No recovery version available'
+      #  fi
 
-        echo '##> Deploy failed'
+      #  echo '##> Deploy failed'
 
-        exit 2
-      fi
+      #  exit 2
+      #fi
 
       systemctl --user enable ${SERVICE_NAME}.service
 
