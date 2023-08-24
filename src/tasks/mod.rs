@@ -73,6 +73,8 @@ pub trait TaskStore: Send + Sync + 'static {
 
     async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError>;
 
+    async fn enqueue_retry(&self, id: Uuid) -> Result<Option<Uuid>, TaskQueueError>;
+
     async fn update_state(&self, id: Uuid, state: TaskState) -> Result<(), TaskQueueError>;
 }
 
@@ -125,6 +127,8 @@ pub enum TaskState {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Task {
     id: Uuid,
+
+    next_id: Option<Uuid>,
     previous_id: Option<Uuid>,
 
     name: String,
@@ -202,6 +206,8 @@ impl TaskStore for MemoryTaskStore {
 
         let task = Task {
             id: id.clone(),
+
+            next_id: None,
             previous_id: None,
 
             name: T::TASK_NAME.to_string(),
@@ -227,13 +233,55 @@ impl TaskStore for MemoryTaskStore {
         Ok(Some(id))
     }
 
+    async fn enqueue_retry(&self, id: Uuid) -> Result<Option<Uuid>, TaskQueueError> {
+        let mut tasks = self.tasks.lock().await;
+
+        let target_task = match tasks.get_mut(&id) {
+            Some(t) => t,
+            None => {
+                return Err(TaskQueueError::UnknownTask(id))
+            },
+        };
+
+        // these states are the only retryable states
+        if !matches!(target_task.state, TaskState::Error | TaskState::TimedOut) {
+            return Err(TaskQueueError::Unknown);
+        }
+
+        // no retries remaining mark the task as dead
+        if target_task.remaining_retries <= 0 {
+            target_task.state = TaskState::Dead;
+            return Ok(None);
+        }
+
+        let mut new_task = target_task.clone();
+
+        let new_id = Uuid::new_v4();
+        target_task.next_id = Some(new_task.id);
+
+        new_task.id = new_id;
+        new_task.previous_id = Some(target_task.id);
+
+        new_task.remaining_retries -= 1;
+        new_task.state = TaskState::New;
+        new_task.scheduled_at = Instant::now();
+        // for now just retry again in five minutes, will probably want some kind of backoff for
+        // this
+        new_task.scheduled_to_run_at = Instant::now() + Duration::from_secs(300);
+
+        tasks.insert(new_task.id, new_task);
+
+        Ok(Some(new_id))
+    }
+
     async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError> {
         let mut tasks = self.tasks.lock().await;
         let mut next_task = None;
 
         let reference_time = Instant::now();
+        let mut tasks_to_retry = Vec::new();
 
-        for (_, task) in tasks
+        for (id, task) in tasks
             .iter_mut()
             .filter(|(_, task)| task.scheduled_to_run_at <= reference_time)
             .sorted_by(|a, b| sort_tasks(a.1, b.1))
@@ -246,6 +294,7 @@ impl TaskStore for MemoryTaskStore {
 
                     task.started_at = Some(Instant::now());
                     task.state = TaskState::InProgress;
+
                     next_task = Some(task.clone());
                     break;
                 },
@@ -255,7 +304,7 @@ impl TaskStore for MemoryTaskStore {
                         task.state = TaskState::TimedOut;
                         task.finished_at = Some(Instant::now());
 
-                        // todo: might need to retry
+                        tasks_to_retry.push(id);
 
                         continue;
                     }
@@ -264,11 +313,18 @@ impl TaskStore for MemoryTaskStore {
                 (TaskState::Cancelled, None) => (),
                 (state, None) => {
                     tracing::error!(id = ?task.id, ?state, "encountered task in illegal state");
+
+                    task.remaining_retries = 0;
                     task.state = TaskState::Error;
                     task.finished_at = Some(Instant::now());
                 }
                 _ => (),
             }
+        }
+
+        for id in tasks_to_retry.into_iter() {
+            // this is best effort mostly for timed out
+            let _ = self.enqueue_retry(*id).await;
         }
 
         Ok(next_task)
