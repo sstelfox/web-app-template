@@ -11,6 +11,7 @@ mod middleware;
 mod tasks;
 
 use app::{Config, Error, Version};
+use tasks::{MemoryTaskStore, TaskStore};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -36,8 +37,22 @@ async fn main() -> Result<(), Error> {
 
     register_panic_logger();
 
-    let config = Config::parse_cli_arguments()?;
+    // playing around with the background task system, this is not the final API
+    let mut mts = MemoryTaskStore::default();
 
+    let id = MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(78)).await.unwrap();
+    tracing::info!("enqueued task id: {id:?}");
+
+    let id = MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(23)).await.unwrap();
+    tracing::info!("enqueued task id: {id:?}");
+
+    let other_queue = mts.next("other").await.unwrap();
+    tracing::info!("should be no task: {other_queue:?}");
+
+    let task_again = mts.next("default").await.unwrap();
+    tracing::info!("next task to run: {task_again:?}");
+
+    let config = Config::parse_cli_arguments()?;
     http_server::run(config).await?;
 
     tracing::info!("shutting down normally");
