@@ -29,7 +29,10 @@ pub enum Db {
 impl Db {
     pub async fn run_migrations(&self) -> Result<(), DatabaseSetupError> {
         match self {
+            #[cfg(feature="postgres")]
             Db::Postgres(pdb) => pdb.run_migrations().await,
+
+            #[cfg(feature="sqlite")]
             Db::Sqlite(pdb) => pdb.run_migrations().await,
         }
     }

@@ -5,7 +5,7 @@ use axum::async_trait;
 use axum::extract::{FromRef, FromRequestParts};
 use http::request::Parts;
 
-use crate::database::Db;
+use crate::database::{Db, DbPool};
 
 #[async_trait]
 pub trait DataSource {
@@ -48,8 +48,21 @@ struct DbSource {
 #[async_trait]
 impl DataSource for DbSource {
     async fn is_ready(&self) -> Result<(), DataSourceError> {
-        //let conn = self.db.direct().await?;
-        todo!()
+        match &self.db {
+            #[cfg(feature = "postgres")]
+            Db::Postgres(pdb) => {
+                let mut _conn = pdb.direct().await.map_err(|_| DataSourceError::DependencyFailure)?;
+                // Can't do this yet... Need to implement a passthrough Pool trait on the
+                // TxExecutor for this to run...
+                //let _ = sqlx::query_as!(i32, "SELECT 1 as id;").fetch_one(&mut conn).await.map_err(|_| DataSourceError::DependencyFailure)?;
+            }
+            #[cfg(feature = "sqlite")]
+            Db::Sqlite(pdb) => {
+                let _conn = pdb.direct().await.map_err(|_| DataSourceError::DependencyFailure)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
