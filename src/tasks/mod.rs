@@ -245,11 +245,13 @@ impl TaskStore for MemoryTaskStore {
 
         // these states are the only retryable states
         if !matches!(target_task.state, TaskState::Error | TaskState::TimedOut) {
+            tracing::warn!(?id, "task is not in a state that can be retried");
             return Err(TaskQueueError::Unknown);
         }
 
         // no retries remaining mark the task as dead
         if target_task.remaining_retries <= 0 {
+            tracing::warn!(?id, "task failed with no more retries remaining");
             target_task.state = TaskState::Dead;
             return Ok(None);
         }
@@ -270,6 +272,8 @@ impl TaskStore for MemoryTaskStore {
         new_task.scheduled_to_run_at = Instant::now() + Duration::from_secs(300);
 
         tasks.insert(new_task.id, new_task);
+
+        tracing::info!(?id, ?new_id, "task will be retried in the future");
 
         Ok(Some(new_id))
     }
