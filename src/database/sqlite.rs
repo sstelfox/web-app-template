@@ -3,13 +3,13 @@ use std::str::FromStr;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 
-use crate::database::DatabaseSetupError;
+use crate::database::DbSetupError;
 
 static MIGRATOR: Migrator = sqlx::migrate!("migrations/sqlite");
 
-pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DatabaseSetupError> {
+pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DbSetupError> {
     let connection_options = SqliteConnectOptions::from_str(url)
-        .map_err(|err| DatabaseSetupError::BadUrl(err))?
+        .map_err(|err| DbSetupError::BadUrl(err))?
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .statement_cache_capacity(250)
@@ -25,9 +25,9 @@ pub(super) async fn configure_pool(url: &str) -> Result<SqlitePool, DatabaseSetu
     Ok(pool)
 }
 
-pub(super) async fn run_migrations(pool: &SqlitePool) -> Result<(), DatabaseSetupError> {
+pub(super) async fn run_migrations(pool: &SqlitePool) -> Result<(), DbSetupError> {
     MIGRATOR
         .run(pool)
         .await
-        .map_err(|err| DatabaseSetupError::MigrationFailed(err))
+        .map_err(|err| DbSetupError::MigrationFailed(err))
 }

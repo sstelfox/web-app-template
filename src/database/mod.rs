@@ -16,11 +16,11 @@ mod sqlite;
 pub trait DbPool: Sized {
     type Database: sqlx::database::Database;
 
-    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError>;
-    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError>;
+    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DbSetupError>;
+    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DbSetupError>;
 
     async fn is_migrated(&self) -> bool;
-    async fn run_migrations(&self) -> Result<(), DatabaseSetupError>;
+    async fn run_migrations(&self) -> Result<(), DbSetupError>;
 }
 
 #[derive(Clone)]
@@ -33,7 +33,7 @@ pub enum Db {
 }
 
 impl Db {
-    pub async fn run_migrations(&self) -> Result<(), DatabaseSetupError> {
+    pub async fn run_migrations(&self) -> Result<(), DbSetupError> {
         match self {
             #[cfg(feature="postgres")]
             Db::Postgres(pdb) => pdb.run_migrations().await,
@@ -83,21 +83,21 @@ impl<T: sqlx::database::Database> ProtectedDb<T> {
 impl DbPool for ProtectedDb<sqlx::Postgres> {
     type Database = sqlx::Postgres;
 
-    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError> {
+    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
         match &*self.state.lock().await {
-            DbState::Setup => return Err(DatabaseSetupError::MigrationRequired),
-            DbState::Migrating => return Err(DatabaseSetupError::MigrationInProgress),
+            DbState::Setup => return Err(DbSetupError::MigrationRequired),
+            DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
             DbState::Ready => (),
         }
 
-        let tx = self.pool.begin().await.map_err(|err| DatabaseSetupError::DatabaseUnavailable(err))?;
+        let tx = self.pool.begin().await.map_err(|err| DbSetupError::DatabaseUnavailable(err))?;
         Ok(DbExecutor::Transaction(tx))
     }
 
-    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError> {
+    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
         match &*self.state.lock().await {
-            DbState::Setup => return Err(DatabaseSetupError::MigrationRequired),
-            DbState::Migrating => return Err(DatabaseSetupError::MigrationInProgress),
+            DbState::Setup => return Err(DbSetupError::MigrationRequired),
+            DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
             DbState::Ready => (),
         }
 
@@ -109,12 +109,12 @@ impl DbPool for ProtectedDb<sqlx::Postgres> {
         matches!(&*state, DbState::Ready)
     }
 
-    async fn run_migrations(&self) -> Result<(), DatabaseSetupError> {
+    async fn run_migrations(&self) -> Result<(), DbSetupError> {
         let mut state = self.state.lock().await;
 
         match &*state {
             DbState::Setup => (),
-            DbState::Migrating => return Err(DatabaseSetupError::MigrationInProgress),
+            DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
             DbState::Ready => return Ok(()),
         }
 
@@ -135,21 +135,21 @@ impl DbPool for ProtectedDb<sqlx::Postgres> {
 impl DbPool for ProtectedDb<sqlx::Sqlite> {
     type Database = sqlx::Sqlite;
 
-    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError> {
+    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
         match &*self.state.lock().await {
-            DbState::Setup => return Err(DatabaseSetupError::MigrationRequired),
-            DbState::Migrating => return Err(DatabaseSetupError::MigrationInProgress),
+            DbState::Setup => return Err(DbSetupError::MigrationRequired),
+            DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
             DbState::Ready => (),
         }
 
-        let tx = self.pool.begin().await.map_err(|err| DatabaseSetupError::DatabaseUnavailable(err))?;
+        let tx = self.pool.begin().await.map_err(|err| DbSetupError::DatabaseUnavailable(err))?;
         Ok(DbExecutor::Transaction(tx))
     }
 
-    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DatabaseSetupError> {
+    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
         match &*self.state.lock().await {
-            DbState::Setup => return Err(DatabaseSetupError::MigrationRequired),
-            DbState::Migrating => return Err(DatabaseSetupError::MigrationInProgress),
+            DbState::Setup => return Err(DbSetupError::MigrationRequired),
+            DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
             DbState::Ready => (),
         }
 
@@ -161,14 +161,14 @@ impl DbPool for ProtectedDb<sqlx::Sqlite> {
         matches!(&*state, DbState::Ready)
     }
 
-    async fn run_migrations(&self) -> Result<(), DatabaseSetupError> {
+    async fn run_migrations(&self) -> Result<(), DbSetupError> {
         let mut state = self.state.lock().await;
 
         match &*state {
             DbState::Setup => (),
             // todo: I could have a failed state, and include a counter on the migration attempt to
             // allow some background task to periodically retry
-            DbState::Migrating => return Err(DatabaseSetupError::MigrationInProgress),
+            DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
             DbState::Ready => return Ok(()),
         }
 
@@ -184,7 +184,7 @@ impl DbPool for ProtectedDb<sqlx::Sqlite> {
     }
 }
 
-pub async fn config_database(config: &Config) -> Result<Db, DatabaseSetupError> {
+pub async fn config_database(config: &Config) -> Result<Db, DbSetupError> {
     let database_url = match config.db_url() {
         Some(db_url) => db_url.to_string(),
         None => {
@@ -226,7 +226,7 @@ pub async fn config_database(config: &Config) -> Result<Db, DatabaseSetupError> 
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum DatabaseSetupError {
+pub enum DbSetupError {
     #[error("provided database url wasn't valid")]
     BadUrl(sqlx::Error),
 
@@ -241,4 +241,19 @@ pub enum DatabaseSetupError {
 
     #[error("migrations need to be run before a connection can be used")]
     MigrationRequired,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DbQueryError {
+    #[error("data loaded in from the database failed our validation and is presumed corrupt")]
+    CorruptData(sqlx::Error),
+
+    #[error("unable to get a connection to the database")]
+    DatabaseUnavailable(sqlx::Error),
+
+    #[error("failed to create record as another one matching the uniqueness restrictions was found")]
+    RecordAlreadyExists,
+
+    #[error("unable to locate the requested record")]
+    RecordNotFound,
 }

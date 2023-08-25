@@ -1,4 +1,4 @@
-use crate::database::DatabaseSetupError;
+use crate::database::DbSetupError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -9,7 +9,7 @@ pub enum Error {
     AxumServerError(#[from] hyper::Error),
 
     #[error("failed to initial the database")]
-    DatabaseFailure(#[from] DatabaseSetupError),
+    DatabaseFailure(#[from] DbSetupError),
 
     #[error("session key provided could not be parsed as a PEM encoded ES384 private key")]
     InvalidSessionKey(jwt_simple::Error),

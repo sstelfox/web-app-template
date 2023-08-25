@@ -3,13 +3,13 @@ use std::str::FromStr;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::{PgConnectOptions, PgPool};
 
-use crate::database::DatabaseSetupError;
+use crate::database::DbSetupError;
 
 static MIGRATOR: Migrator = sqlx::migrate!("migrations/postgres");
 
-pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DatabaseSetupError> {
+pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DbSetupError> {
     let connection_options = PgConnectOptions::from_str(&url)
-        .map_err(|err| DatabaseSetupError::BadUrl(err))?
+        .map_err(|err| DbSetupError::BadUrl(err))?
         .application_name(env!("CARGO_PKG_NAME"))
         .statement_cache_capacity(250);
 
@@ -23,9 +23,9 @@ pub(super) async fn configure_pool(url: &str) -> Result<PgPool, DatabaseSetupErr
     Ok(pool)
 }
 
-pub(super) async fn run_migrations(pool: &PgPool) -> Result<(), DatabaseSetupError> {
+pub(super) async fn run_migrations(pool: &PgPool) -> Result<(), DbSetupError> {
     MIGRATOR
         .run(pool)
         .await
-        .map_err(|err| DatabaseSetupError::MigrationFailed(err))
+        .map_err(|err| DbSetupError::MigrationFailed(err))
 }
