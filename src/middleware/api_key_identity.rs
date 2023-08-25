@@ -79,9 +79,6 @@ where
             .await
             .map_err(|_| Self::Rejection::key_unavailable())?;
 
-        let mut token_audience_set = HashSet::new();
-        token_audience_set.insert("web-app-template".to_string());
-
         let verification_options = VerificationOptions {
             accept_future: false,
             // todo: tokens should be intended for us, make this a configurable service name we can
