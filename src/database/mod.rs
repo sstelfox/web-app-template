@@ -15,6 +15,8 @@ mod postgres;
 #[cfg(feature="sqlite")]
 mod sqlite;
 
+pub type DbQueryResult<T> = Result<T, DbQueryError>;
+
 pub type DbSetupResult<T> = Result<T, DbSetupError>;
 
 #[axum::async_trait]
@@ -38,7 +40,7 @@ pub enum Db {
 }
 
 impl Db {
-    pub async fn run_migrations(&self) -> Result<(), DbSetupError> {
+    pub async fn run_migrations(&self) -> DbSetupResult<()> {
         match self {
             #[cfg(feature="postgres")]
             Db::Postgres(pdb) => pdb.run_migrations().await,
@@ -56,7 +58,7 @@ pub enum DbExecutor<'a, T: sqlx::Database> {
 }
 
 impl<T: sqlx::Database> DbExecutor<'_, T> {
-    pub async fn commit(self) -> Result<(), DbQueryError> {
+    pub async fn commit(self) -> DbQueryResult<()> {
         match self {
             Self::Pool(_) => panic!("shouldn't commit on direct executors"),
             Self::Transaction(tx) => tx.commit().await.map_err(map_query_error),
@@ -181,7 +183,7 @@ impl<T: sqlx::Database> ProtectedDb<T> {
 impl DbPool for ProtectedDb<sqlx::Postgres> {
     type Database = sqlx::Postgres;
 
-    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
+    async fn begin(&self) -> DbSetupResult<DbExecutor<Self::Database>> {
         match &*self.state.lock().await {
             DbState::Setup => return Err(DbSetupError::MigrationRequired),
             DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
@@ -192,7 +194,7 @@ impl DbPool for ProtectedDb<sqlx::Postgres> {
         Ok(DbExecutor::Transaction(tx))
     }
 
-    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
+    async fn direct(&self) -> DbSetupResult<DbExecutor<Self::Database>> {
         match &*self.state.lock().await {
             DbState::Setup => return Err(DbSetupError::MigrationRequired),
             DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
@@ -207,7 +209,7 @@ impl DbPool for ProtectedDb<sqlx::Postgres> {
         matches!(&*state, DbState::Ready)
     }
 
-    async fn run_migrations(&self) -> Result<(), DbSetupError> {
+    async fn run_migrations(&self) -> DbSetupResult<()> {
         let mut state = self.state.lock().await;
 
         match &*state {
@@ -233,7 +235,7 @@ impl DbPool for ProtectedDb<sqlx::Postgres> {
 impl DbPool for ProtectedDb<sqlx::Sqlite> {
     type Database = sqlx::Sqlite;
 
-    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
+    async fn begin(&self) -> DbSetupResult<DbExecutor<Self::Database>> {
         match &*self.state.lock().await {
             DbState::Setup => return Err(DbSetupError::MigrationRequired),
             DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
@@ -244,7 +246,7 @@ impl DbPool for ProtectedDb<sqlx::Sqlite> {
         Ok(DbExecutor::Transaction(tx))
     }
 
-    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DbSetupError> {
+    async fn direct(&self) -> DbSetupResult<DbExecutor<Self::Database>> {
         match &*self.state.lock().await {
             DbState::Setup => return Err(DbSetupError::MigrationRequired),
             DbState::Migrating => return Err(DbSetupError::MigrationInProgress),
@@ -259,7 +261,7 @@ impl DbPool for ProtectedDb<sqlx::Sqlite> {
         matches!(&*state, DbState::Ready)
     }
 
-    async fn run_migrations(&self) -> Result<(), DbSetupError> {
+    async fn run_migrations(&self) -> DbSetupResult<()> {
         let mut state = self.state.lock().await;
 
         match &*state {
@@ -282,7 +284,7 @@ impl DbPool for ProtectedDb<sqlx::Sqlite> {
     }
 }
 
-pub async fn config_database(config: &Config) -> Result<Db, DbSetupError> {
+pub async fn config_database(config: &Config) -> DbSetupResult<Db> {
     let database_url = match config.db_url() {
         Some(db_url) => db_url.to_string(),
         None => {
