@@ -13,8 +13,80 @@ compile_error!("You must enable at least one database features: `postgres` or `s
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
+    #[error("unable to load data from database, appears to be invalid")]
+    CorruptData(sqlx::Error),
+
     #[error("unable to communicate with the database")]
     DatabaseUnavailable(sqlx::Error),
+
+    #[error("an internal database error occurred")]
+    InternalError(sqlx::Error),
+
+    #[error("unable to create record as it would violate a uniqueness constraint")]
+    RecordExists,
+
+    #[error("unable to locate record or associated foreign key")]
+    RecordNotFound,
+}
+
+pub type DbResult<T = ()> = Result<T, DbError>;
+
+pub enum Executor {
+    //Postgres(postgres::PostgresExecutor),
+    Sqlite(sqlite::SqliteExecutor),
+}
+
+pub struct TxExecutor(Executor);
+
+impl TxExecutor {
+    pub fn ex(&mut self) -> &mut Executor {
+        &mut self.0
+    }
+
+    pub async fn commit(self) -> DbResult {
+        match self.0 {
+            //Executor::Postgres(e) => e.commit().await,
+            Executor::Sqlite(e) => e.commit().await,
+        }
+    }
+}
+
+//pub mod postgres {
+//    use sqlx::Transaction;
+//
+//    use super::{DbError, DbResult};
+//
+//}
+
+pub mod sqlite {
+    use sqlx::Transaction;
+    use sqlx::sqlite::{Sqlite, SqlitePool};
+
+    use super::{DbError, DbResult};
+
+    pub enum SqliteExecutor {
+        PoolExec(SqlitePool),
+        TxExec(Transaction<'static, Sqlite>),
+    }
+
+    impl SqliteExecutor {
+        pub async fn commit(self) -> DbResult {
+            match self {
+                Self::PoolExec(_) => unreachable!("need to check this, but it shouldn't be called"),
+                Self::TxExec(tx) => tx.commit().await.map_err(map_sqlx_error),
+            }
+        }
+    }
+
+    pub fn map_sqlx_error(err: sqlx::Error) -> DbError {
+        match err {
+            sqlx::Error::ColumnDecode { .. } => DbError::CorruptData(err),
+            sqlx::Error::RowNotFound => DbError::RecordNotFound,
+            err if err.to_string().contains("FOREIGN KEY constraint failed") => DbError::RecordNotFound,
+            err if err.to_string().contains("UNIQUE constraint failed") => DbError::RecordExists,
+            err => DbError::InternalError(err),
+        }
+    }
 }
 
 //#[cfg(feature="postgres")]
