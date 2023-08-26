@@ -39,3 +39,10 @@ default = ["postgres", "sqlite"]
 
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "web_app_template"
+path = "src/main.rs"

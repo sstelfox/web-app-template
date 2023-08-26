@@ -13,7 +13,7 @@ use jwt_simple::prelude::*;
 use regex::Regex;
 use uuid::Uuid;
 
-use crate::middleware::JwtKey;
+use crate::app::SessionVerifier;
 
 /// Defines the maximum length of time we consider any individual token valid in seconds. If the
 /// expiration is still in the future, but it was issued more than this many seconds in the past
@@ -42,7 +42,7 @@ impl ApiKeyIdentity {
 #[async_trait]
 impl<S> FromRequestParts<S> for ApiKeyIdentity
 where
-    JwtKey: FromRequestParts<S>,
+    SessionVerifier: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = ApiKeyIdentityError;
@@ -53,11 +53,11 @@ where
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
-            .map_err(Self::Rejection::missing_header)?;
+            .map_err(|err| Self::Rejection::MissingHeader(err))?;
 
         let raw_token = bearer.token();
 
-        let unvalidated_header = Token::decode_metadata(&raw_token).map_err(Self::Rejection::corrupt_header)?;
+        let unvalidated_header = Token::decode_metadata(&raw_token).map_err(|err| Self::Rejection::CorruptHeader(err))?;
         let key_id = match unvalidated_header.key_id() {
             Some(kid) if key_validator.is_match(kid) => kid.to_string(),
             Some(_) => return Err(Self::Rejection::InvalidKeyId),
@@ -141,16 +141,8 @@ pub enum ApiKeyIdentityError {
 }
 
 impl ApiKeyIdentityError {
-    fn corrupt_header(err: jwt_simple::Error) -> Self {
-        Self::CorruptHeader(err)
-    }
-
     fn key_unavailable() -> Self {
         Self::KeyUnavailable
-    }
-
-    fn missing_header(err: TypedHeaderRejection) -> Self {
-        Self::MissingHeader(err)
     }
 
     fn validation_failed(err: jwt_simple::Error) -> Self {

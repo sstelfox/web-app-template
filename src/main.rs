@@ -3,15 +3,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 
-mod app;
-mod database;
-mod health_check;
-mod http_server;
-mod middleware;
-mod tasks;
-
-use app::{Config, Error, Version};
-use tasks::{MemoryTaskStore, TaskStore};
+use web_app_template::app::{Config, Error};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -27,55 +19,14 @@ async fn main() -> Result<(), Error> {
 
     tracing_subscriber::registry().with(stderr_layer).init();
 
-    let version = Version::new();
-    tracing::info!(
-        build_profile = ?version.build_profile,
-        features = ?version.features,
-        version = ?version.version,
-        "service starting up"
-    );
-
-    register_panic_logger();
-
-    // playing around with the background task system, this is not the final API
-    let mut mts = MemoryTaskStore::default();
-
-    for num in [78, 23, 102].iter() {
-        let id = MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(*num)).await.unwrap();
-        tracing::info!(?id, "enqueued task");
-    }
-
-    while let Some(task) = mts.next("default").await.unwrap() {
-        tracing::info!(id = ?task.id, "running task");
-        mts.update_state(task.id, tasks::TaskState::Complete).await.unwrap();
-    }
+    web_app_template::register_panic_logger();
+    web_app_template::report_version();
+    web_app_template::test_tasks_placeholder().await;
 
     let config = Config::parse_cli_arguments()?;
-    http_server::run(config).await?;
+    web_app_template::http_server::run(config).await?;
 
     tracing::info!("shutting down normally");
 
     Ok(())
 }
-
-/// Sets up system panics to use the tracing infrastructure to log reported issues. This doesn't
-/// prevent the panic from taking out the service but ensures that it and any available information
-/// is properly reported using the standard logging mechanism.
-fn register_panic_logger() {
-    std::panic::set_hook(Box::new(|panic| {
-        match panic.location() {
-            Some(loc) => {
-                tracing::error!(
-                    message = %panic,
-                    panic.file = loc.file(),
-                    panic.line = loc.line(),
-                    panic.column = loc.column(),
-                );
-            },
-            None => tracing::error!(message = %panic),
-        }
-    }));
-}
-
-#[cfg(test)]
-mod tests;
