@@ -5,7 +5,7 @@ use axum::async_trait;
 use axum::extract::{FromRef, FromRequestParts};
 use http::request::Parts;
 
-use crate::database::{Db, DbPool};
+//use crate::database::{Db, DbPool};
 
 #[async_trait]
 pub trait DataSource {
@@ -41,47 +41,47 @@ impl Deref for StateDataSource {
     }
 }
 
-struct DbSource {
-    db: Db,
-}
-
-#[async_trait]
-impl DataSource for DbSource {
-    async fn is_ready(&self) -> Result<(), DataSourceError> {
-        match &self.db {
-            #[cfg(feature = "postgres")]
-            Db::Postgres(pdb) => {
-                let mut _conn = pdb.direct().await.map_err(|_| DataSourceError::DependencyFailure)?;
-                // Can't do this yet... Need to implement a passthrough Pool trait on the
-                // TxExecutor for this to run...
-                //let _ = sqlx::query_as!(i32, "SELECT 1 as id;").fetch_one(&mut conn).await.map_err(|_| DataSourceError::DependencyFailure)?;
-            }
-            #[cfg(feature = "sqlite")]
-            Db::Sqlite(pdb) => {
-                let _conn = pdb.direct().await.map_err(|_| DataSourceError::DependencyFailure)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl<S> FromRequestParts<S> for StateDataSource
-where
-    Db: FromRef<S>,
-    S: Send + Sync,
-{
-    type Rejection = ();
-
-    async fn from_request_parts(
-        _parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        let db = Db::from_ref(state);
-        Ok(StateDataSource(std::sync::Arc::new(DbSource { db })))
-    }
-}
+//struct DbSource {
+//    db: Db,
+//}
+//
+//#[async_trait]
+//impl DataSource for DbSource {
+//    async fn is_ready(&self) -> Result<(), DataSourceError> {
+//        match &self.db {
+//            #[cfg(feature = "postgres")]
+//            Db::Postgres(pdb) => {
+//                let mut _conn = pdb.direct().await.map_err(|_| DataSourceError::DependencyFailure)?;
+//                // Can't do this yet... Need to implement a passthrough Pool trait on the
+//                // TxExecutor for this to run...
+//                //let _ = sqlx::query_as!(i32, "SELECT 1 as id;").fetch_one(&mut conn).await.map_err(|_| DataSourceError::DependencyFailure)?;
+//            }
+//            #[cfg(feature = "sqlite")]
+//            Db::Sqlite(pdb) => {
+//                let _conn = pdb.direct().await.map_err(|_| DataSourceError::DependencyFailure)?;
+//            }
+//        }
+//
+//        Ok(())
+//    }
+//}
+//
+//#[async_trait]
+//impl<S> FromRequestParts<S> for StateDataSource
+//where
+//    Db: FromRef<S>,
+//    S: Send + Sync,
+//{
+//    type Rejection = ();
+//
+//    async fn from_request_parts(
+//        _parts: &mut Parts,
+//        state: &S,
+//    ) -> Result<Self, Self::Rejection> {
+//        let db = Db::from_ref(state);
+//        Ok(StateDataSource(std::sync::Arc::new(DbSource { db })))
+//    }
+//}
 
 #[cfg(test)]
 pub(crate) mod tests {
