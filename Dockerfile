@@ -40,4 +40,4 @@ COPY --from=build /usr/local/cargo/bin/service /usr/bin/service
 
 VOLUME /data
 
-ENTRYPOINT ["/usr/bin/service"]
+ENTRYPOINT ["/usr/bin/service", "--session-key", "/data/session.key"]

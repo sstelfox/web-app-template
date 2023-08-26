@@ -46,3 +46,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "web-app-template"
 path = "src/main.rs"
+
+[package.metadata.docs.rs]
+all-features = true
