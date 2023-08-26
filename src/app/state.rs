@@ -1,3 +1,4 @@
+use std::io::Write;
 use jwt_simple::algorithms::{ES384KeyPair, ECDSAP384KeyPairLike};
 use sha2::Digest;
 
@@ -16,11 +17,32 @@ impl State {
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
         let database = config_database(&config).await?;
 
-        // load our key
         let path = config.session_key_path();
-        let key_bytes = std::fs::read(path).map_err(Error::unreadable_key)?;
-        let pem = String::from_utf8_lossy(&key_bytes);
-        let mut session_key_raw = ES384KeyPair::from_pem(&pem).map_err(Error::invalid_key)?;
+
+        let mut session_key_raw = if path.exists() {
+            // load our key
+            tracing::info!(key_path = ?path, "loading session key");
+            let key_bytes = std::fs::read(path).map_err(Error::unreadable_key)?;
+            let pem = String::from_utf8_lossy(&key_bytes);
+            ES384KeyPair::from_pem(&pem).map_err(Error::invalid_key)?
+        } else {
+            // generate a fresh key and write it out
+            tracing::warn!(key_path = ?path, "generating new session key");
+
+            let key = ES384KeyPair::generate();
+            let pem_key = key.to_pem().expect("fresh keys to export");
+
+            // don't allow overwriting a key if it already exists
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path.clone())
+                .map_err(|err| Error::UnwritableSessionKey(err))?;
+
+            file.write_all(pem_key.as_bytes()).map_err(|err| Error::UnwritableSessionKey(err))?;
+
+            key
+        };
 
         // mark it with a calculated fingerprint
         let fingerprint = fingerprint_key(&session_key_raw);

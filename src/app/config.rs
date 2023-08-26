@@ -1,8 +1,6 @@
-use std::io::Write;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::path::PathBuf;
 
-use jwt_simple::prelude::*;
 use pico_args::Arguments;
 use tracing::Level;
 
@@ -47,22 +45,6 @@ impl Config {
         let session_key_path: PathBuf = args
             .opt_value_from_str("--session-key")?
             .unwrap_or("./data/session.key".into());
-
-        if args.contains("--generate") {
-            tracing::warn!(key_path = ?session_key_path, "generating new session key");
-
-            // don't allow overwriting a key if it already exists
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(session_key_path.clone())
-                .map_err(|err| Error::UnwritableSessionKey(err))?;
-
-            let new_key = ES384KeyPair::generate().to_pem().expect("fresh keys to export");
-            file.write_all(new_key.as_bytes()).map_err(|err| Error::UnwritableSessionKey(err))?;
-
-            tracing::info!(key_path = ?session_key_path, "new session key generated successfully");
-        }
 
         Ok(Config {
             listen_addr,
