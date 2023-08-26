@@ -11,6 +11,13 @@ use crate::app::Config;
 #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
 compile_error!("You must enable at least one database features: `postgres` or `sqlite`");
 
+#[async_trait]
+pub trait Db {
+    fn ex(&self) -> Executor;
+
+    async fn begin(&self) -> DbResult<TxExecutor>;
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("unable to load data from database, appears to be invalid")]
@@ -59,10 +66,34 @@ impl TxExecutor {
 //}
 
 pub mod sqlite {
+    use axum::async_trait;
     use sqlx::Transaction;
     use sqlx::sqlite::{Sqlite, SqlitePool};
 
-    use super::{DbError, DbResult};
+    use super::{Db, DbError, DbResult, Executor, TxExecutor};
+
+    #[derive(Clone)]
+    pub struct SqliteDb {
+        pool: SqlitePool,
+    }
+
+    impl SqliteDb {
+        pub fn typed_ex(&self) -> SqliteExecutor {
+            SqliteExecutor::PoolExec(self.pool.clone())
+        }
+    }
+
+    #[async_trait]
+    impl Db for SqliteDb {
+        fn ex(&self) -> Executor {
+            Executor::Sqlite(SqliteExecutor::PoolExec(self.pool.clone()))
+        }
+
+        async fn begin(&self) -> DbResult<TxExecutor> {
+            let tx = self.pool.begin().await.map_err(map_sqlx_error)?;
+            Ok(TxExecutor(Executor::Sqlite(SqliteExecutor::TxExec(tx))))
+        }
+    }
 
     pub enum SqliteExecutor {
         PoolExec(SqlitePool),
