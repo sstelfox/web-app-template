@@ -1,5 +1,8 @@
 use crate::app::Config;
 
+//use futures::future::BoxFuture;
+//use futures::stream::BoxStream;
+
 //#[cfg(all(feature = "postgres", feature = "sqlite"))]
 //compile_error!("Database selection features `postgres` and `sqlite` are mutually exclusive, you cannot enable both!");
 
@@ -12,15 +15,17 @@ mod postgres;
 #[cfg(feature="sqlite")]
 mod sqlite;
 
+pub type DbSetupResult<T> = Result<T, DbSetupError>;
+
 #[axum::async_trait]
 pub trait DbPool: Sized {
-    type Database: sqlx::database::Database;
+    type Database: sqlx::Database;
 
-    async fn begin(&self) -> Result<DbExecutor<Self::Database>, DbSetupError>;
-    async fn direct(&self) -> Result<DbExecutor<Self::Database>, DbSetupError>;
+    async fn begin(&self) -> DbSetupResult<DbExecutor<Self::Database>>;
+    async fn direct(&self) -> DbSetupResult<DbExecutor<Self::Database>>;
 
     async fn is_migrated(&self) -> bool;
-    async fn run_migrations(&self) -> Result<(), DbSetupError>;
+    async fn run_migrations(&self) -> DbSetupResult<()>;
 }
 
 #[derive(Clone)]
@@ -44,9 +49,102 @@ impl Db {
     }
 }
 
-pub enum DbExecutor<'a, T: sqlx::database::Database> {
+#[derive(Debug)]
+pub enum DbExecutor<'a, T: sqlx::Database> {
     Pool(sqlx::pool::Pool<T>),
     Transaction(sqlx::Transaction<'a, T>),
+}
+
+impl<T: sqlx::Database> DbExecutor<'_, T> {
+    pub async fn commit(self) -> Result<(), DbQueryError> {
+        match self {
+            Self::Pool(_) => panic!("shouldn't commit on direct executors"),
+            Self::Transaction(tx) => tx.commit().await.map_err(map_query_error),
+        }
+    }
+}
+
+//use sqlx::pool::PoolConnection;
+//
+//impl<'a, 'c, T: sqlx::Database> sqlx::Executor<'a> for &'a mut DbExecutor<'c, T>
+//where
+//    <T as sqlx::Database>::Connection: std::ops::DerefMut,
+//    PoolConnection<T>: sqlx::Executor<'a, Database = T>
+//{
+//    type Database = T;
+//
+//    fn describe<'e, 'q: 'e>(
+//        self,
+//        sql: &'q str,
+//    ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
+//    where
+//        'c: 'e,
+//        'a: 'e,
+//    {
+//        match self {
+//            DbExecutor::Pool(pool) => {
+//                Box::pin(async move {
+//                    let conn = pool.acquire().await?;
+//                    conn.describe(sql).await
+//                })
+//            },
+//            DbExecutor::Transaction(_) => panic!("can't describe in a transaction"),
+//        }
+//    }
+//
+//    fn fetch_many<'e, 'q, E>(
+//        self,
+//        query: E
+//    ) -> BoxStream<'e, Result<sqlx::Either<<Self::Database as sqlx::Database>::QueryResult, <Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+//    where
+//        'q: 'e,
+//        'c: 'e,
+//        E: 'q + sqlx::Execute<'q, Self::Database>
+//    {
+//        match self {
+//            DbExecutor::Pool(pool) => pool.fetch_many(query),
+//            DbExecutor::Transaction(tx) => tx.fetch_many(query),
+//        }
+//    }
+//
+//    fn fetch_optional<'e, 'q: 'e, E: 'q>(
+//        self,
+//        query: E,
+//    ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+//    where
+//        'c: 'e,
+//        E: sqlx::Execute<'q, Self::Database>
+//    {
+//        todo!()
+//    }
+//
+//    fn prepare_with<'e, 'q: 'e>(
+//        self,
+//        sql: &'q str,
+//        parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
+//    ) -> BoxFuture<'e, Result<<Self::Database as sqlx::database::HasStatement<'q>>::Statement, sqlx::Error>>
+//    where
+//        'c: 'e
+//    {
+//            todo!()
+//    }
+//}
+
+fn map_query_error(err: sqlx::Error) -> DbQueryError {
+    match err {
+        sqlx::Error::ColumnDecode { .. } => DbQueryError::CorruptData(err),
+        //sqls::Error::Database(db_err) => {
+        //    match db_err.downcast_ref::<sqlx::postgres::PgDatabaseError>().code() {
+        //        "23503" /* foreign_key_violation */ => DbQueryError::NotFound,
+        //        "23505" /* unique violation */ => DbQueryError::RecordAlreadyExists,
+        //        // would be covered by fallback
+        //        "53300" /* to many connections */ => DbQueryError::DatabaseUnavailable(err),
+        //        _ => DbQueryError::DatabaseUnavailable(err),
+        //    }
+        //},
+        sqlx::Error::RowNotFound => DbQueryError::RecordNotFound,
+        _ => DbQueryError::DatabaseUnavailable(err),
+    }
 }
 
 pub enum DbState {
@@ -55,12 +153,12 @@ pub enum DbState {
     Ready,
 }
 
-pub struct ProtectedDb<T: sqlx::database::Database> {
+pub struct ProtectedDb<T: sqlx::Database> {
     pool: sqlx::pool::Pool<T>,
     state: std::sync::Arc<tokio::sync::Mutex<DbState>>,
 }
 
-impl<T: sqlx::database::Database> Clone for ProtectedDb<T> {
+impl<T: sqlx::Database> Clone for ProtectedDb<T> {
     fn clone(&self) -> Self {
         Self {
             pool: self.pool.clone(),
@@ -69,7 +167,7 @@ impl<T: sqlx::database::Database> Clone for ProtectedDb<T> {
     }
 }
 
-impl<T: sqlx::database::Database> ProtectedDb<T> {
+impl<T: sqlx::Database> ProtectedDb<T> {
     fn new(pool: sqlx::pool::Pool<T>) -> Self {
         Self {
             pool,
