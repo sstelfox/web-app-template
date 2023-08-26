@@ -14,7 +14,7 @@ WORKDIR /usr/src/build
 # binary project, to allow the dependencies to build and be cached. This
 # prevents rebuilding them in the future if only the service's source has
 # changed.
-RUN cargo init --name $SERVICE_NAME
+RUN cargo init --name $SERVICE_NAME && touch /usr/src/build/src/lib.rs
 COPY Cargo.toml Cargo.lock /usr/src/build
 RUN cargo build --release --no-default-features --features $FEATURES
 
@@ -26,7 +26,7 @@ COPY src /usr/src/build/src
 
 ENV CI_BUILD_REF=$CI_BUILD_REF
 
-RUN cargo install --bins --path ./
+RUN cargo install --bins --path ./ --no-default-features --features $FEATURES
 RUN strip --strip-unneeded /usr/local/cargo/bin/$SERVICE_NAME
 RUN mv /usr/local/cargo/bin/$SERVICE_NAME /usr/local/cargo/bin/service
 

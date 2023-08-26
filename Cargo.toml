@@ -44,5 +44,5 @@ sqlite = ["sqlx/sqlite"]
 path = "src/lib.rs"
 
 [[bin]]
-name = "web_app_template"
+name = "web-app-template"
 path = "src/main.rs"
