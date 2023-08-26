@@ -11,13 +11,13 @@ pub struct Config {
     listen_addr: SocketAddr,
     log_level: Level,
 
-    db_url: Option<String>,
+    db_url: String,
     session_key_path: PathBuf,
 }
 
 impl Config {
-    pub fn db_url(&self) -> Option<&str> {
-        self.db_url.as_ref().map(String::as_ref)
+    pub fn db_url(&self) -> &str {
+        self.db_url.as_ref()
     }
 
     pub fn listen_addr(&self) -> &SocketAddr {
@@ -31,8 +31,15 @@ impl Config {
     pub fn parse_cli_arguments() -> Result<Self, Error> {
         let mut args = Arguments::from_env();
 
-        let db_url = args
-            .opt_value_from_str("--db-url")?;
+        let db_url = match args.opt_value_from_str("--db-url")? {
+            Some(du) => du,
+            None => {
+                match std::env::var("DATABASE_URL") {
+                    Ok(du) => du,
+                    Err(_) => "sqlite://:memory:".to_string(),
+                }
+            }
+        };
 
         let listen_addr = args
             .opt_value_from_str("--listen")?

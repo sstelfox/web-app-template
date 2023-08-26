@@ -1,7 +1,5 @@
 use axum::async_trait;
 
-use crate::app::Config;
-
 //use futures::future::BoxFuture;
 //use futures::stream::BoxStream;
 
@@ -66,9 +64,11 @@ impl TxExecutor {
 //}
 
 pub mod sqlite {
+    use std::str::FromStr;
+
     use axum::async_trait;
     use sqlx::Transaction;
-    use sqlx::sqlite::{Sqlite, SqlitePool};
+    use sqlx::sqlite::{Sqlite, SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 
     use super::{Db, DbError, DbResult, Executor, TxExecutor};
 
@@ -78,6 +78,24 @@ pub mod sqlite {
     }
 
     impl SqliteDb {
+        pub async fn connect(url: &str) -> DbResult<Self> {
+            let connection_options = SqliteConnectOptions::from_str(url)
+                .map_err(|err| DbError::DatabaseUnavailable(err))?
+                .create_if_missing(true)
+                .journal_mode(SqliteJournalMode::Wal)
+                .statement_cache_capacity(250)
+                .synchronous(SqliteSynchronous::Normal);
+
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .idle_timeout(std::time::Duration::from_secs(90))
+                .max_lifetime(std::time::Duration::from_secs(1_800))
+                .min_connections(1)
+                .max_connections(16)
+                .connect_lazy_with(connection_options);
+
+            Ok(Self { pool })
+        }
+
         pub fn typed_ex(&self) -> SqliteExecutor {
             SqliteExecutor::PoolExec(self.pool.clone())
         }

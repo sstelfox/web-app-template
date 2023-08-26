@@ -15,7 +15,7 @@ pub struct State {
 impl State {
     // not implemented as a From trait so it can be async
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
-        //let database = config_database(&config).await?;
+        //let database = config_database(&config.database_url()).await?;
 
         let path = config.session_key_path();
 
