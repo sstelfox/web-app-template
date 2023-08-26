@@ -16,6 +16,9 @@ pub enum Error {
 
     #[error("provided session key was unable to be read")]
     UnreadableSessionKey(std::io::Error),
+
+    #[error("unable to write generated session key")]
+    UnwritableSessionKey(std::io::Error),
 }
 
 impl Error {
