@@ -43,6 +43,6 @@ function sqlite_setup() {
 
 sqlite_setup
 
-postgres_init
-postgres_setup
-postgres_teardown
+#postgres_init
+#postgres_setup
+#postgres_teardown

@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use axum::async_trait;
 
-use crate::app::Config;
-
 //#[cfg(all(feature = "postgres", feature = "sqlite"))]
 //compile_error!("Database selection features `postgres` and `sqlite` are mutually exclusive, you cannot enable both!");
 
@@ -22,17 +20,17 @@ pub async fn connect(db_url: &str) -> DbResult<Database> {
     // healthcheck and database extractor... Maybe this state belongs on the database executor
     // itself...
 
-    //#[cfg(feature="postgres")]
+    #[cfg(feature="postgres")]
     if db_url.starts_with("postgres://") {
         let db = postgres::PostgresDb::connect(db_url).await?;
-        //db.run_migrations().await?;
+        db.migrate().await?;
         return Ok(Arc::new(db));
     }
 
-    //#[cfg(feature="sqlite")]
+    #[cfg(feature="sqlite")]
     if db_url.starts_with("sqlite://") {
         let db = sqlite::SqliteDb::connect(db_url).await?;
-        //db.run_migrations().await?;
+        db.migrate().await?;
         return Ok(Arc::new(db));
     }
 
@@ -57,6 +55,9 @@ pub enum DbError {
     #[error("an internal database error occurred")]
     InternalError(sqlx::Error),
 
+    #[error("error occurred while attempting database migration")]
+    MigrationFailed(sqlx::migrate::MigrateError),
+
     #[error("unable to create record as it would violate a uniqueness constraint")]
     RecordExists,
 
@@ -67,7 +68,10 @@ pub enum DbError {
 pub type DbResult<T = ()> = Result<T, DbError>;
 
 pub enum Executor {
+    #[cfg(feature="postgres")]
     Postgres(postgres::PostgresExecutor),
+
+    #[cfg(feature="sqlite")]
     Sqlite(sqlite::SqliteExecutor),
 }
 
@@ -80,21 +84,28 @@ impl TxExecutor {
 
     pub async fn commit(self) -> DbResult {
         match self.0 {
+            #[cfg(feature="postgres")]
             Executor::Postgres(e) => e.commit().await,
+
+            #[cfg(feature="sqlite")]
             Executor::Sqlite(e) => e.commit().await,
         }
     }
 }
 
+#[cfg(feature="postgres")]
 pub mod postgres {
     use std::str::FromStr;
 
     use axum::async_trait;
     use futures::future::BoxFuture;
     use sqlx::Transaction;
-    use sqlx::postgres::{PgConnectOptions, PgDatabaseError, PgPool, PgPoolOptions, Postgres};
+    use sqlx::migrate::Migrator;
+    use sqlx::postgres::{PgConnectOptions, PgDatabaseError, PgPool, Postgres};
 
     use super::{Db, DbError, DbResult, Executor, TxExecutor};
+
+    static MIGRATOR: Migrator = sqlx::migrate!("migrations/postgres");
 
     #[derive(Debug)]
     pub enum PostgresExecutor {
@@ -205,6 +216,13 @@ pub mod postgres {
 
             Ok(Self { pool })
         }
+
+        pub async fn migrate(&self) -> DbResult {
+            MIGRATOR
+                .run(&self.pool)
+                .await
+                .map_err(|err| DbError::MigrationFailed(err))
+        }
     }
 
     impl PostgresDb {
@@ -243,15 +261,19 @@ pub mod postgres {
     }
 }
 
+#[cfg(feature="sqlite")]
 pub mod sqlite {
     use std::str::FromStr;
 
     use axum::async_trait;
     use futures::future::BoxFuture;
     use sqlx::Transaction;
+    use sqlx::migrate::Migrator;
     use sqlx::sqlite::{Sqlite, SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 
     use super::{Db, DbError, DbResult, Executor, TxExecutor};
+
+    static MIGRATOR: Migrator = sqlx::migrate!("migrations/sqlite");
 
     #[derive(Clone)]
     pub struct SqliteDb {
@@ -277,6 +299,13 @@ pub mod sqlite {
                 .map_err(|err| DbError::DatabaseUnavailable(err))?;
 
             Ok(Self { pool })
+        }
+
+        pub async fn migrate(&self) -> DbResult {
+            MIGRATOR
+                .run(&self.pool)
+                .await
+                .map_err(|err| DbError::MigrationFailed(err))
         }
 
         pub fn typed_ex(&self) -> SqliteExecutor {
@@ -393,16 +422,6 @@ pub mod sqlite {
     }
 }
 
-//#[cfg(feature="postgres")]
-//mod postgres;
-//
-//#[cfg(feature="sqlite")]
-//mod sqlite;
-//
-//pub type DbQueryResult<T> = Result<T, DbQueryError>;
-//
-//pub type DbSetupResult<T> = Result<T, DbSetupError>;
-//
 //#[axum::async_trait]
 //pub trait DbPool: Sized {
 //    type Database: sqlx::Database;
@@ -649,19 +668,4 @@ pub mod sqlite {
 //
 //        Ok(())
 //    }
-//}
-
-//#[derive(Debug, thiserror::Error)]
-//pub enum DbQueryError {
-//    #[error("data loaded in from the database failed our validation and is presumed corrupt")]
-//    CorruptData(sqlx::Error),
-//
-//    #[error("unable to get a connection to the database")]
-//    DatabaseUnavailable(sqlx::Error),
-//
-//    #[error("failed to create record as another one matching the uniqueness restrictions was found")]
-//    RecordAlreadyExists,
-//
-//    #[error("unable to locate the requested record")]
-//    RecordNotFound,
 //}

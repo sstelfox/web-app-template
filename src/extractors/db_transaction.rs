@@ -9,7 +9,6 @@ use crate::database::{Database, DbError, TxExecutor};
 
 pub struct DbTransaction(TxExecutor);
 
-
 impl Deref for DbTransaction {
     type Target = TxExecutor;
 
