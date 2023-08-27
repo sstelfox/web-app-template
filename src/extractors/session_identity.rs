@@ -156,10 +156,12 @@ impl IntoResponse for ApiKeyIdentityError {
 
         match self {
             KeyUnavailable => {
+                tracing::error!("server does not have key in state");
                 let err_msg = serde_json::json!({ "status": "authentication services unavailable" });
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(err_msg)).into_response()
             },
             _ => {
+                tracing::error!("authentication rejected due to invalid bearer token: {self}");
                 let err_msg = serde_json::json!({ "status": "invalid bearer token" });
                 (StatusCode::BAD_REQUEST, Json(err_msg)).into_response()
             },
