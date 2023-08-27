@@ -113,6 +113,77 @@ pub mod postgres {
         }
     }
 
+    impl<'c> sqlx::Executor<'c> for &'c mut PostgresExecutor {
+        type Database = Postgres;
+
+        fn describe<'e, 'q: 'e>(
+            self,
+            sql: &'q str,
+        ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
+        where
+            'c: 'e,
+        {
+            match self {
+                PostgresExecutor::PoolExec(pool) => pool.describe(sql),
+                PostgresExecutor::TxExec(ref mut tx) => tx.describe(sql),
+            }
+        }
+
+        fn fetch_many<'e, 'q: 'e, E: 'q>(
+            self,
+            query: E,
+        ) -> futures::stream::BoxStream<
+            'e,
+            Result<
+                sqlx::Either<
+                    <Self::Database as sqlx::Database>::QueryResult,
+                    <Self::Database as sqlx::Database>::Row,
+                >,
+                sqlx::Error,
+            >,
+        >
+        where
+            'c: 'e,
+            E: sqlx::Execute<'q, Self::Database>,
+        {
+            match self {
+                PostgresExecutor::PoolExec(pool) => pool.fetch_many(query),
+                PostgresExecutor::TxExec(ref mut tx) => tx.fetch_many(query),
+            }
+        }
+
+        fn fetch_optional<'e, 'q: 'e, E: 'q>(
+            self,
+            query: E,
+        ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+        where
+            'c: 'e,
+            E: sqlx::Execute<'q, Self::Database>,
+        {
+            match self {
+                PostgresExecutor::PoolExec(pool) => pool.fetch_optional(query),
+                PostgresExecutor::TxExec(ref mut tx) => tx.fetch_optional(query),
+            }
+        }
+
+        fn prepare_with<'e, 'q: 'e>(
+            self,
+            sql: &'q str,
+            parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
+        ) -> BoxFuture<
+            'e,
+            Result<<Self::Database as sqlx::database::HasStatement<'q>>::Statement, sqlx::Error>,
+        >
+        where
+            'c: 'e,
+        {
+            match self {
+                PostgresExecutor::PoolExec(pool) => pool.prepare_with(sql, parameters),
+                PostgresExecutor::TxExec(ref mut tx) => tx.prepare_with(sql, parameters),
+            }
+        }
+    }
+
     pub fn map_sqlx_error(err: sqlx::Error) -> DbError {
         match err {
             sqlx::Error::ColumnDecode { .. } => DbError::CorruptData(err),
