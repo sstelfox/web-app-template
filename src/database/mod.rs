@@ -27,7 +27,7 @@ pub async fn config_database(config: &Config) -> DbResult<Arc<dyn Db + Send + Sy
         //    Db::Postgres(ProtectedDb::new(pool))
         //}
 
-        #[cfg(feature="sqlite")]
+        //#[cfg(feature="sqlite")]
         db_url if db_url.starts_with("sqlite://") => {
             let pool = sqlite::SqliteDb::connect(db_url).await?;
             Arc::new(pool)
@@ -69,7 +69,7 @@ pub enum DbError {
 pub type DbResult<T = ()> = Result<T, DbError>;
 
 pub enum Executor {
-    //Postgres(postgres::PostgresExecutor),
+    Postgres(postgres::PostgresExecutor),
     Sqlite(sqlite::SqliteExecutor),
 }
 
@@ -82,18 +82,54 @@ impl TxExecutor {
 
     pub async fn commit(self) -> DbResult {
         match self.0 {
-            //Executor::Postgres(e) => e.commit().await,
+            Executor::Postgres(e) => e.commit().await,
             Executor::Sqlite(e) => e.commit().await,
         }
     }
 }
 
-//pub mod postgres {
-//    use sqlx::Transaction;
-//
-//    use super::{DbError, DbResult};
-//
-//}
+pub mod postgres {
+    use std::str::FromStr;
+
+    use axum::async_trait;
+    use futures::future::BoxFuture;
+    use sqlx::Transaction;
+    use sqlx::postgres::{PgConnectOptions, PgDatabaseError, PgPool, PgPoolOptions, Postgres};
+
+    use super::{Db, DbError, DbResult, Executor, TxExecutor};
+
+    #[derive(Debug)]
+    pub enum PostgresExecutor {
+        PoolExec(PgPool),
+        TxExec(Transaction<'static, Postgres>),
+    }
+
+    impl PostgresExecutor {
+        pub async fn commit(self) -> DbResult {
+            match self {
+                Self::PoolExec(_) => unreachable!("need to check this, but it shouldn't be called"),
+                Self::TxExec(tx) => tx.commit().await.map_err(map_sqlx_error),
+            }
+        }
+    }
+
+    pub fn map_sqlx_error(err: sqlx::Error) -> DbError {
+        match err {
+            sqlx::Error::ColumnDecode { .. } => DbError::CorruptData(err),
+            sqlx::Error::Database(ref db_err) => {
+                match db_err.downcast_ref::<PgDatabaseError>().code() {
+                    "23503" /* foreign key violation */ => DbError::RecordNotFound,
+                    "23505" /* unique violation */ => DbError::RecordExists,
+                    "53300" /* too many connections */ => DbError::DatabaseUnavailable(err),
+                    _ => DbError::InternalError(err),
+                }
+            },
+            sqlx::Error::PoolTimedOut => DbError::DatabaseUnavailable(err),
+            sqlx::Error::RowNotFound => DbError::RecordNotFound,
+            err => DbError::InternalError(err),
+        }
+    }
+}
 
 pub mod sqlite {
     use std::str::FromStr;
