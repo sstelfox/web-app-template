@@ -10,7 +10,7 @@ use crate::app::Config;
 #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
 compile_error!("You must enable at least one database features: `postgres` or `sqlite`");
 
-pub async fn config_database(config: &Config) -> DbResult<Arc<dyn Db + Send + Sync>> {
+pub async fn connect(db_url: &str) -> DbResult<Arc<dyn Db + Send + Sync>> {
     // todo: I should figure out a way to delay the actual connection and running of migrations,
     // and reflect the service being unavailable in the readiness check until they're complete. If
     // our connection fails we should try a couple of times with a backoff before failing the
@@ -20,25 +20,21 @@ pub async fn config_database(config: &Config) -> DbResult<Arc<dyn Db + Send + Sy
     // healthcheck and database extractor... Maybe this state belongs on the database executor
     // itself...
 
-    let db = match config.db_url() {
-        //#[cfg(feature="postgres")]
-        //db_url if db_url.starts_with("postgres://") => {
-        //    let pool = postgres::configure_pool(db_url.as_str()).await?;
-        //    Db::Postgres(ProtectedDb::new(pool))
-        //}
+    //#[cfg(feature="postgres")]
+    if db_url.starts_with("postgres://") {
+        let db = postgres::PostgresDb::connect(db_url).await?;
+        //db.run_migrations().await?;
+        return Ok(Arc::new(db));
+    }
 
-        //#[cfg(feature="sqlite")]
-        db_url if db_url.starts_with("sqlite://") => {
-            let pool = sqlite::SqliteDb::connect(db_url).await?;
-            Arc::new(pool)
-        }
+    //#[cfg(feature="sqlite")]
+    if db_url.starts_with("sqlite://") {
+        let db = sqlite::SqliteDb::connect(db_url).await?;
+        //db.run_migrations().await?;
+        return Ok(Arc::new(db));
+    }
 
-        _ => panic!("unknown database type, unable to setup database"),
-    };
-
-    //db.run_migrations().await?;
-
-    Ok(db)
+    panic!("unknown database type, unable to setup database");
 }
 
 #[async_trait]
@@ -181,6 +177,49 @@ pub mod postgres {
                 PostgresExecutor::PoolExec(pool) => pool.prepare_with(sql, parameters),
                 PostgresExecutor::TxExec(ref mut tx) => tx.prepare_with(sql, parameters),
             }
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct PostgresDb {
+        pool: PgPool,
+    }
+
+    impl PostgresDb {
+        pub async fn connect(url: &str) -> Result<Self, DbError> {
+            let connection_options = PgConnectOptions::from_str(&url)
+                .map_err(|err| DbError::DatabaseUnavailable(err))?
+                .application_name(env!("CARGO_PKG_NAME"))
+                .statement_cache_capacity(250);
+
+            let pool = sqlx::postgres::PgPoolOptions::new()
+                .idle_timeout(std::time::Duration::from_secs(90))
+                .max_lifetime(std::time::Duration::from_secs(1_800))
+                .min_connections(1)
+                .max_connections(16)
+                .connect_with(connection_options)
+                .await
+                .map_err(|err| DbError::DatabaseUnavailable(err))?;
+
+            Ok(Self { pool })
+        }
+    }
+
+    impl PostgresDb {
+        pub fn typed_ex(&self) -> PostgresExecutor {
+            PostgresExecutor::PoolExec(self.pool.clone())
+        }
+    }
+
+    #[async_trait]
+    impl Db for PostgresDb {
+        fn ex(&self) -> Executor {
+            Executor::Postgres(self.typed_ex())
+        }
+
+        async fn begin(&self) -> DbResult<TxExecutor> {
+            let tx = self.pool.begin().await.map_err(map_sqlx_error)?;
+            Ok(TxExecutor(Executor::Postgres(PostgresExecutor::TxExec(tx))))
         }
     }
 
@@ -474,23 +513,6 @@ pub mod sqlite {
 ////            todo!()
 ////    }
 ////}
-//
-//fn map_query_error(err: sqlx::Error) -> DbQueryError {
-//    match err {
-//        sqlx::Error::ColumnDecode { .. } => DbQueryError::CorruptData(err),
-//        //sqls::Error::Database(db_err) => {
-//        //    match db_err.downcast_ref::<sqlx::postgres::PgDatabaseError>().code() {
-//        //        "23503" /* foreign_key_violation */ => DbQueryError::NotFound,
-//        //        "23505" /* unique violation */ => DbQueryError::RecordAlreadyExists,
-//        //        // would be covered by fallback
-//        //        "53300" /* to many connections */ => DbQueryError::DatabaseUnavailable(err),
-//        //        _ => DbQueryError::DatabaseUnavailable(err),
-//        //    }
-//        //},
-//        sqlx::Error::RowNotFound => DbQueryError::RecordNotFound,
-//        _ => DbQueryError::DatabaseUnavailable(err),
-//    }
-//}
 //
 //pub enum DbState {
 //    Setup,
