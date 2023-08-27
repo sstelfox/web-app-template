@@ -1,13 +1,45 @@
+use std::sync::Arc;
+
 use axum::async_trait;
 
-//use futures::future::BoxFuture;
-//use futures::stream::BoxStream;
+use crate::app::Config;
 
 //#[cfg(all(feature = "postgres", feature = "sqlite"))]
 //compile_error!("Database selection features `postgres` and `sqlite` are mutually exclusive, you cannot enable both!");
 
 #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
 compile_error!("You must enable at least one database features: `postgres` or `sqlite`");
+
+pub async fn config_database(config: &Config) -> DbResult<Arc<dyn Db + Send + Sync>> {
+    // todo: I should figure out a way to delay the actual connection and running of migrations,
+    // and reflect the service being unavailable in the readiness check until they're complete. If
+    // our connection fails we should try a couple of times with a backoff before failing the
+    // entire service...
+    //
+    // maybe a tokio task with a channel or shared state directly that can be consumed by the
+    // healthcheck and database extractor... Maybe this state belongs on the database executor
+    // itself...
+
+    let db = match config.db_url() {
+        //#[cfg(feature="postgres")]
+        //db_url if db_url.starts_with("postgres://") => {
+        //    let pool = postgres::configure_pool(db_url.as_str()).await?;
+        //    Db::Postgres(ProtectedDb::new(pool))
+        //}
+
+        #[cfg(feature="sqlite")]
+        db_url if db_url.starts_with("sqlite://") => {
+            let pool = sqlite::SqliteDb::connect(db_url).await?;
+            Arc::new(pool)
+        }
+
+        _ => panic!("unknown database type, unable to setup database"),
+    };
+
+    //db.run_migrations().await?;
+
+    Ok(db)
+}
 
 #[async_trait]
 pub trait Db {
@@ -67,6 +99,7 @@ pub mod sqlite {
     use std::str::FromStr;
 
     use axum::async_trait;
+    use futures::future::BoxFuture;
     use sqlx::Transaction;
     use sqlx::sqlite::{Sqlite, SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 
@@ -91,7 +124,9 @@ pub mod sqlite {
                 .max_lifetime(std::time::Duration::from_secs(1_800))
                 .min_connections(1)
                 .max_connections(16)
-                .connect_lazy_with(connection_options);
+                .connect_with(connection_options)
+                .await
+                .map_err(|err| DbError::DatabaseUnavailable(err))?;
 
             Ok(Self { pool })
         }
@@ -113,6 +148,7 @@ pub mod sqlite {
         }
     }
 
+    #[derive(Debug)]
     pub enum SqliteExecutor {
         PoolExec(SqlitePool),
         TxExec(Transaction<'static, Sqlite>),
@@ -123,6 +159,77 @@ pub mod sqlite {
             match self {
                 Self::PoolExec(_) => unreachable!("need to check this, but it shouldn't be called"),
                 Self::TxExec(tx) => tx.commit().await.map_err(map_sqlx_error),
+            }
+        }
+    }
+
+    impl<'c> sqlx::Executor<'c> for &'c mut SqliteExecutor {
+        type Database = Sqlite;
+
+        fn describe<'e, 'q: 'e>(
+            self,
+            sql: &'q str,
+        ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
+        where
+            'c: 'e,
+        {
+            match self {
+                SqliteExecutor::PoolExec(pool) => pool.describe(sql),
+                SqliteExecutor::TxExec(ref mut tx) => tx.describe(sql),
+            }
+        }
+
+        fn fetch_many<'e, 'q: 'e, E: 'q>(
+            self,
+            query: E,
+        ) -> futures::stream::BoxStream<
+            'e,
+            Result<
+                sqlx::Either<
+                    <Self::Database as sqlx::Database>::QueryResult,
+                    <Self::Database as sqlx::Database>::Row,
+                >,
+                sqlx::Error,
+            >,
+        >
+        where
+            'c: 'e,
+            E: sqlx::Execute<'q, Self::Database>,
+        {
+            match self {
+                SqliteExecutor::PoolExec(pool) => pool.fetch_many(query),
+                SqliteExecutor::TxExec(ref mut tx) => tx.fetch_many(query),
+            }
+        }
+
+        fn fetch_optional<'e, 'q: 'e, E: 'q>(
+            self,
+            query: E,
+        ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+        where
+            'c: 'e,
+            E: sqlx::Execute<'q, Self::Database>,
+        {
+            match self {
+                SqliteExecutor::PoolExec(pool) => pool.fetch_optional(query),
+                SqliteExecutor::TxExec(ref mut tx) => tx.fetch_optional(query),
+            }
+        }
+
+        fn prepare_with<'e, 'q: 'e>(
+            self,
+            sql: &'q str,
+            parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
+        ) -> BoxFuture<
+            'e,
+            Result<<Self::Database as sqlx::database::HasStatement<'q>>::Statement, sqlx::Error>,
+        >
+        where
+            'c: 'e,
+        {
+            match self {
+                SqliteExecutor::PoolExec(pool) => pool.prepare_with(sql, parameters),
+                SqliteExecutor::TxExec(ref mut tx) => tx.prepare_with(sql, parameters),
             }
         }
     }
@@ -411,47 +518,6 @@ pub mod sqlite {
 //
 //        Ok(())
 //    }
-//}
-//
-//pub async fn config_database(config: &Config) -> DbSetupResult<Db> {
-//    let database_url = match config.db_url() {
-//        Some(db_url) => db_url.to_string(),
-//        None => {
-//            match std::env::var("DATABASE_URL") {
-//                Ok(db_url) => db_url,
-//                Err(_) => "sqlite://:memory:".to_string(),
-//            }
-//        }
-//    };
-//
-//    // todo: I should figure out a way to delay the actual connection and running of migrations,
-//    // and reflect the service being unavailable in the readiness check until they're complete. If
-//    // our connection fails we should try a couple of times with a backoff before failing the
-//    // entire service...
-//    //
-//    // maybe a tokio task with a channel or shared state directly that can be consumed by the
-//    // healthcheck and database extractor... Maybe this state belongs on the database executor
-//    // itself...
-//
-//    let db = match database_url {
-//        #[cfg(feature="postgres")]
-//        db_url if db_url.starts_with("postgres://") => {
-//            let pool = postgres::configure_pool(db_url.as_str()).await?;
-//            Db::Postgres(ProtectedDb::new(pool))
-//        }
-//
-//        #[cfg(feature="sqlite")]
-//        db_url if db_url.starts_with("sqlite://") => {
-//            let pool = sqlite::configure_pool(db_url.as_str()).await?;
-//            Db::Sqlite(ProtectedDb::new(pool))
-//        }
-//
-//        _ => panic!("unknown database type, unable to setup database"),
-//    };
-//
-//    db.run_migrations().await?;
-//
-//    Ok(db)
 //}
 
 //#[derive(Debug, thiserror::Error)]
