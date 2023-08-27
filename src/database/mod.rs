@@ -10,7 +10,9 @@ use crate::app::Config;
 #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
 compile_error!("You must enable at least one database features: `postgres` or `sqlite`");
 
-pub async fn connect(db_url: &str) -> DbResult<Arc<dyn Db + Send + Sync>> {
+pub type Database = Arc<dyn Db + Send + Sync>;
+
+pub async fn connect(db_url: &str) -> DbResult<Database> {
     // todo: I should figure out a way to delay the actual connection and running of migrations,
     // and reflect the service being unavailable in the readiness check until they're complete. If
     // our connection fails we should try a couple of times with a backoff before failing the

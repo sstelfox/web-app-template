@@ -3,11 +3,11 @@ use jwt_simple::algorithms::{ES384KeyPair, ECDSAP384KeyPairLike};
 use sha2::Digest;
 
 use crate::app::{Config, Error, SessionCreator, SessionVerifier};
-//use crate::database::{config_database, Db};
+use crate::database::{self, Database};
 
 #[derive(Clone)]
 pub struct State {
-    //database: Db,
+    database: Database,
     session_key: SessionCreator,
     session_verifier: SessionVerifier,
 }
@@ -15,7 +15,7 @@ pub struct State {
 impl State {
     // not implemented as a From trait so it can be async
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
-        //let database = config_database(&config.database_url()).await?;
+        let database = database::connect(&config.db_url()).await?;
 
         let path = config.session_key_path();
 
@@ -52,16 +52,15 @@ impl State {
         let session_key = SessionCreator::new(session_key_raw);
         let session_verifier = session_key.verifier();
 
-        //Ok(Self { database, session_key, session_verifier })
-        Ok(Self { session_key, session_verifier })
+        Ok(Self { database, session_key, session_verifier })
     }
 }
 
-//impl axum::extract::FromRef<State> for Db {
-//    fn from_ref(state: &State) -> Self {
-//        state.database.clone()
-//    }
-//}
+impl axum::extract::FromRef<State> for Database {
+    fn from_ref(state: &State) -> Self {
+        state.database.clone()
+    }
+}
 
 impl axum::extract::FromRef<State> for SessionCreator {
     fn from_ref(state: &State) -> Self {
