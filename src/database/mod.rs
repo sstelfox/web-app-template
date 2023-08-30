@@ -2,9 +2,6 @@ use std::sync::Arc;
 
 use axum::async_trait;
 
-//#[cfg(all(feature = "postgres", feature = "sqlite"))]
-//compile_error!("Database selection features `postgres` and `sqlite` are mutually exclusive, you cannot enable both!");
-
 #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
 compile_error!("You must enable at least one database features: `postgres` or `sqlite`");
 
@@ -34,7 +31,7 @@ pub async fn connect(db_url: &str) -> DbResult<Database> {
         return Ok(Arc::new(db));
     }
 
-    panic!("unknown database type, unable to setup database");
+    Err(DbError::UnknownDbType)
 }
 
 #[async_trait]
@@ -63,6 +60,9 @@ pub enum DbError {
 
     #[error("unable to locate record or associated foreign key")]
     RecordNotFound,
+
+    #[error("requested database type was not recognized")]
+    UnknownDbType,
 }
 
 pub type DbResult<T = ()> = Result<T, DbError>;
@@ -89,6 +89,78 @@ impl TxExecutor {
 
             #[cfg(feature="sqlite")]
             Executor::Sqlite(e) => e.commit().await,
+        }
+    }
+}
+
+mod testing {
+    use axum::async_trait;
+    use sqlx::{Pool, Transaction};
+
+    use super::{DbError, DbResult};
+
+    #[async_trait]
+    pub trait ManagedDb: sqlx::Database {
+        fn map_sqlx_error(err: sqlx::Error) -> DbError;
+    }
+
+    #[cfg(feature = "postgres")]
+    mod postgres {
+        use sqlx::postgres::PgDatabaseError;
+
+        use crate::database::DbError;
+        use crate::database::testing::ManagedDb;
+
+        impl ManagedDb for sqlx::Postgres {
+            fn map_sqlx_error(err: sqlx::Error) -> DbError {
+                match err {
+                    sqlx::Error::ColumnDecode { .. } => DbError::CorruptData(err),
+                    sqlx::Error::Database(ref db_err) => {
+                        match db_err.downcast_ref::<PgDatabaseError>().code() {
+                            "23503" /* foreign key violation */ => DbError::RecordNotFound,
+                            "23505" /* unique violation */ => DbError::RecordExists,
+                            "53300" /* too many connections */ => DbError::DatabaseUnavailable(err),
+                            _ => DbError::InternalError(err),
+                        }
+                    },
+                    sqlx::Error::PoolTimedOut => DbError::DatabaseUnavailable(err),
+                    sqlx::Error::RowNotFound => DbError::RecordNotFound,
+                    err => DbError::InternalError(err),
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "sqlite")]
+    mod sqlite {
+        use super::ManagedDb;
+
+        use crate::database::DbError;
+
+        impl ManagedDb for sqlx::Sqlite {
+            fn map_sqlx_error(err: sqlx::Error) -> DbError {
+                match err {
+                    sqlx::Error::ColumnDecode { .. } => DbError::CorruptData(err),
+                    sqlx::Error::RowNotFound => DbError::RecordNotFound,
+                    err if err.to_string().contains("FOREIGN KEY constraint failed") => DbError::RecordNotFound,
+                    err if err.to_string().contains("UNIQUE constraint failed") => DbError::RecordExists,
+                    err => DbError::InternalError(err),
+                }
+            }
+        }
+    }
+
+    pub enum ManagedExecutor<T: ManagedDb> {
+        PoolExec(Pool<T>),
+        TxExec(Transaction<'static, T>),
+    }
+
+    impl<T: ManagedDb> ManagedExecutor<T> {
+        pub async fn commit(self) -> DbResult {
+            match self {
+                Self::PoolExec(_) => unreachable!("need to check this, but it shouldn't be called"),
+                Self::TxExec(tx) => tx.commit().await.map_err(T::map_sqlx_error),
+            }
         }
     }
 }
