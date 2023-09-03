@@ -24,7 +24,7 @@ static KEY_ID_PATTERN: &str = r"^[0-9a-f]{64}$";
 
 static KEY_ID_VALIDATOR: OnceLock<Regex> = OnceLock::new();
 
-pub struct ApiKeyIdentity {
+pub struct SessionIdentity {
     user_id: Uuid,
     key_id: String,
 }
