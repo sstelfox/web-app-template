@@ -11,8 +11,20 @@ pub enum Error {
     #[error("failed to initial the database")]
     DatabaseFailure(#[from] DbError),
 
+    #[error("unable to read config items from the environment")]
+    EnvironmentUnavailable(dotenvy::Error),
+
+    #[error("provided database url wasn't a valid URI")]
+    InvalidDatabaseUrl(url::ParseError),
+
+    #[error("listen address wasn't a valid socket address")]
+    InvalidListenAddr(std::net::AddrParseError),
+
     #[error("session key provided could not be parsed as a PEM encoded ES384 private key")]
     InvalidSessionKey(jwt_simple::Error),
+
+    #[error("provided smtp url wasn't a valid URI")]
+    InvalidSmtpUrl(url::ParseError),
 
     #[error("provided session key was unable to be read")]
     UnreadableSessionKey(std::io::Error),

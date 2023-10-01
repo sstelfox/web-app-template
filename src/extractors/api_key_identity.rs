@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-use axum::{async_trait, Json, RequestPartsExt};
-use axum::extract::{FromRequestParts, TypedHeader};
 use axum::extract::rejection::TypedHeaderRejection;
-use axum::headers::Authorization;
+use axum::extract::{FromRequestParts, TypedHeader};
 use axum::headers::authorization::Bearer;
+use axum::headers::Authorization;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::{async_trait, Json, RequestPartsExt};
 use http::request::Parts;
 use jwt_simple::prelude::*;
 use regex::Regex;
@@ -54,7 +54,8 @@ where
 
         let raw_token = bearer.token();
 
-        let unvalidated_header = Token::decode_metadata(&raw_token).map_err(|err| Self::Rejection::CorruptHeader(err))?;
+        let unvalidated_header = Token::decode_metadata(&raw_token)
+            .map_err(|err| Self::Rejection::CorruptHeader(err))?;
         let _key_id = match unvalidated_header.key_id() {
             Some(kid) if key_validator.is_match(kid) => kid.to_string(),
             Some(_) => return Err(Self::Rejection::InvalidKeyId),
@@ -141,13 +142,14 @@ impl IntoResponse for ApiKeyIdentityError {
 
         match self {
             KeyUnavailable => {
-                let err_msg = serde_json::json!({ "status": "authentication services unavailable" });
+                let err_msg =
+                    serde_json::json!({ "status": "authentication services unavailable" });
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(err_msg)).into_response()
-            },
+            }
             _ => {
                 let err_msg = serde_json::json!({ "status": "invalid bearer token" });
                 (StatusCode::BAD_REQUEST, Json(err_msg)).into_response()
-            },
+            }
         }
     }
 }

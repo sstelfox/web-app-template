@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use axum::async_trait;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -140,7 +140,6 @@ pub struct Task {
 
     // will need a live-cancel signal and likely a custom Future impl to ensure its used for proper
     // timeout handling
-
     payload: serde_json::Value,
     error: Option<serde_json::Value>,
 
@@ -201,8 +200,7 @@ impl TaskStore for MemoryTaskStore {
         }
 
         let id = Uuid::new_v4();
-        let payload = serde_json::to_value(task)
-            .map_err(|_| TaskQueueError::Unknown)?;
+        let payload = serde_json::to_value(task).map_err(|_| TaskQueueError::Unknown)?;
 
         let task = Task {
             id: id.clone(),
@@ -238,9 +236,7 @@ impl TaskStore for MemoryTaskStore {
 
         let target_task = match tasks.get_mut(&id) {
             Some(t) => t,
-            None => {
-                return Err(TaskQueueError::UnknownTask(id))
-            },
+            None => return Err(TaskQueueError::UnknownTask(id)),
         };
 
         // these states are the only retryable states
@@ -301,7 +297,7 @@ impl TaskStore for MemoryTaskStore {
 
                     next_task = Some(task.clone());
                     break;
-                },
+                }
                 (TaskState::InProgress, Some(started_at)) => {
                     if Instant::now().duration_since(started_at) >= TASK_EXECUTION_TIMEOUT {
                         // todo: need to send cancel signal to the task
@@ -312,7 +308,7 @@ impl TaskStore for MemoryTaskStore {
 
                         continue;
                     }
-                },
+                }
                 // cancelled is the only other state allowed to not have a started_at
                 (TaskState::Cancelled, None) => (),
                 (state, None) => {
@@ -339,9 +335,7 @@ impl TaskStore for MemoryTaskStore {
 
         let task = match tasks.get_mut(&id) {
             Some(t) => t,
-            None => {
-                return Err(TaskQueueError::UnknownTask(id))
-            },
+            None => return Err(TaskQueueError::UnknownTask(id)),
         };
 
         if task.state != TaskState::InProgress {
@@ -357,10 +351,12 @@ impl TaskStore for MemoryTaskStore {
             }
             // this is an internal transition that happens automatically when the task is picked up
             TaskState::InProgress => {
-                tracing::error!("only the task store may transition a task to the InProgress state");
+                tracing::error!(
+                    "only the task store may transition a task to the InProgress state"
+                );
                 return Err(TaskQueueError::Unknown);
             }
-            _ => ()
+            _ => (),
         }
 
         task.finished_at = Some(Instant::now());

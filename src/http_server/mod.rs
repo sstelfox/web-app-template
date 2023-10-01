@@ -106,7 +106,9 @@ pub async fn run(config: Config) -> Result<(), Error> {
         .layer(HandleErrorLayer::new(error_handlers::server_error_handler))
         // From here on out our requests might be logged, ensure any sensitive headers are stripped
         // before we do any logging
-        .layer(SetSensitiveRequestHeadersLayer::from_shared(SENSITIVE_HEADERS.into()))
+        .layer(SetSensitiveRequestHeadersLayer::from_shared(
+            SENSITIVE_HEADERS.into(),
+        ))
         // If requests are queued or take longer than this duration we want the cut them off
         // regardless of any other protections that are inplace
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
@@ -132,7 +134,7 @@ pub async fn run(config: Config) -> Result<(), Error> {
         // Finally make sure any responses successfully generated from our service is also
         // filtering out any sensitive headers from our logs.
         .layer(SetSensitiveResponseHeadersLayer::from_shared(
-            SENSITIVE_HEADERS.into()
+            SENSITIVE_HEADERS.into(),
         ));
 
     let state = State::from_config(&config).await?;

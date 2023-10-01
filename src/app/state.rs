@@ -1,6 +1,6 @@
-use std::io::Write;
-use jwt_simple::algorithms::{ES384KeyPair, ECDSAP384KeyPairLike};
+use jwt_simple::algorithms::{ECDSAP384KeyPairLike, ES384KeyPair};
 use sha2::Digest;
+use std::io::Write;
 
 use crate::app::{Config, Error, SessionCreator, SessionVerifier};
 use crate::database::{self, Database};
@@ -39,7 +39,8 @@ impl State {
                 .open(path.clone())
                 .map_err(|err| Error::UnwritableSessionKey(err))?;
 
-            file.write_all(pem_key.as_bytes()).map_err(|err| Error::UnwritableSessionKey(err))?;
+            file.write_all(pem_key.as_bytes())
+                .map_err(|err| Error::UnwritableSessionKey(err))?;
 
             key
         };
@@ -52,7 +53,11 @@ impl State {
         let session_key = SessionCreator::new(session_key_raw);
         let session_verifier = session_key.verifier();
 
-        Ok(Self { database, session_key, session_verifier })
+        Ok(Self {
+            database,
+            session_key,
+            session_verifier,
+        })
     }
 }
 

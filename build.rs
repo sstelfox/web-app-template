@@ -8,10 +8,6 @@ fn report_build_profile() {
 fn report_enabled_features() {
     let mut enabled_features: Vec<&str> = Vec::new();
 
-    if cfg!(feature = "postgres") {
-        enabled_features.push("postgres");
-    }
-
     if cfg!(feature = "sqlite") {
         enabled_features.push("sqlite");
     }
@@ -36,7 +32,7 @@ fn report_repository_version() {
                 .unwrap();
 
             String::from_utf8(git_describe.stdout).unwrap()
-        },
+        }
     };
 
     println!("cargo:rustc-env=REPO_VERSION={}", version);
