@@ -100,7 +100,6 @@ where
         }
 
         // todo: validate subject is present, do I need any extra validation?
-        tracing::info!("{claims:?}");
         let user_id = match &claims.subject {
             Some(sub) => Uuid::parse_str(sub).map_err(|_| Self::Rejection::SubjectInvalid)?,
             None => return Err(Self::Rejection::SubjectMissing),
