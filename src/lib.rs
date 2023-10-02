@@ -3,6 +3,7 @@
 use tasks::{MemoryTaskStore, TaskStore};
 
 pub mod app;
+mod auth;
 mod database;
 mod extractors;
 mod health_check;

@@ -18,6 +18,7 @@ use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::Level;
 
 use crate::app::{Config, Error, State};
+use crate::{auth, health_check};
 
 mod error_handlers;
 
@@ -139,8 +140,9 @@ pub async fn run(config: Config) -> Result<(), Error> {
 
     let state = State::from_config(&config).await?;
     let root_router = Router::new()
+        .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
-        .nest("/_status", crate::health_check::router(state.clone()))
+        .nest("/_status", health_check::router(state.clone()))
         .with_state(state)
         .fallback(error_handlers::not_found_handler);
     let app = middleware_stack.service(root_router);
