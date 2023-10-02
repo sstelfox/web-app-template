@@ -1,30 +1,30 @@
+use axum::extract::FromRef;
 use jwt_simple::algorithms::{ECDSAP384KeyPairLike, ES384KeyPair};
 use sha2::Digest;
 use std::io::Write;
 
-use crate::app::{Config, Error, SessionCreator, SessionVerifier};
+use crate::app::{Config, Error, SessionCreationKey, SessionVerificationKey};
 use crate::database::{self, Database};
 
 #[derive(Clone)]
 pub struct State {
     database: Database,
-    session_key: SessionCreator,
-    session_verifier: SessionVerifier,
+    session_key: SessionCreationKey,
+    session_verifier: SessionVerificationKey,
 }
 
 impl State {
     // not implemented as a From trait so it can be async
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
         let database = database::connect(&config.db_url()).await?;
-
         let path = config.session_key_path();
 
         let mut session_key_raw = if path.exists() {
             // load our key
             tracing::info!(key_path = ?path, "loading session key");
-            let key_bytes = std::fs::read(path).map_err(Error::unreadable_key)?;
+            let key_bytes = std::fs::read(path).map_err(Error::UnreadableSessionKey)?;
             let pem = String::from_utf8_lossy(&key_bytes);
-            ES384KeyPair::from_pem(&pem).map_err(Error::invalid_key)?
+            ES384KeyPair::from_pem(&pem).map_err(Error::InvalidSessionKey)?
         } else {
             // generate a fresh key and write it out
             tracing::warn!(key_path = ?path, "generating new session key");
@@ -50,7 +50,7 @@ impl State {
         session_key_raw = session_key_raw.with_key_id(&fingerprint);
 
         // wrap our key and verifier
-        let session_key = SessionCreator::new(session_key_raw);
+        let session_key = SessionCreationKey::new(session_key_raw);
         let session_verifier = session_key.verifier();
 
         Ok(Self {
@@ -61,19 +61,19 @@ impl State {
     }
 }
 
-impl axum::extract::FromRef<State> for Database {
+impl FromRef<State> for Database {
     fn from_ref(state: &State) -> Self {
         state.database.clone()
     }
 }
 
-impl axum::extract::FromRef<State> for SessionCreator {
+impl FromRef<State> for SessionCreationKey {
     fn from_ref(state: &State) -> Self {
         state.session_key.clone()
     }
 }
 
-impl axum::extract::FromRef<State> for SessionVerifier {
+impl FromRef<State> for SessionVerificationKey {
     fn from_ref(state: &State) -> Self {
         state.session_verifier.clone()
     }

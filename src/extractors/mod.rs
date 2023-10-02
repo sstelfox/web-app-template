@@ -1,5 +1,5 @@
 mod api_key_identity;
-mod jwt_key;
+mod session_identity;
 
 pub use api_key_identity::ApiKeyIdentity;
-pub use jwt_key::JwtKey;
+pub use session_identity::SessionIdentity;

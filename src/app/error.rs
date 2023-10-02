@@ -1,4 +1,4 @@
-use crate::database::DbError;
+use crate::database::DatabaseError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -9,7 +9,7 @@ pub enum Error {
     AxumServerError(#[from] hyper::Error),
 
     #[error("failed to initial the database")]
-    DatabaseFailure(#[from] DbError),
+    DatabaseFailure(#[from] DatabaseError),
 
     #[error("unable to read config items from the environment")]
     EnvironmentUnavailable(dotenvy::Error),
@@ -37,14 +37,4 @@ pub enum Error {
 
     #[error("unable to write generated session key")]
     UnwritableSessionKey(std::io::Error),
-}
-
-impl Error {
-    pub fn invalid_key(err: jwt_simple::Error) -> Self {
-        Self::InvalidSessionKey(err)
-    }
-
-    pub fn unreadable_key(err: std::io::Error) -> Self {
-        Self::UnreadableSessionKey(err)
-    }
 }

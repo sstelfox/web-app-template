@@ -1,4 +1,9 @@
-pub type Database = sqlx::SqlitePool;
+use axum::extract::FromRef;
+use sqlx::SqlitePool;
+
+use crate::app::State;
+
+pub type Database = SqlitePool;
 
 pub async fn connect(db_url: &url::Url) -> DbResult<Database> {
     // todo: I should figure out a way to delay the actual connection and running of migrations,
@@ -16,11 +21,11 @@ pub async fn connect(db_url: &url::Url) -> DbResult<Database> {
         return Ok(db);
     }
 
-    Err(DbError::UnknownDbType)
+    Err(DatabaseError::UnknownDbType)
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum DbError {
+pub enum DatabaseError {
     #[error("unable to load data from database, appears to be invalid")]
     CorruptData(sqlx::Error),
 
@@ -43,7 +48,7 @@ pub enum DbError {
     UnknownDbType,
 }
 
-pub type DbResult<T = ()> = Result<T, DbError>;
+pub type DbResult<T = ()> = Result<T, DatabaseError>;
 
 pub mod sqlite {
     use std::time::Duration;
@@ -55,13 +60,13 @@ pub mod sqlite {
     use sqlx::ConnectOptions;
     use url::Url;
 
-    use super::{DbError, DbResult};
+    use super::{DatabaseError, DbResult};
 
     static MIGRATOR: Migrator = sqlx::migrate!();
 
     pub async fn connect_sqlite(url: &Url) -> DbResult<SqlitePool> {
         let connection_options = SqliteConnectOptions::from_url(url)
-            .map_err(|err| DbError::DatabaseUnavailable(err))?
+            .map_err(|err| DatabaseError::DatabaseUnavailable(err))?
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
             .statement_cache_capacity(250)
@@ -74,13 +79,13 @@ pub mod sqlite {
             .max_connections(16)
             .connect_with(connection_options)
             .await
-            .map_err(|err| DbError::DatabaseUnavailable(err))
+            .map_err(|err| DatabaseError::DatabaseUnavailable(err))
     }
 
     pub async fn mitrate_sqlite(pool: &SqlitePool) -> DbResult {
         MIGRATOR
             .run(pool)
             .await
-            .map_err(|err| DbError::MigrationFailed(err))
+            .map_err(|err| DatabaseError::MigrationFailed(err))
     }
 }
