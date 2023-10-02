@@ -26,6 +26,12 @@ pub enum Error {
     #[error("provided smtp url wasn't a valid URI")]
     InvalidSmtpUrl(url::ParseError),
 
+    #[error("client ID for performing Google OAuth was not provided")]
+    MissingGoogleClientId,
+
+    #[error("client secret for performing Google OAuth was not provided")]
+    MissingGoogleClientSecret,
+
     #[error("provided session key was unable to be read")]
     UnreadableSessionKey(std::io::Error),
 

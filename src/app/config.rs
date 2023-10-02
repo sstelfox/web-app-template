@@ -15,6 +15,9 @@ pub struct Config {
     db_url: Url,
     smtp_url: Option<Url>,
 
+    google_client_id: String,
+    google_client_secret: String,
+
     session_key_path: PathBuf,
 }
 
@@ -52,17 +55,47 @@ impl Config {
         let db_str = match cli_args.opt_value_from_str("--db")? {
             Some(du) => du,
             None => match std::env::var("DATABASE_URL") {
-                Ok(du) => du,
-                Err(_) => "sqlite://:memory:".to_string(),
+                Ok(du) if !du.is_empty() => du,
+                _ => "sqlite://:memory:".to_string(),
             },
         };
         let db_url = Url::parse(&db_str).map_err(|err| Error::InvalidDatabaseUrl(err))?;
 
+        let smtp_str = match cli_args.opt_value_from_str("--smtp")? {
+            Some(du) => Some(du),
+            None => match std::env::var("SMTP_URL") {
+                Ok(su) if !su.is_empty() => Some(su),
+                _ => None,
+            },
+        };
+        let smtp_url = match smtp_str {
+            Some(su) => Some(Url::parse(&su).map_err(|err| Error::InvalidSmtpUrl(err))?),
+            None => None,
+        };
+
+        let session_key_str = match cli_args.opt_value_from_str("--session-key")? {
+            Some(path) => path,
+            None => match std::env::var("SESSION_KEY") {
+                Ok(sk) if !sk.is_empty() => sk,
+                _ => "./data/session.key".to_string(),
+            }
+        };
+        let session_key_path = PathBuf::from(session_key_str);
+
+        let google_client_id = match std::env::var("GOOGLE_OAUTH_CLIENT_ID") {
+            Ok(cid) if !cid.is_empty() => cid,
+            _ => return Err(Error::MissingGoogleClientId),
+        };
+        let google_client_secret = match std::env::var("GOOGLE_OAUTH_CLIENT_SECRET") {
+            Ok(cs) if !cs.is_empty() => cs,
+            _ => return Err(Error::MissingGoogleClientSecret),
+        };
+
         let listen_str = match cli_args.opt_value_from_str("--listen")? {
             Some(l) => l,
             None => match std::env::var("LISTEN_ADDR") {
-                Ok(l) => l,
-                Err(_) => "[::]:3000".to_string(),
+                Ok(l) if !l.is_empty() => l,
+                _ => "[::]:3000".to_string(),
             },
         };
         let listen_addr: SocketAddr = listen_str
@@ -73,28 +106,15 @@ impl Config {
             .opt_value_from_str("--log-level")?
             .unwrap_or(Level::INFO);
 
-        let session_key_path: PathBuf = cli_args
-            .opt_value_from_str("--session-key")?
-            .unwrap_or("./data/session.key".into());
-
-        let smtp_str = match cli_args.opt_value_from_str("--smtp")? {
-            Some(du) => Some(du),
-            None => match std::env::var("SMTP_URL") {
-                Ok(du) => Some(du),
-                Err(_) => None,
-            },
-        };
-        let smtp_url = match smtp_str {
-            Some(su) => Some(Url::parse(&su).map_err(|err| Error::InvalidSmtpUrl(err))?),
-            None => None,
-        };
-
         Ok(Config {
             listen_addr,
             log_level,
 
             db_url,
             smtp_url,
+
+            google_client_id,
+            google_client_secret,
 
             session_key_path,
         })
@@ -118,6 +138,10 @@ fn print_help() {
     println!("                                  database (default in memory)");
     println!("    --smtp, SMTP_URL              Configure the url and settings of the SMTP");
     println!("                                  relay server (default print to stdout)");
+    println!("  Additional Environment Options:");
+    println!("    GOOGLE_OAUTH_CLIENT_ID        The client ID associated with this app for");
+    println!("                                  performing authentication using Google services.");
+    println!("    GOOGLE_OAUTH_CLIENT_SECRET    The client secret paired with the client ID.");
 }
 
 fn print_version() {
