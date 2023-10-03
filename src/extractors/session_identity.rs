@@ -21,17 +21,20 @@ use crate::app::SessionVerificationKey;
 
 static LOGIN_PATH: &str = "/auth/login";
 
-const MAX_COOKIE_LENGTH: usize = 77;
-
 static SESSION_COOKIE_NAME: &str = "_session_id";
 
 pub struct SessionIdentity {
+    session_id: Uuid,
     user_id: Uuid,
 }
 
 impl SessionIdentity {
-    pub fn user_id(&self) -> &Uuid {
-        &self.user_id
+    pub fn session_id(&self) -> Uuid {
+        self.session_id
+    }
+
+    pub fn user_id(&self) -> Uuid {
+        self.user_id
     }
 }
 
@@ -59,12 +62,8 @@ where
         // todo: some sanity checks on the cookie (path, security, is web only)
 
         let raw_cookie_val = session_cookie.value();
-        if raw_cookie_val.len() >= MAX_COOKIE_LENGTH {
-            return Err(SessionIdentityError::CookieTooLarge);
-        }
 
-        // todo: switch to just a split_at, we don't need a delimiter for these fixed length
-        // strings
+        // todo: these are going to be fixed lengths, validate the length and switch to split_at
         let mut cookie_pieces = raw_cookie_val.split('*');
 
         let session_id_b64 = cookie_pieces
@@ -101,8 +100,8 @@ where
             .decode(session_id_b64)
             .map_err(|_| SessionIdentityError::EncodingError)?;
 
-        let session_id_bytes: [u8; 8] = session_id_bytes.try_into().expect("signed session ID to be valid byte slice");
-        let session_id = u64::from_le_bytes(session_id_bytes);
+        let session_id_bytes: [u8; 16] = session_id_bytes.try_into().expect("signed session ID to be valid byte slice");
+        let session_id = Uuid::from_bytes_le(session_id_bytes);
 
         // todo: lookup session id in the db
 
