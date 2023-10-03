@@ -36,6 +36,7 @@ tracing-appender = "^0.2"
 tracing-futures = { version = "^0.2", default-features = false, features = ["std-future"] }
 tracing-subscriber = { version = "^0.3", default-features = false, features = ["env-filter", "fmt", "local-time", "time", "tracing"] }
 base64 = "0.21.4"
+ecdsa = { version = "0.16.8", features = ["signing", "verifying"] }
 
 [dev-dependencies]
 bytes = "^1.4"

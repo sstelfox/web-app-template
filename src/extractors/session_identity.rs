@@ -9,8 +9,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{async_trait, Json, RequestPartsExt};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
+use base64::Engine;
+use ecdsa::signature::DigestVerifier;
 use http::request::Parts;
 use jwt_simple::prelude::*;
 use regex::Regex;
@@ -48,7 +49,9 @@ where
         let session_cookie = match cookie_jar.get(SESSION_COOKIE_NAME) {
             Some(st) => st,
             None => {
-                let OriginalUri(uri) = OriginalUri::from_request_parts(parts, state).await.expect("infallible conversion");
+                let OriginalUri(uri) = OriginalUri::from_request_parts(parts, state)
+                    .await
+                    .expect("infallible conversion");
                 return Err(SessionIdentityError::NoSession(uri.to_string()));
             }
         };
@@ -60,18 +63,48 @@ where
             return Err(SessionIdentityError::CookieTooLarge);
         }
 
+        // todo: switch to just a split_at, we don't need a delimiter for these fixed length
+        // strings
         let mut cookie_pieces = raw_cookie_val.split('*');
 
-        let session_id_b64 = cookie_pieces.next().ok_or(SessionIdentityError::EncodingError)?;
-        let session_id_bytes = B64.decode(session_id_b64).map_err(|_| SessionIdentityError::EncodingError)?;
-        if session_id_bytes.len() != 8 {
+        let session_id_b64 = cookie_pieces
+            .next()
+            .ok_or(SessionIdentityError::EncodingError)?;
+        let authentication_tag_b64 = cookie_pieces
+            .next()
+            .ok_or(SessionIdentityError::EncodingError)?;
+
+        if cookie_pieces.next().is_some() {
             return Err(SessionIdentityError::EncodingError);
         }
 
-        let digest_b64 = cookie_pieces.next().ok_or(SessionIdentityError::EncodingError)?;
-        let digest_bytes = B64.decode(digest_b64).map_err(|_| SessionIdentityError::EncodingError)?;
+        let authentication_tag_bytes = B64
+            .decode(authentication_tag_b64)
+            .map_err(|_| SessionIdentityError::EncodingError)?;
 
-        let verification_key = SessionVerificationKey::from_ref(state).public_key();
+        let ecdsa_signature = ecdsa::Signature::try_from(authentication_tag_bytes.as_slice())
+            .map_err(SessionIdentityError::InvalidSignatureBytes)?;
+        let mut digest = hmac_sha512::sha384::Hash::new();
+        digest.update(&session_id_b64);
+
+        let verification_key = SessionVerificationKey::from_ref(state);
+        verification_key
+            .public_key()
+            .as_ref()
+            .verify_digest(digest, &ecdsa_signature)
+            .map_err(SessionIdentityError::BadSignature)?;
+
+        // We now know these are good bytes, decode them, turn them into a valid session ID and
+        // check the DB for them...
+
+        let session_id_bytes = B64
+            .decode(session_id_b64)
+            .map_err(|_| SessionIdentityError::EncodingError)?;
+
+        let session_id_bytes: [u8; 8] = session_id_bytes.try_into().expect("signed session ID to be valid byte slice");
+        let session_id = u64::from_le_bytes(session_id_bytes);
+
+        // todo: lookup session id in the db
 
         //Ok(SessionIdentity { user_id })
         todo!()
@@ -80,11 +113,17 @@ where
 
 #[derive(Debug, thiserror::Error)]
 pub enum SessionIdentityError {
+    #[error("signature did not match digest, tampering likely: {0}")]
+    BadSignature(ecdsa::Error),
+
     #[error("received cookie that was larger than we expect or accept")]
     CookieTooLarge,
 
     #[error("cookie was not encoded into the correct format")]
     EncodingError,
+
+    #[error("authenicated signature was in a valid format: {0}")]
+    InvalidSignatureBytes(ecdsa::Error),
 
     #[error("user didn't have an existing session")]
     NoSession(String),
@@ -104,7 +143,7 @@ impl IntoResponse for SessionIdentityError {
             SIE::NoSession(_orig_uri) => {
                 tracing::debug!("request had no session when trying to access protected path");
                 Redirect::to(LOGIN_PATH).into_response()
-            },
+            }
             err => {
                 tracing::warn!("session validation error: {err}");
                 // Clear all cookies and send them to the login path
