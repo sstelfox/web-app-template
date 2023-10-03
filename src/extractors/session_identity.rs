@@ -1,13 +1,14 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-use axum::{async_trait, Json, RequestPartsExt};
-use axum::extract::{FromRef, FromRequestParts, TypedHeader};
 use axum::extract::rejection::TypedHeaderRejection;
-use axum::headers::{Authorization, Cookie};
+use axum::extract::{FromRef, FromRequestParts, OriginalUri, TypedHeader};
 use axum::headers::authorization::Bearer;
+use axum::headers::Authorization;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
+use axum::{async_trait, Json, RequestPartsExt};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 use http::request::Parts;
 use jwt_simple::prelude::*;
 use regex::Regex;
@@ -15,11 +16,15 @@ use uuid::Uuid;
 
 use crate::app::SessionVerificationKey;
 
+static LOGIN_PATH: &str = "/auth/login";
+
 const MAXIMUM_SESSION_AGE: u64 = 24 * 7 * 60 * 60; // 1 week
 
-static SESSION_COOKIE_CONTENT_PATTERN: &str = r"^[0-9a-f]{64}$";
+static SESSION_COOKIE_NAME: &str = "_session_id";
 
-static SESSION_COOKIE_CONTENT_VALIDATOR: OnceLock<Regex> = OnceLock::new();
+static SESSION_COOKIE_KID_PATTERN: &str = "^[0-9a-f]{64}$";
+
+static SESSION_COOKIE_KID_VALIDATOR: OnceLock<Regex> = OnceLock::new();
 
 pub struct SessionIdentity {
     user_id: Uuid,
@@ -40,21 +45,29 @@ where
     type Rejection = SessionIdentityError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let key_validator = SESSION_COOKIE_CONTENT_VALIDATOR.get_or_init(|| Regex::new(SESSION_COOKIE_CONTENT_PATTERN).unwrap());
+        let kid_validator = SESSION_COOKIE_KID_VALIDATOR
+            .get_or_init(|| Regex::new(SESSION_COOKIE_KID_PATTERN).unwrap());
 
-        let TypedHeader(cookie) = parts
-            .extract::<TypedHeader<Cookie>>()
-            .await
-            .map_err(|err| Self::Rejection::MissingHeader(err))?;
+        let cookie_jar: CookieJar = CookieJar::from_headers(&parts.headers);
 
-        //let raw_token = bearer.token();
+        let session_cookie = match cookie_jar.get(SESSION_COOKIE_NAME) {
+            Some(st) => st,
+            None => {
+                let OriginalUri(uri) = OriginalUri::from_request_parts(parts, state).await.expect("infallible conversion");
+                return Err(SessionIdentityError::NoSession(uri.to_string()));
+            }
+        };
 
-        //let unvalidated_header = Token::decode_metadata(&raw_token).map_err(|err| Self::Rejection::CorruptHeader(err))?;
-        //let key_id = match unvalidated_header.key_id() {
-        //    Some(kid) if key_validator.is_match(kid) => kid.to_string(),
-        //    Some(_) => return Err(Self::Rejection::InvalidKeyId),
-        //    None => return Err(Self::Rejection::MissingKeyId),
-        //};
+        // todo: some sanity checks on the cookie (path, security, is web only)
+
+        let unvalidated_header = Token::decode_metadata(session_cookie.value()).map_err(|err| Self::Rejection::CorruptHeader(err))?;
+        let key_id = match unvalidated_header.key_id() {
+            Some(kid) if kid_validator.is_match(kid) => kid.to_string(),
+            Some(_) => return Err(Self::Rejection::InvalidKeyId),
+            None => return Err(Self::Rejection::MissingKeyId),
+        };
+
+        let verification_key = SessionVerificationKey::from_ref(state);
 
         //let jwt_key = JwtKey::from_request_parts(parts, state)
         //    .await
@@ -93,17 +106,20 @@ where
 
 #[derive(Debug, thiserror::Error)]
 pub enum SessionIdentityError {
-    //#[error("provided JWT had an invalid or corrupt header")]
-    //CorruptHeader(jwt_simple::Error),
+    #[error("session JWT had an invalid or corrupt header")]
+    CorruptHeader(jwt_simple::Error),
 
-    //#[error("key ID included in JWT header did not match our expected format")]
-    //InvalidKeyId,
+    #[error("key ID included in sesion JWT header did not match our expected format")]
+    InvalidKeyId,
 
-    #[error("authenticated route was missing authorization header")]
-    MissingHeader(TypedHeaderRejection),
+    #[error("no key ID was included in the session JWT header")]
+    MissingKeyId,
 
-    //#[error("no key ID was included in the JWT header")]
-    //MissingKeyId,
+    #[error("user didn't have an existing session")]
+    NoSession(String),
+
+    //#[error("authenticated route was missing authorization header")]
+    //MissingHeader(TypedHeaderRejection),
 
     //#[error("no nonce was included in the token")]
     //NonceMissing,
@@ -122,11 +138,27 @@ impl IntoResponse for SessionIdentityError {
     fn into_response(self) -> Response {
         use SessionIdentityError as SIE;
 
+        // todo: may want to consolidate actions here with some helper methods, may want to include
+        // the original uri in the get request to the appropriate auth server and record it in the
+        // session db...
+
         match self {
-            SIE::MissingHeader(_) => {
-                tracing::error!("no cookie header in request to check for session identity");
-                let err_msg = serde_json::json!({ "msg": "no authentication material found in request" });
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(err_msg)).into_response()
+            SIE::CorruptHeader(err) => {
+                tracing::error!("session header appears to be corrupted (err); forcing login");
+                (CookieJar::new(), Redirect::to(LOGIN_PATH)).into_response()
+            },
+            SIE::InvalidKeyId => {
+                tracing::error!("provided session key ID did not match expected session key");
+                (CookieJar::new(), Redirect::to(LOGIN_PATH)).into_response()
+            },
+            SIE::MissingKeyId => {
+                tracing::error!("no key ID in session JWT");
+                (CookieJar::new(), Redirect::to(LOGIN_PATH)).into_response()
+            },
+            SIE::NoSession(_orig_uri) => {
+                // todo: handle redirecting back to the original uri
+                tracing::debug!("request had no session when trying to access protected path");
+                Redirect::to(LOGIN_PATH).into_response()
             },
         }
     }

@@ -78,7 +78,7 @@ impl Config {
             None => match std::env::var("SESSION_KEY") {
                 Ok(sk) if !sk.is_empty() => sk,
                 _ => "./data/session.key".to_string(),
-            }
+            },
         };
         let session_key_path = PathBuf::from(session_key_str);
 

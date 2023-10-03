@@ -20,7 +20,6 @@ serde = { version = "^1", features = ["derive"] }
 uuid = { version = "^1", features = ["fast-rng", "serde", "v4"] }
 
 axum = { version = "^0.6", features = ["headers", "http2", "multipart", "tracing"] }
-cookie = { version = "0.17.0", features = [] }
 http = "^0.2"
 hyper = "^0.14"
 lettre = { version = "^0.10", features = ["tokio1-rustls-tls", "base64", "pool", "smtp-transport", "tracing", "email-encoding", "hostname", "mime", "builder", "dkim"], default-features = false }
@@ -34,6 +33,7 @@ tracing = { version = "^0.1", features = ["max_level_debug", "release_max_level_
 tracing-appender = "^0.2"
 tracing-futures = { version = "^0.2", default-features = false, features = ["std-future"] }
 tracing-subscriber = { version = "^0.3", default-features = false, features = ["env-filter", "fmt", "local-time", "time", "tracing"] }
+axum-extra = { version = "0.8.0", features = ["cookie", "form"] }
 
 [dev-dependencies]
 bytes = "^1.4"
