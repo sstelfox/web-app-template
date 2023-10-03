@@ -17,6 +17,9 @@ pub enum Error {
     #[error("provided database url wasn't a valid URI")]
     InvalidDatabaseUrl(url::ParseError),
 
+    #[error("provided hostname wasn't a valid URL")]
+    InvalidHostname(url::ParseError),
+
     #[error("listen address wasn't a valid socket address")]
     InvalidListenAddr(std::net::AddrParseError),
 

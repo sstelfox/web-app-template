@@ -9,6 +9,7 @@ use crate::app::{Error, Version};
 
 #[derive(Debug)]
 pub struct Config {
+    hostname: Url,
     listen_addr: SocketAddr,
     log_level: Level,
 
@@ -24,18 +25,6 @@ pub struct Config {
 impl Config {
     pub fn db_url(&self) -> Url {
         self.db_url.clone()
-    }
-
-    pub fn listen_addr(&self) -> &SocketAddr {
-        &self.listen_addr
-    }
-
-    pub fn log_level(&self) -> Level {
-        self.log_level.clone()
-    }
-
-    pub fn smtp_url(&self) -> Option<Url> {
-        self.smtp_url.as_ref().map(|u| u.clone())
     }
 
     pub fn from_env_and_args() -> Result<Self, Error> {
@@ -102,11 +91,22 @@ impl Config {
             .parse()
             .map_err(|err| Error::InvalidListenAddr(err))?;
 
+        let hostname_str = match cli_args.opt_value_from_str("--hostname")? {
+            Some(h) => h,
+            None => match std::env::var("HOSTNAME") {
+                Ok(h) if !h.is_empty() => h,
+                _ => "http://[::1]:3000".to_string(),
+            },
+        };
+        let hostname: Url = hostname_str.parse().map_err(Error::InvalidHostname)?;
+
         let log_level = cli_args
             .opt_value_from_str("--log-level")?
             .unwrap_or(Level::INFO);
 
         Ok(Config {
+            hostname,
+
             listen_addr,
             log_level,
 
@@ -120,6 +120,30 @@ impl Config {
         })
     }
 
+    pub fn google_client_id(&self) -> &str {
+        self.google_client_id.as_str()
+    }
+
+    pub fn google_client_secret(&self) -> &str {
+        self.google_client_secret.as_str()
+    }
+
+    pub fn hostname(&self) -> Url {
+        self.hostname.clone()
+    }
+
+    pub fn listen_addr(&self) -> &SocketAddr {
+        &self.listen_addr
+    }
+
+    pub fn log_level(&self) -> Level {
+        self.log_level.clone()
+    }
+
+    pub fn smtp_url(&self) -> Option<Url> {
+        self.smtp_url.as_ref().map(|u| u.clone())
+    }
+
     pub fn session_key_path(&self) -> &PathBuf {
         &self.session_key_path
     }
@@ -131,6 +155,7 @@ fn print_help() {
     println!("    -h, --help                    Print this notice and exit");
     println!("    -v, --version                 Display the version of this compiled version");
     println!("                                  and exit\n");
+    println!("    --listen, LISTEN_ADDR Specify the address to bind to (default [::]:3000)");
     println!("    --listen, LISTEN_ADDR Specify the address to bind to (default [::]:3000)");
     println!("    --session-key, SESSION_KEY    Path to the p384 private key used for session");
     println!("                                  key generation and verification\n");

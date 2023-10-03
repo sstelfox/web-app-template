@@ -1,14 +1,30 @@
-use axum::extract::FromRef;
-use jwt_simple::algorithms::{ECDSAP384KeyPairLike, ES384KeyPair};
-use sha2::Digest;
 use std::io::Write;
 
-use crate::app::{Config, Error, SessionCreationKey, SessionVerificationKey};
+use axum::extract::FromRef;
+use jwt_simple::algorithms::{ECDSAP384KeyPairLike, ES384KeyPair};
+use oauth2::basic::BasicClient;
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use sha2::Digest;
+
+use crate::app::{Config, Error, Hostname, SessionCreationKey, SessionVerificationKey};
 use crate::database::{self, Database};
+
+static GOOGLE_OAUTH_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
+
+static GOOGLE_OAUTH_TOKEN_URL: &str = "https://www.googleapis.com/oauth2/v3/token";
+
+static GOOGLE_CALLBACK_PATH: &str = "/auth/callback/google";
+
+#[derive(Clone)]
+pub struct OAuthClient(BasicClient);
 
 #[derive(Clone)]
 pub struct State {
+    hostname: Hostname,
+
     database: Database,
+    oauth_client: OAuthClient,
+
     session_key: SessionCreationKey,
     session_verifier: SessionVerificationKey,
 }
@@ -16,6 +32,8 @@ pub struct State {
 impl State {
     // not implemented as a From trait so it can be async
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
+        let hostname = Hostname(config.hostname());
+
         let database = database::connect(&config.db_url()).await?;
         let path = config.session_key_path();
 
@@ -54,7 +72,11 @@ impl State {
         let session_verifier = session_key.verifier();
 
         Ok(Self {
+            hostname,
+
             database,
+            oauth_client: oauth_client(config)?,
+
             session_key,
             session_verifier,
         })
@@ -64,6 +86,18 @@ impl State {
 impl FromRef<State> for Database {
     fn from_ref(state: &State) -> Self {
         state.database.clone()
+    }
+}
+
+impl FromRef<State> for Hostname {
+    fn from_ref(state: &State) -> Self {
+        state.hostname.clone()
+    }
+}
+
+impl FromRef<State> for OAuthClient {
+    fn from_ref(state: &State) -> Self {
+        state.oauth_client.clone()
     }
 }
 
@@ -91,4 +125,25 @@ fn fingerprint_key(keys: &ES384KeyPair) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+fn oauth_client(config: &Config) -> Result<OAuthClient, Error> {
+    let auth_url =
+        AuthUrl::new(GOOGLE_OAUTH_AUTH_URL.to_string()).expect("static auth url to be valid");
+    let token_url =
+        TokenUrl::new(GOOGLE_OAUTH_TOKEN_URL.to_string()).expect("static token url to be valid");
+
+    let mut redirect_url = config.hostname();
+    redirect_url.set_path(GOOGLE_CALLBACK_PATH);
+    let redirect_url = RedirectUrl::from_url(redirect_url);
+
+    let client = BasicClient::new(
+        ClientId::new(config.google_client_id().to_string()),
+        Some(ClientSecret::new(config.google_client_secret().to_string())),
+        auth_url,
+        Some(token_url),
+    )
+    .set_redirect_uri(redirect_url);
+
+    Ok(OAuthClient(client))
 }

@@ -7,7 +7,7 @@ use crate::app::State;
 pub fn router(state: State) -> Router<State> {
     Router::new()
         .route("/login", get(login_handler))
-        .route("/oauth/callback/google", get(google_oauth_callback))
+        .route("/callback/google", get(google_oauth_callback))
         .route("/logout", get(logout_handler))
         .with_state(state)
 }

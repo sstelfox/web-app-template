@@ -116,6 +116,8 @@ where
         .await
         .map_err(SessionIdentityError::LookupFailed)?;
 
+        // todo: check session against client IP address and user agent
+
         if db_session.expires_at <= OffsetDateTime::now_utc() {
             return Err(SessionIdentityError::SessionExpired);
         }
