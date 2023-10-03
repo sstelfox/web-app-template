@@ -116,6 +116,10 @@ where
         .await
         .map_err(SessionIdentityError::LookupFailed)?;
 
+        if db_session.expires_at <= OffsetDateTime::now_utc() {
+            return Err(SessionIdentityError::SessionExpired);
+        }
+
         let session_id =
             Uuid::parse_str(&db_session.id).map_err(SessionIdentityError::CorruptDatabaseId)?;
         let user_id = Uuid::parse_str(&db_session.user_id)
@@ -161,6 +165,9 @@ pub enum SessionIdentityError {
 
     #[error("user didn't have an existing session")]
     NoSession(String),
+
+    #[error("session was expired")]
+    SessionExpired,
 }
 
 impl IntoResponse for SessionIdentityError {
