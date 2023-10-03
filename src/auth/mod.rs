@@ -1,5 +1,4 @@
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 

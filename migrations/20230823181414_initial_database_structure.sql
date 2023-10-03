@@ -29,3 +29,33 @@ CREATE INDEX background_tasks_on_scheduled_at_idx ON background_tasks(scheduled_
 CREATE INDEX background_tasks_on_state_idx ON background_tasks(state);
 CREATE INDEX background_tasks_on_task_queue_idx ON background_tasks(task_queue);
 CREATE INDEX background_tasks_on_uniq_hash_idx ON background_tasks(uniq_hash) WHERE uniq_hash != NULL;
+
+CREATE TABLE users (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  email VARCHAR(128) NOT NULL,
+  display_name VARCHAR(128) NOT NULL,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE sessions (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  user_id TEXT NOT NULL REFERENCES users(id),
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL
+);

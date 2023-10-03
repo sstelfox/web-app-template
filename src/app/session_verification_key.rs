@@ -1,10 +1,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use axum::extract::FromRef;
 use jwt_simple::prelude::*;
-
-use crate::app::State;
 
 #[derive(Clone)]
 pub struct SessionVerificationKey(Arc<ES384PublicKey>);

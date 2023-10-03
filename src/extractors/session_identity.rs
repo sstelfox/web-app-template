@@ -1,23 +1,19 @@
-use std::collections::HashSet;
-use std::sync::OnceLock;
+use axum::extract::{FromRef, FromRequestParts, OriginalUri};
 
-use axum::extract::rejection::TypedHeaderRejection;
-use axum::extract::{FromRef, FromRequestParts, OriginalUri, TypedHeader};
-use axum::headers::authorization::Bearer;
-use axum::headers::Authorization;
-use axum::http::StatusCode;
+use axum::async_trait;
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::{async_trait, Json, RequestPartsExt};
-use axum_extra::extract::cookie::{Cookie, CookieJar};
+use axum_extra::extract::cookie::CookieJar;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use base64::Engine;
 use ecdsa::signature::DigestVerifier;
 use http::request::Parts;
 use jwt_simple::prelude::*;
-use regex::Regex;
+
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::app::SessionVerificationKey;
+use crate::database::Database;
 
 static LOGIN_PATH: &str = "/auth/login";
 
@@ -26,6 +22,9 @@ static SESSION_COOKIE_NAME: &str = "_session_id";
 pub struct SessionIdentity {
     session_id: Uuid,
     user_id: Uuid,
+
+    created_at: OffsetDateTime,
+    expires_at: OffsetDateTime,
 }
 
 impl SessionIdentity {
@@ -41,6 +40,7 @@ impl SessionIdentity {
 #[async_trait]
 impl<S> FromRequestParts<S> for SessionIdentity
 where
+    Database: FromRef<S>,
     SessionVerificationKey: FromRef<S>,
     S: Send + Sync,
 {
@@ -100,14 +100,43 @@ where
             .decode(session_id_b64)
             .map_err(|_| SessionIdentityError::EncodingError)?;
 
-        let session_id_bytes: [u8; 16] = session_id_bytes.try_into().expect("signed session ID to be valid byte slice");
+        let session_id_bytes: [u8; 16] = session_id_bytes
+            .try_into()
+            .expect("signed session ID to be valid byte slice");
         let session_id = Uuid::from_bytes_le(session_id_bytes);
 
-        // todo: lookup session id in the db
+        let database = Database::from_ref(state);
 
-        //Ok(SessionIdentity { user_id })
-        todo!()
+        let db_session = sqlx::query_as!(
+            DatabaseSession,
+            r#"SELECT id,user_id,created_at,expires_at FROM sessions WHERE id = ?"#,
+            session_id
+        )
+        .fetch_one(&database)
+        .await
+        .map_err(SessionIdentityError::LookupFailed)?;
+
+        let session_id =
+            Uuid::parse_str(&db_session.id).map_err(SessionIdentityError::CorruptDatabaseId)?;
+        let user_id = Uuid::parse_str(&db_session.user_id)
+            .map_err(SessionIdentityError::CorruptDatabaseId)?;
+
+        Ok(SessionIdentity {
+            session_id,
+            user_id,
+
+            created_at: db_session.created_at,
+            expires_at: db_session.expires_at,
+        })
     }
+}
+
+struct DatabaseSession {
+    id: String,
+    user_id: String,
+
+    created_at: OffsetDateTime,
+    expires_at: OffsetDateTime,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -118,11 +147,17 @@ pub enum SessionIdentityError {
     #[error("received cookie that was larger than we expect or accept")]
     CookieTooLarge,
 
+    #[error("a UUID in the database was corrupted and can not be parsed")]
+    CorruptDatabaseId(uuid::Error),
+
     #[error("cookie was not encoded into the correct format")]
     EncodingError,
 
     #[error("authenicated signature was in a valid format: {0}")]
     InvalidSignatureBytes(ecdsa::Error),
+
+    #[error("unable to lookup session in database")]
+    LookupFailed(sqlx::Error),
 
     #[error("user didn't have an existing session")]
     NoSession(String),

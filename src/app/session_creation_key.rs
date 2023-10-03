@@ -1,10 +1,9 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use axum::extract::FromRef;
 use jwt_simple::prelude::*;
 
-use crate::app::{SessionVerificationKey, State};
+use crate::app::SessionVerificationKey;
 
 #[derive(Clone)]
 pub struct SessionCreationKey(Arc<ES384KeyPair>);

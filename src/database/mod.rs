@@ -1,7 +1,4 @@
-use axum::extract::FromRef;
 use sqlx::SqlitePool;
-
-use crate::app::State;
 
 pub type Database = SqlitePool;
 
