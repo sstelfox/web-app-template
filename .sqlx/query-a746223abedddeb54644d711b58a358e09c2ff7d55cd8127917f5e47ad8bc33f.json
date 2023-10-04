@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id FROM users WHERE email = LOWER(?);",
+  "query": "SELECT id FROM users WHERE email = LOWER($1);",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "a95704e113fee9f6657addb81a293a562bc9f18006d98fa6be46d76be3f8982d"
+  "hash": "a746223abedddeb54644d711b58a358e09c2ff7d55cd8127917f5e47ad8bc33f"
 }

@@ -42,6 +42,9 @@ CREATE TABLE users (
   email VARCHAR(128) NOT NULL,
   display_name VARCHAR(128) NOT NULL,
 
+  picture VARCHAR(256),
+  locale VARCHAR(16),
+
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

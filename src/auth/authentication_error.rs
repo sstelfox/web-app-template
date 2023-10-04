@@ -7,6 +7,9 @@ pub enum AuthenticationError {
     #[error("failed to clean up intermediate session state")]
     CleanupFailed,
 
+    #[error("attempt to create new user after authentication failed: {0}")]
+    CreationFailed(sqlx::Error),
+
     #[error("code exchange for oauth did not validate: {0}")]
     ExchangeCodeFailure(String),
 

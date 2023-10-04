@@ -4,6 +4,7 @@ use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeVerifier, TokenResponse};
 use serde::Deserialize;
 use url::Url;
+use uuid::Uuid;
 
 use crate::app::{State as AppState};
 use crate::auth::{oauth_client, AuthenticationError};
@@ -11,7 +12,7 @@ use crate::database::Database;
 
 pub async fn handler(
     database: Database,
-    cookie_jar: CookieJar,
+    mut cookie_jar: CookieJar,
     State(state): State<AppState>,
     Host(hostname): Host,
     Path(provider): Path<String>,
@@ -76,13 +77,26 @@ pub async fn handler(
         .await
         .map_err(AuthenticationError::LookupFailed)?;
 
-    let _existing_user: Option<String> = match user_row {
-        Some(u) => Some(u.id),
-        None => None,
+    let user_id = match user_row {
+        Some(u) => Uuid::parse_str(&u.id.to_string()),
+        None => {
+            let new_user_row = sqlx::query!(
+                    r#"INSERT INTO users (email, display_name, picture, locale)
+                        VALUES ($1, $2, $3, $4) RETURNING id;"#,
+                    user_info.email,
+                    user_info.name,
+                    user_info.picture,
+                    user_info.locale,
+                )
+                .fetch_one(&database)
+                .await
+                .map_err(AuthenticationError::CreationFailed)?;
+
+            Uuid::parse_str(&new_user_row.id)
+        },
     };
 
     // todo:
-    //  * find or create a new user account for the email
     //  * create a new session for the user
     //    * record it in the database
     //    * build and sign an appropriate cookie for it
@@ -99,6 +113,10 @@ pub struct CallbackParameters {
 
 #[derive(Deserialize)]
 pub struct GoogleUserProfile {
+    name: String,
     email: String,
     verified_email: bool,
+
+    picture: String,
+    locale: String,
 }

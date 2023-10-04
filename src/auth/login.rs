@@ -56,7 +56,7 @@ pub async fn handler(
 
     let query = sqlx::query!(
         r#"INSERT INTO oauth_state (csrf_secret, pkce_verifier_secret, next_url)
-                   VALUES (?, ?, ?);"#,
+                   VALUES ($1, $2, $3);"#,
         csrf_secret,
         pkce_verifier_secret,
         params.next_url,
