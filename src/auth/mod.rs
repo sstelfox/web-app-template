@@ -157,6 +157,16 @@ pub async fn oauth_callback(
     let hostname = Url::parse(&hostname).expect("host to be valid");
     let oauth_client = oauth_client(&provider, hostname, state.secrets())?;
 
+    let token_response = tokio::task::spawn_blocking(move || {
+        oauth_client
+            .exchange_code(exchange_code)
+            .set_pkce_verifier(pkce_code_verifier)
+            .request(oauth2::reqwest::http_client)
+    })
+    .await
+    .map_err(AuthenticationError::SpawnFailure)?
+    .map_err(|err| AuthenticationError::ExchangeCodeFailure(err.to_string()))?;
+
     todo!()
 }
 
