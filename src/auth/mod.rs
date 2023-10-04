@@ -1,13 +1,18 @@
+use std::collections::HashMap;
+
+use axum::extract::{Host, Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::Router;
+use axum::{Json, Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
+use http::StatusCode;
 use oauth2::basic::BasicClient;
 use oauth2::RedirectUrl;
+use serde::Deserialize;
 use url::Url;
 
-use crate::app::{Secrets, State};
+use crate::app::{Secrets, State as AppState};
 use crate::database::Database;
 use crate::extractors::{SessionIdentity, LOGIN_PATH, SESSION_COOKIE_NAME};
 
@@ -31,23 +36,38 @@ static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! 
     ),
 };
 
-pub fn router(state: State) -> Router<State> {
+pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/login", get(login_handler))
+        .with_state(state)
+        .route("/login/:provider", get(login_handler))
         .route("/auth/callback/:provider", get(oauth_callback))
         .route("/logout", get(logout_handler))
-        .with_state(state)
 }
 
-pub async fn oauth_callback() -> Response {
-    todo!()
-}
-
+#[axum::debug_handler]
 pub async fn login_handler(
     session: Option<SessionIdentity>,
-    database: Database,
-    mut cookie_jar: CookieJar,
+    State(state): State<AppState>,
+    cookie_jar: CookieJar,
+    Host(hostname): Host,
+    Path(provider): Path<String>,
+    Query(params): Query<LoginParams>,
 ) -> Response {
+    let next_url = params.next_url.unwrap_or("/".to_string());
+    if session.is_some() {
+        return Redirect::to(&next_url).into_response();
+    }
+
+    // todo: should return an error here
+    //let hostname = Url::parse(&hostname).expect("host to be valid");
+    //let oauth_client = match oauth_client(&provider, hostname, &secrets) {
+    //    Ok(oc) => oc,
+    //    Err(err) => {
+    //        let response = serde_json::json!({"msg": "unable to use login services"});
+    //        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+    //    }
+    //};
+
     todo!()
 }
 
@@ -58,18 +78,21 @@ pub async fn logout_handler(
 ) -> Response {
     if let Some(sid) = session {
         let session_id = sid.session_id();
-        let query = sqlx::query!("DELETE FROM sessions WHERE id = ?;", session_id);
 
+        // todo: revoke token?
+
+        let query = sqlx::query!("DELETE FROM sessions WHERE id = ?;", session_id);
         if let Err(err) = query.execute(&database).await {
             tracing::error!("failed to remove session from the db: {err}");
         }
-
-        // todo: revoke token?
     }
 
     cookie_jar = cookie_jar.remove(Cookie::named(SESSION_COOKIE_NAME));
-
     (cookie_jar, Redirect::to(LOGIN_PATH)).into_response()
+}
+
+pub async fn oauth_callback() -> Response {
+    todo!()
 }
 
 fn oauth_client<'a>(
@@ -104,4 +127,9 @@ fn oauth_client<'a>(
     }
 
     Ok(client)
+}
+
+#[derive(Deserialize)]
+pub struct LoginParams {
+    next_url: Option<String>,
 }
