@@ -9,7 +9,6 @@ use crate::app::{Error, Version};
 
 #[derive(Debug)]
 pub struct Config {
-    hostname: Url,
     listen_addr: SocketAddr,
     log_level: Level,
 
@@ -91,22 +90,11 @@ impl Config {
             .parse()
             .map_err(|err| Error::InvalidListenAddr(err))?;
 
-        let hostname_str = match cli_args.opt_value_from_str("--hostname")? {
-            Some(h) => h,
-            None => match std::env::var("HOSTNAME") {
-                Ok(h) if !h.is_empty() => h,
-                _ => "http://[::1]:3000".to_string(),
-            },
-        };
-        let hostname: Url = hostname_str.parse().map_err(Error::InvalidHostname)?;
-
         let log_level = cli_args
             .opt_value_from_str("--log-level")?
             .unwrap_or(Level::INFO);
 
         Ok(Config {
-            hostname,
-
             listen_addr,
             log_level,
 
@@ -126,10 +114,6 @@ impl Config {
 
     pub fn google_client_secret(&self) -> &str {
         self.google_client_secret.as_str()
-    }
-
-    pub fn hostname(&self) -> Url {
-        self.hostname.clone()
     }
 
     pub fn listen_addr(&self) -> &SocketAddr {

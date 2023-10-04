@@ -45,6 +45,23 @@ CREATE TABLE users (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE oauth_state (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  csrf_secret VARCHAR(64) NOT NULL,
+  pkce_code_verifier VARCHAR(64) NOT NULL,
+
+  next_url VARCHAR(256) NOT NULL DEFAULT "/",
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE sessions (
   id TEXT NOT NULL PRIMARY KEY DEFAULT (
     lower(hex(randomblob(4))) || '-' ||
@@ -55,6 +72,8 @@ CREATE TABLE sessions (
   ),
 
   user_id TEXT NOT NULL REFERENCES users(id),
+
+  oauth_state_id REFERENCES oauth_state(id),
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NOT NULL
