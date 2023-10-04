@@ -1,12 +1,12 @@
 use axum::extract::{Host, Path, Query, State};
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
-use http::StatusCode;
+
 use oauth2::basic::BasicClient;
-use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse};
+use oauth2::{AuthorizationCode, CsrfToken, PkceCodeVerifier, RedirectUrl, TokenResponse};
 use serde::Deserialize;
 use url::Url;
 
@@ -15,6 +15,7 @@ use crate::database::Database;
 use crate::extractors::{SessionIdentity, LOGIN_PATH, SESSION_COOKIE_NAME};
 
 mod authentication_error;
+mod login;
 mod provider_config;
 
 use authentication_error::AuthenticationError;
@@ -37,71 +38,12 @@ static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/callback/:provider", get(oauth_callback))
-        .route("/login/:provider", get(login_handler))
+        .route("/login", get(select_provider_handler))
+        .route("/login/:provider", get(login::handler))
         .route("/logout", get(logout_handler))
         .with_state(state)
 }
 
-#[axum::debug_handler]
-pub async fn login_handler(
-    session: Option<SessionIdentity>,
-    State(state): State<AppState>,
-    Host(hostname): Host,
-    Path(provider): Path<String>,
-    Query(params): Query<LoginParams>,
-) -> Response {
-    if session.is_some() {
-        return Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response();
-    }
-
-    let provider_config = match PROVIDER_CONFIGS.get(&provider) {
-        Some(pc) => pc,
-        None => {
-            tracing::error!("attempted to login using unknown provider '{provider}'");
-            let response = serde_json::json!({"msg": "provider is not recognized on this server"});
-            return (StatusCode::NOT_FOUND, Json(response)).into_response();
-        }
-    };
-
-    // todo: should return an error here
-    let hostname = Url::parse(&hostname).expect("host to be valid");
-    let oauth_client = match oauth_client(&provider, hostname, state.secrets()) {
-        Ok(oc) => oc,
-        Err(err) => {
-            tracing::error!("failed to build oauth client: {err}");
-            let response = serde_json::json!({"msg": "unable to use login services"});
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
-        }
-    };
-
-    let (pkce_code_challenge, pkce_code_verifier) = PkceCodeChallenge::new_random_sha256();
-    let mut auth_request = oauth_client.authorize_url(CsrfToken::new_random);
-
-    for scope in provider_config.scopes() {
-        auth_request = auth_request.add_scope(Scope::new(scope.to_string()));
-    }
-
-    let (authorize_url, csrf_state) = auth_request.set_pkce_challenge(pkce_code_challenge).url();
-
-    let csrf_secret = csrf_state.secret();
-    let pkce_verifier_secret = pkce_code_verifier.secret();
-
-    let query = sqlx::query!(
-        r#"INSERT INTO oauth_state (csrf_secret, pkce_verifier_secret, next_url)
-                   VALUES (?, ?, ?);"#,
-        csrf_secret,
-        pkce_verifier_secret,
-        params.next_url,
-    );
-
-    if let Err(err) = query.execute(state.database()).await {
-        tracing::error!("failed to create oauth session handle: {err}");
-        let response = serde_json::json!({"msg": "unable to use login services"});
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
-    };
-
-    Redirect::to(authorize_url.as_str()).into_response()
-}
 
 pub async fn logout_handler(
     session: Option<SessionIdentity>,
@@ -125,7 +67,7 @@ pub async fn logout_handler(
 
 pub async fn oauth_callback(
     database: Database,
-    mut cookie_jar: CookieJar,
+    cookie_jar: CookieJar,
     State(state): State<AppState>,
     Host(hostname): Host,
     Path(provider): Path<String>,
@@ -185,8 +127,17 @@ pub async fn oauth_callback(
     // We're back in provider specific land for getting information about the authenticated user,
     // todo: allow for providers other than Google here...
 
+    let user_row = sqlx::query!("SELECT id FROM users WHERE email = LOWER($1);", user_info.email)
+        .fetch_optional(&database)
+        .await
+        .map_err(AuthenticationError::LookupFailed)?;
+
+    let _existing_user: Option<String> = match user_row {
+        Some(u) => Some(u.id),
+        None => None,
+    };
+
     // todo:
-    //  * reject with a nice error if the email isn't verified
     //  * find or create a new user account for the email
     //  * create a new session for the user
     //    * record it in the database
@@ -194,6 +145,25 @@ pub async fn oauth_callback(
 
     let redirect_url = next_url.unwrap_or("/".to_string());
     Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
+}
+
+struct MaybeId {
+    id: Option<String>,
+}
+
+pub async fn select_provider_handler() -> Response {
+    Html(r#"<!DOCTYPE html>
+    <html>
+        <head>
+            <title>Select Login Provider</title>
+        </head>
+        <body>
+            <h2>Select Login Provider:<h2>
+            <ul>
+                <li><a href="/auth/login/google">Login with Google</a></li>
+            </ul>
+        </body>
+    </html>"#).into_response()
 }
 
 fn oauth_client(
@@ -234,11 +204,6 @@ fn oauth_client(
 pub struct CallbackParameters {
     code: String,
     state: String,
-}
-
-#[derive(Deserialize)]
-pub struct LoginParams {
-    next_url: Option<String>,
 }
 
 #[derive(Deserialize)]

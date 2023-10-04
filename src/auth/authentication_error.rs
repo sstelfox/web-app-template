@@ -10,6 +10,9 @@ pub enum AuthenticationError {
     #[error("code exchange for oauth did not validate: {0}")]
     ExchangeCodeFailure(String),
 
+    #[error("a database error occurred while attempting to locate a user: {0}")]
+    LookupFailed(sqlx::Error),
+
     #[error("received callback from oauth but we didn't have a matching session")]
     MissingCallbackState(sqlx::Error),
 
