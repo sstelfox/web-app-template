@@ -12,10 +12,7 @@ use uuid::Uuid;
 
 use crate::app::SessionVerificationKey;
 use crate::database::Database;
-
-static LOGIN_PATH: &str = "/auth/login";
-
-static SESSION_COOKIE_NAME: &str = "_session_id";
+use crate::extractors::{LOGIN_PATH, SESSION_COOKIE_NAME};
 
 pub struct SessionIdentity {
     session_id: Uuid,

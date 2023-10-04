@@ -2,13 +2,14 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
 use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::Cookie;
 use oauth2::RedirectUrl;
 use oauth2::basic::BasicClient;
 use url::Url;
 
 use crate::app::{Secrets, State};
 use crate::database::Database;
-use crate::extractors::SessionIdentity;
+use crate::extractors::{LOGIN_PATH, SESSION_COOKIE_NAME, SessionIdentity};
 
 mod authentication_error;
 mod provider_config;
@@ -46,7 +47,7 @@ pub async fn login_handler() -> Response {
     todo!()
 }
 
-pub async fn logout_handler(session: Option<SessionIdentity>, database: Database, cookie_jar: CookieJar) -> Response {
+pub async fn logout_handler(session: Option<SessionIdentity>, database: Database, mut cookie_jar: CookieJar) -> Response {
     if let Some(sid) = session {
         let session_id = sid.session_id();
         let query = sqlx::query!("DELETE FROM sessions WHERE id = ?;", session_id);
@@ -58,7 +59,9 @@ pub async fn logout_handler(session: Option<SessionIdentity>, database: Database
         // todo: revoke token?
     }
 
-    (cookie_jar, Redirect::to("/login")).into_response()
+    cookie_jar = cookie_jar.remove(Cookie::named(SESSION_COOKIE_NAME));
+
+    (cookie_jar, Redirect::to(LOGIN_PATH)).into_response()
 }
 
 fn oauth_client<'a>(config_id: &'a str, hostname: Url, secrets: &'a Secrets) -> Result<BasicClient, AuthenticationError<'a>> {
