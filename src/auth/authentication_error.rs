@@ -16,6 +16,9 @@ pub enum AuthenticationError {
     #[error("failed to build oauth client: {0}")]
     OAuthClientUnavailable(String),
 
+    #[error("unable to retrieve authenticated user details")]
+    ProfileUnavailable(reqwest::Error),
+
     #[error("no credentials available for provider '{0}'")]
     ProviderNotConfigured(String),
 
@@ -24,6 +27,9 @@ pub enum AuthenticationError {
 
     #[error("attempted to authenticate against an unknown provider")]
     UnknownProvider,
+
+    #[error("the account used for authentication has not verified its email")]
+    UnverifiedEmail,
 }
 
 impl IntoResponse for AuthenticationError {

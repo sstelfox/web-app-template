@@ -88,18 +88,16 @@ pub async fn login_handler(
 
     let query = sqlx::query!(
         r#"INSERT INTO oauth_state (csrf_secret, pkce_verifier_secret, next_url)
-                   VALUES (?, ?, ?) RETURNING id;"#,
+                   VALUES (?, ?, ?);"#,
         csrf_secret,
         pkce_verifier_secret,
         params.next_url,
     );
-    let session_id = match query.fetch_one(state.database()).await {
-        Ok(sid) => sid,
-        Err(err) => {
-            tracing::error!("failed to create oauth session handle: {err}");
-            let response = serde_json::json!({"msg": "unable to use login services"});
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
-        }
+
+    if let Err(err) = query.execute(state.database()).await {
+        tracing::error!("failed to create oauth session handle: {err}");
+        let response = serde_json::json!({"msg": "unable to use login services"});
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
     };
 
     Redirect::to(authorize_url.as_str()).into_response()
@@ -168,13 +166,26 @@ pub async fn oauth_callback(
 
     let access_token = token_response.access_token().secret();
 
+    let user_info_url = Url::parse_with_params(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        &[("oauth_token", access_token)]
+    ).expect("fixed format to be valid");
+
+    let user_info: GoogleUserProfile = reqwest::get(user_info_url)
+        .await
+        .expect("building a fixed format request to succeed")
+        .json()
+        .await
+        .map_err(AuthenticationError::ProfileUnavailable)?;
+
+    if !user_info.verified_email {
+        return Err(AuthenticationError::UnverifiedEmail);
+    }
+
     // We're back in provider specific land for getting information about the authenticated user,
     // todo: allow for providers other than Google here...
 
     // todo:
-    //  * make a request to https://www.googleapis.com/oauth2/v2/userinfo
-    //    * should have a get parameter oauth_token with value access_token
-    //    * return type should be GoogleUserProfile
     //  * reject with a nice error if the email isn't verified
     //  * find or create a new user account for the email
     //  * create a new session for the user

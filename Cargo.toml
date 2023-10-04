@@ -30,6 +30,7 @@ http = "^0.2"
 hyper = "^0.14"
 lettre = { version = "^0.10", features = ["tokio1-rustls-tls", "base64", "pool", "smtp-transport", "tracing", "email-encoding", "hostname", "mime", "builder", "dkim"], default-features = false }
 oauth2 = "^4"
+reqwest = { version = "^0.11", default-features = false, features = ["json"] }
 sqlx = { version = "^0.7", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite", "tls-rustls", "uuid", "time"] }
 tower-http = { version = "^0.4", features = ["auth", "cors", "limit", "fs", "propagate-header", "request-id", "sensitive-headers", "set-header", "util", "trace", "validate-request"] }
 tower = { version = "^0.4", features = ["timeout", "load-shed", "limit", "util"] }
@@ -43,7 +44,6 @@ tracing-subscriber = { version = "^0.3", default-features = false, features = ["
 [dev-dependencies]
 bytes = "^1.4"
 lettre = { version = "^0.10", features = ["file-transport"], default-features = false }
-reqwest = { version = "^0.11", default-features = false, features = ["json", "multipart", "stream"] }
 
 [lib]
 path = "src/lib.rs"
