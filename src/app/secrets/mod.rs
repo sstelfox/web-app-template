@@ -18,7 +18,10 @@ impl Secrets {
         self.provider_credentials.get(config_id)
     }
 
-    pub fn new(credentials: BTreeMap<Arc<str>, ProviderCredential>, session_key: SessionCreationKey) -> Self {
+    pub fn new(
+        credentials: BTreeMap<Arc<str>, ProviderCredential>,
+        session_key: SessionCreationKey,
+    ) -> Self {
         Self {
             provider_credentials: Arc::new(credentials),
             session_key,

@@ -11,7 +11,10 @@ use crate::database::Database;
 impl FromRequestParts<State> for Database {
     type Rejection = Infallible;
 
-    async fn from_request_parts(_parts: &mut Parts, state: &State) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        _parts: &mut Parts,
+        state: &State,
+    ) -> Result<Self, Self::Rejection> {
         Ok(Database::from_ref(state))
     }
 }

@@ -6,7 +6,9 @@ use axum::extract::FromRef;
 use jwt_simple::algorithms::{ECDSAP384KeyPairLike, ES384KeyPair};
 use sha2::Digest;
 
-use crate::app::{Config, Error, ProviderCredential, Secrets, SessionCreationKey, SessionVerificationKey};
+use crate::app::{
+    Config, Error, ProviderCredential, Secrets, SessionCreationKey, SessionVerificationKey,
+};
 use crate::database::{self, Database};
 
 #[derive(Clone)]
@@ -58,7 +60,10 @@ impl State {
 
         let mut credentials = BTreeMap::new();
 
-        credentials.insert(Arc::from("google"), ProviderCredential::new(config.google_client_id(), config.google_client_secret()));
+        credentials.insert(
+            Arc::from("google"),
+            ProviderCredential::new(config.google_client_id(), config.google_client_secret()),
+        );
 
         let secrets = Secrets::new(credentials, session_key);
 
