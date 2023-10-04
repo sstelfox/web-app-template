@@ -1,21 +1,33 @@
-use axum::response::Response;
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
+use axum_extra::extract::CookieJar;
+use oauth2::RedirectUrl;
 use oauth2::basic::BasicClient;
-use oauth2::{AuthUrl, RedirectUrl, RevocationUrl, TokenUrl};
 use url::Url;
 
 use crate::app::{Secrets, State};
+use crate::database::Database;
+use crate::extractors::SessionIdentity;
+
+mod authentication_error;
+mod provider_config;
+
+use authentication_error::AuthenticationError;
+use provider_config::ProviderConfig;
 
 static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";
 
 static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! {
-    "google" => ProviderConfig {
-        auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
-        token_url: Some("https://www.googleapis.com/oauth2/v3/token"),
-        revocation_url:  Some("https://oauth2.googleapis.com/revoke"),
-        scopes: &[],
-    },
+    "google" => ProviderConfig::new(
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        Some("https://www.googleapis.com/oauth2/v3/token"),
+        Some("https://oauth2.googleapis.com/revoke"),
+        &[
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ],
+    ),
 };
 
 pub fn router(state: State) -> Router<State> {
@@ -34,8 +46,19 @@ pub async fn login_handler() -> Response {
     todo!()
 }
 
-pub async fn logout_handler() -> Response {
-    todo!()
+pub async fn logout_handler(session: Option<SessionIdentity>, database: Database, cookie_jar: CookieJar) -> Response {
+    if let Some(sid) = session {
+        let session_id = sid.session_id();
+        let query = sqlx::query!("DELETE FROM sessions WHERE id = ?;", session_id);
+
+        if let Err(err) = query.execute(&database).await {
+            tracing::error!("failed to remove session from the db: {err}");
+        }
+
+        // todo: revoke token?
+    }
+
+    (cookie_jar, Redirect::to("/login")).into_response()
 }
 
 fn oauth_client<'a>(config_id: &'a str, hostname: Url, secrets: &'a Secrets) -> Result<BasicClient, AuthenticationError<'a>> {
@@ -62,38 +85,4 @@ fn oauth_client<'a>(config_id: &'a str, hostname: Url, secrets: &'a Secrets) -> 
     }
 
     Ok(client)
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum AuthenticationError<'a> {
-    #[error("no credentials available for provider '{0}'")]
-    ProviderNotConfigured(&'a str),
-
-    #[error("attempted to authenticate against an unknown provider")]
-    UnknownProvider,
-}
-
-struct ProviderConfig {
-    auth_url: &'static str,
-    token_url: Option<&'static str>,
-    revocation_url: Option<&'static str>,
-    scopes: &'static [&'static str],
-}
-
-impl ProviderConfig {
-    pub fn auth_url(&self) -> AuthUrl {
-        AuthUrl::new(self.auth_url.to_string()).expect("static auth url to be valid")
-    }
-
-    pub fn revocation_url(&self) -> Option<RevocationUrl> {
-        self.revocation_url.map(|ru| { RevocationUrl::new(ru.to_string()).expect("static revocation url to be valid") })
-    }
-
-    pub fn scopes(&self) -> &'static [&'static str] {
-        self.scopes
-    }
-
-    pub fn token_url(&self) -> Option<TokenUrl> {
-        self.token_url.map(|tu| { TokenUrl::new(tu.to_string()).expect("static token url to be valid") })
-    }
 }

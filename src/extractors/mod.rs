@@ -1,4 +1,5 @@
 mod api_key_identity;
+mod database;
 mod session_identity;
 
 pub use api_key_identity::ApiKeyIdentity;

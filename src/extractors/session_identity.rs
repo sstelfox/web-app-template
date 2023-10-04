@@ -1,14 +1,12 @@
-use axum::extract::{FromRef, FromRequestParts, OriginalUri};
-
 use axum::async_trait;
+use axum::extract::{FromRef, FromRequestParts, OriginalUri};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::CookieJar;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use ecdsa::signature::DigestVerifier;
 use http::request::Parts;
 use jwt_simple::prelude::*;
-
 use time::OffsetDateTime;
 use uuid::Uuid;
 
