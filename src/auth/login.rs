@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Host, Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::{Json};
 use http::StatusCode;
 use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
 use serde::Deserialize;
@@ -8,8 +8,7 @@ use url::Url;
 
 use crate::app::{State as AppState};
 use crate::auth::{PROVIDER_CONFIGS, oauth_client};
-
-use crate::extractors::{SessionIdentity};
+use crate::extractors::SessionIdentity;
 
 pub async fn handler(
     session: Option<SessionIdentity>,
