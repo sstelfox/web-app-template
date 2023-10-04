@@ -6,7 +6,7 @@ use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
 use http::StatusCode;
 use oauth2::basic::BasicClient;
-use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope};
+use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse};
 use serde::Deserialize;
 use url::Url;
 
@@ -126,7 +126,6 @@ pub async fn logout_handler(
 }
 
 pub async fn oauth_callback(
-    session: Option<SessionIdentity>,
     database: Database,
     mut cookie_jar: CookieJar,
     State(state): State<AppState>,
@@ -138,7 +137,7 @@ pub async fn oauth_callback(
     let exchange_code = AuthorizationCode::new(params.code);
 
     let query_secret = csrf_secret.secret();
-    let oauth_state_query: (String, String) = sqlx::query_as(
+    let oauth_state_query: (String, Option<String>) = sqlx::query_as(
             "SELECT pkce_verifier_secret,next_url FROM oauth_state WHERE csrf_secret = ?;"
         )
         .bind(query_secret)
@@ -167,7 +166,23 @@ pub async fn oauth_callback(
     .map_err(AuthenticationError::SpawnFailure)?
     .map_err(|err| AuthenticationError::ExchangeCodeFailure(err.to_string()))?;
 
-    todo!()
+    let access_token = token_response.access_token().secret();
+
+    // We're back in provider specific land for getting information about the authenticated user,
+    // todo: allow for providers other than Google here...
+
+    // todo:
+    //  * make a request to https://www.googleapis.com/oauth2/v2/userinfo
+    //    * should have a get parameter oauth_token with value access_token
+    //    * return type should be GoogleUserProfile
+    //  * reject with a nice error if the email isn't verified
+    //  * find or create a new user account for the email
+    //  * create a new session for the user
+    //    * record it in the database
+    //    * build and sign an appropriate cookie for it
+
+    let redirect_url = next_url.unwrap_or("/".to_string());
+    Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
 }
 
 fn oauth_client(
@@ -213,4 +228,10 @@ pub struct CallbackParameters {
 #[derive(Deserialize)]
 pub struct LoginParams {
     next_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct GoogleUserProfile {
+    email: String,
+    verified_email: bool,
 }
