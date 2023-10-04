@@ -44,6 +44,9 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let cookie_jar: CookieJar = CookieJar::from_headers(&parts.headers);
 
+        // todo: error returns are not able to access the cookie state, we need to handle removing
+        // bad session tokens directly in here where appropriate
+
         let session_cookie = match cookie_jar.get(SESSION_COOKIE_NAME) {
             Some(st) => st,
             None => {
@@ -171,22 +174,16 @@ impl IntoResponse for SessionIdentityError {
     fn into_response(self) -> Response {
         use SessionIdentityError as SIE;
 
-        // todo: may want to consolidate actions here with some helper methods, may want to include
-        // the original uri in the get request to the appropriate auth server and record it in the
-        // session db...
-
-        // todo: handle redirecting back to the original uri
+        // todo: Need to drop this intoresponse as it can't properly handle return urls or cleaning
+        // out bad cookie states
 
         match self {
             SIE::NoSession(_orig_uri) => {
                 tracing::debug!("request had no session when trying to access protected path");
-                Redirect::to(LOGIN_PATH).into_response()
             }
-            err => {
-                tracing::warn!("session validation error: {err}");
-                // Clear all cookies and send them to the login path
-                (CookieJar::new(), Redirect::to(LOGIN_PATH)).into_response()
-            }
+            err => tracing::warn!("session validation error: {err}"),
         }
+
+        Redirect::to(LOGIN_PATH).into_response()
     }
 }

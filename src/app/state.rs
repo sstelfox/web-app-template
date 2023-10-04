@@ -19,6 +19,10 @@ pub struct State {
 }
 
 impl State {
+    pub fn database(&self) -> &Database {
+        &self.database
+    }
+
     // not implemented as a From trait so it can be async
     pub async fn from_config(config: &Config) -> Result<Self, Error> {
         let database = database::connect(&config.db_url()).await?;
@@ -72,6 +76,14 @@ impl State {
             secrets,
             session_verifier,
         })
+    }
+
+    pub fn secrets(&self) -> &Secrets {
+        &self.secrets
+    }
+
+    pub fn session_verifier(&self) -> &SessionVerificationKey {
+        &self.session_verifier
     }
 }
 

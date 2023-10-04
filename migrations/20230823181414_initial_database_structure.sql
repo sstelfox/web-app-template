@@ -54,10 +54,10 @@ CREATE TABLE oauth_state (
     substr(lower(hex(randomblob(6))), 2)
   ),
 
-  csrf_secret VARCHAR(64) NOT NULL,
-  pkce_code_verifier VARCHAR(64) NOT NULL,
+  csrf_secret TEXT NOT NULL,
+  pkce_verifier_secret TEXT NOT NULL,
 
-  next_url VARCHAR(256) NOT NULL DEFAULT "/",
+  next_url VARCHAR(256),
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
