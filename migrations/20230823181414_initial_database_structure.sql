@@ -75,6 +75,8 @@ CREATE TABLE sessions (
   ),
 
   user_id TEXT NOT NULL REFERENCES users(id),
+  client_ip VARCHAR(64),
+  user_agent VARCHAR(128),
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NOT NULL

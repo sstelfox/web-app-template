@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id,user_id,created_at,expires_at FROM sessions WHERE id = ?",
+  "query": "SELECT id, user_id, created_at, expires_at FROM sessions WHERE id = $1;",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "9d1b56a5c4a69f272c30aa51897174e32a9056c4b89c1a11beac79d349bbd291"
+  "hash": "92aeb194d4adf8b79f4b9a76fe0da34e4fe5f0e5c3e0e6ef9b2646315b8871ba"
 }

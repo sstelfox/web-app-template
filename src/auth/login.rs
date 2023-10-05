@@ -30,7 +30,6 @@ pub async fn handler(
     };
 
     // todo: should return an error here
-    tracing::info!("what we found for hostname: {hostname:?}");
     let oauth_client = match oauth_client(&provider, hostname, state.secrets()) {
         Ok(oc) => oc,
         Err(err) => {

@@ -40,6 +40,8 @@ pub async fn handler(
     .await
     .map_err(AuthenticationError::MissingCallbackState)?;
 
+    tracing::info!("found matching oauth state");
+
     sqlx::query!(
         "DELETE FROM oauth_state WHERE csrf_secret = ?;",
         query_secret
@@ -53,6 +55,8 @@ pub async fn handler(
 
     let oauth_client = oauth_client(&provider, hostname.clone(), state.secrets())?;
 
+    tracing::info!("build oauth client");
+
     let token_response = tokio::task::spawn_blocking(move || {
         oauth_client
             .exchange_code(exchange_code)
@@ -62,6 +66,8 @@ pub async fn handler(
     .await
     .map_err(AuthenticationError::SpawnFailure)?
     .map_err(|err| AuthenticationError::ExchangeCodeFailure(err.to_string()))?;
+
+    tracing::info!("received token response");
 
     let access_token = token_response.access_token().secret();
 
@@ -78,6 +84,8 @@ pub async fn handler(
         .await
         .map_err(AuthenticationError::ProfileUnavailable)?;
 
+    tracing::info!("collected profile");
+
     if !user_info.verified_email {
         return Err(AuthenticationError::UnverifiedEmail);
     }
@@ -93,18 +101,18 @@ pub async fn handler(
     .await
     .map_err(AuthenticationError::LookupFailed)?;
 
-    let cookie_domain = hostname
+    let _cookie_domain = hostname
         .host_str()
         .expect("built from a hostname")
         .to_string();
-    let cookie_secure = hostname.scheme() == "https";
+    let _cookie_secure = hostname.scheme() == "https";
 
     let user_id = match user_row {
         Some(u) => Uuid::parse_str(&u.id.to_string()).expect("db ids to be valid"),
         None => {
             let new_user_row = sqlx::query!(
                 r#"INSERT INTO users (email, display_name, picture, locale)
-                        VALUES ($1, $2, $3, $4) RETURNING id;"#,
+                        VALUES (LOWER($1), $2, $3, $4) RETURNING id;"#,
                 user_info.email,
                 user_info.name,
                 user_info.picture,
@@ -118,9 +126,10 @@ pub async fn handler(
                 Cookie::build(NEW_USER_COOKIE_NAME, "yes")
                     .path("/")
                     .http_only(false)
-                    .same_site(SameSite::Strict)
-                    .domain(cookie_domain.clone())
-                    .secure(cookie_secure)
+                    .expires(None)
+                    //.same_site(SameSite::Strict)
+                    //.domain(cookie_domain.clone())
+                    //.secure(cookie_secure)
                     .finish(),
             );
 
@@ -160,9 +169,10 @@ pub async fn handler(
         Cookie::build(SESSION_COOKIE_NAME, session_value)
             .path("/")
             .http_only(true)
-            .same_site(SameSite::Strict)
-            .domain(cookie_domain.clone())
-            .secure(cookie_secure)
+            .expires(expires_at)
+            //.same_site(SameSite::Strict)
+            //.domain(cookie_domain.clone())
+            //.secure(cookie_secure)
             .finish(),
     );
 
