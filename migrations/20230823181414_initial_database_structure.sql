@@ -76,8 +76,6 @@ CREATE TABLE sessions (
 
   user_id TEXT NOT NULL REFERENCES users(id),
 
-  oauth_state_id REFERENCES oauth_state(id),
-
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NOT NULL
 );

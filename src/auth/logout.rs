@@ -1,6 +1,6 @@
 use axum::response::{IntoResponse, Redirect, Response};
-use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
+use axum_extra::extract::CookieJar;
 
 use crate::database::Database;
 use crate::extractors::{SessionIdentity, LOGIN_PATH, SESSION_COOKIE_NAME};

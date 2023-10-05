@@ -2,7 +2,7 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use oauth2::basic::BasicClient;
-use oauth2::{RedirectUrl};
+use oauth2::RedirectUrl;
 use url::Url;
 
 use crate::app::{Secrets, State as AppState};
@@ -40,7 +40,8 @@ pub fn router(state: AppState) -> Router<AppState> {
 }
 
 pub async fn select_provider_handler() -> Response {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
     <html>
         <head>
             <title>Select Login Provider</title>
@@ -51,7 +52,9 @@ pub async fn select_provider_handler() -> Response {
                 <li><a href="/auth/login/google">Login with Google</a></li>
             </ul>
         </body>
-    </html>"#).into_response()
+    </html>"#,
+    )
+    .into_response()
 }
 
 fn oauth_client(
@@ -62,9 +65,9 @@ fn oauth_client(
     let provider_config = PROVIDER_CONFIGS
         .get(config_id)
         .ok_or(AuthenticationError::UnknownProvider)?;
-    let provider_credentials = secrets
-        .provider_credential(config_id)
-        .ok_or(AuthenticationError::ProviderNotConfigured(config_id.to_string()))?;
+    let provider_credentials = secrets.provider_credential(config_id).ok_or(
+        AuthenticationError::ProviderNotConfigured(config_id.to_string()),
+    )?;
 
     let auth_url = provider_config.auth_url();
     let token_url = provider_config.token_url();
