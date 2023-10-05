@@ -32,6 +32,7 @@ fn remove_cookie(name: &'static str, mut cookie_jar: CookieJar) -> CookieJar {
     cookie_jar = cookie_jar.remove(Cookie::named(name));
     cookie_jar.add(
         Cookie::build(name, "")
+            .path("/")
             .http_only(false)
             .expires(time::OffsetDateTime::UNIX_EPOCH)
             .finish(),
