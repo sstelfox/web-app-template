@@ -16,7 +16,7 @@ pub async fn handler(
 
         // todo: revoke token?
 
-        let query = sqlx::query!("DELETE FROM sessions WHERE id = ?;", session_id);
+        let query = sqlx::query!("DELETE FROM sessions WHERE id = $1;", session_id);
         if let Err(err) = query.execute(&database).await {
             tracing::error!("failed to remove session from the db: {err}");
         }

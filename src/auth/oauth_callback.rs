@@ -33,7 +33,7 @@ pub async fn handler(
 
     let query_secret = csrf_secret.secret();
     let oauth_state_query: (String, Option<String>) = sqlx::query_as(
-        "SELECT pkce_verifier_secret,next_url FROM oauth_state WHERE csrf_secret = ?;",
+        "SELECT pkce_verifier_secret,next_url FROM oauth_state WHERE csrf_secret = $1;",
     )
     .bind(query_secret)
     .fetch_one(&database)
@@ -43,7 +43,7 @@ pub async fn handler(
     tracing::info!("found matching oauth state");
 
     sqlx::query!(
-        "DELETE FROM oauth_state WHERE csrf_secret = ?;",
+        "DELETE FROM oauth_state WHERE csrf_secret = $1;",
         query_secret
     )
     .execute(&database)
