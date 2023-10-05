@@ -101,11 +101,11 @@ pub async fn handler(
     .await
     .map_err(AuthenticationError::LookupFailed)?;
 
-    let _cookie_domain = hostname
+    let cookie_domain = hostname
         .host_str()
         .expect("built from a hostname")
         .to_string();
-    let _cookie_secure = hostname.scheme() == "https";
+    let cookie_secure = hostname.scheme() == "https";
 
     let user_id = match user_row {
         Some(u) => Uuid::parse_str(&u.id.to_string()).expect("db ids to be valid"),
@@ -124,12 +124,11 @@ pub async fn handler(
 
             cookie_jar = cookie_jar.add(
                 Cookie::build(NEW_USER_COOKIE_NAME, "yes")
-                    .path("/")
                     .http_only(false)
                     .expires(None)
-                    //.same_site(SameSite::Strict)
-                    //.domain(cookie_domain.clone())
-                    //.secure(cookie_secure)
+                    .same_site(SameSite::Lax)
+                    .domain(cookie_domain.clone())
+                    .secure(cookie_secure)
                     .finish(),
             );
 
@@ -167,12 +166,11 @@ pub async fn handler(
 
     cookie_jar = cookie_jar.add(
         Cookie::build(SESSION_COOKIE_NAME, session_value)
-            .path("/")
             .http_only(true)
             .expires(expires_at)
-            //.same_site(SameSite::Strict)
-            //.domain(cookie_domain.clone())
-            //.secure(cookie_secure)
+            .same_site(SameSite::Lax)
+            .domain(cookie_domain)
+            .secure(cookie_secure)
             .finish(),
     );
 

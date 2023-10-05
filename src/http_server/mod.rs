@@ -49,7 +49,7 @@ fn create_trace_layer(log_level: Level) -> TraceLayer<SharedClassifier<ServerErr
             DefaultOnResponse::new()
                 .include_headers(false)
                 .level(log_level)
-                .latency_unit(LatencyUnit::Nanos),
+                .latency_unit(LatencyUnit::Micros),
         )
         .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros))
 }
@@ -96,7 +96,7 @@ async fn graceful_shutdown_blocker() {
 
     // todo: fail the readiness checks
 
-    tokio::time::sleep(REQUEST_GRACE_PERIOD).await
+    //tokio::time::sleep(REQUEST_GRACE_PERIOD).await
 }
 
 pub async fn run(config: Config) -> Result<(), Error> {
@@ -167,7 +167,7 @@ pub async fn home_handler(session_id: SessionIdentity) -> Response {
              <head>
                <title>Home</title>
              </head>
-             <body>
+             <body style="background: #131313; color: #9f9f9f;">
                 <p>User ID: {}, Session ID: {}</p>
              </body>
            </html>"#,
