@@ -1,19 +1,18 @@
-use axum::extract::{Host, Path, Query, State};
+use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
 use http::StatusCode;
 use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
 use serde::Deserialize;
-use url::Url;
 
 use crate::app::State as AppState;
 use crate::auth::{oauth_client, PROVIDER_CONFIGS};
-use crate::extractors::SessionIdentity;
+use crate::extractors::{ServerBase, SessionIdentity};
 
 pub async fn handler(
     session: Option<SessionIdentity>,
     State(state): State<AppState>,
-    Host(hostname): Host,
+    ServerBase(hostname): ServerBase,
     Path(provider): Path<String>,
     Query(params): Query<LoginParams>,
 ) -> Response {
@@ -32,7 +31,6 @@ pub async fn handler(
 
     // todo: should return an error here
     tracing::info!("what we found for hostname: {hostname:?}");
-    let hostname = Url::parse(&hostname).expect("host to be valid");
     let oauth_client = match oauth_client(&provider, hostname, state.secrets()) {
         Ok(oc) => oc,
         Err(err) => {

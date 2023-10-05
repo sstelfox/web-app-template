@@ -2,8 +2,9 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
 
+use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
 use crate::database::Database;
-use crate::extractors::{SessionIdentity, LOGIN_PATH, SESSION_COOKIE_NAME};
+use crate::extractors::SessionIdentity;
 
 pub async fn handler(
     session: Option<SessionIdentity>,

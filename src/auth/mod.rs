@@ -16,9 +16,13 @@ mod provider_config;
 use authentication_error::AuthenticationError;
 use provider_config::ProviderConfig;
 
-static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";
+pub static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";
 
-static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! {
+pub static LOGIN_PATH: &str = "/auth/login";
+
+pub const NEW_USER_COOKIE_NAME: &'static str = "_is_new_user";
+
+pub static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! {
     "google" => ProviderConfig::new(
         "https://accounts.google.com/o/oauth2/v2/auth",
         Some("https://www.googleapis.com/oauth2/v3/token"),
@@ -29,6 +33,10 @@ static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! 
         ],
     ),
 };
+
+pub static SESSION_COOKIE_NAME: &str = "_session_id";
+
+pub const SESSION_TTL: u64 = 28 * 24 * 60 * 60;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()

@@ -2,6 +2,10 @@ use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::CookieJar;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
+use base64::Engine;
+use ecdsa::signature::RandomizedDigestSigner;
+use jwt_simple::algorithms::ECDSAP384KeyPairLike;
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeVerifier, TokenResponse};
 use serde::Deserialize;
 use std::time::Duration;
@@ -9,13 +13,12 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::app::State as AppState;
-use crate::auth::{oauth_client, AuthenticationError};
+
+use crate::auth::{
+    oauth_client, AuthenticationError, NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL,
+};
 use crate::database::Database;
 use crate::extractors::ServerBase;
-
-const NEW_USER_COOKIE_NAME: &'static str = "_is_new_user";
-
-const SESSION_TTL: u64 = 28 * 24 * 60 * 60;
 
 pub async fn handler(
     database: Database,
@@ -136,9 +139,32 @@ pub async fn handler(
     .fetch_one(&database)
     .await
     .map_err(AuthenticationError::SessionSaveFailed)?;
+
     let session_id = Uuid::parse_str(&new_sid_row.id.to_string()).expect("db ids to be valid");
 
-    // build and sign session id into a cookie...
+    let session_enc = B64.encode(session_id.to_bytes_le());
+    let mut digest = hmac_sha512::sha384::Hash::new();
+    digest.update(session_enc.as_bytes());
+    let mut rng = rand::thread_rng();
+
+    let session_creation_key = state.secrets().session_creation_key();
+    let signature: ecdsa::Signature<p384::NistP384> = session_creation_key
+        .key_pair()
+        .as_ref()
+        .sign_digest_with_rng(&mut rng, digest);
+
+    let auth_tag = B64.encode(signature.to_vec());
+    let session_value = format!("{session_enc}*{auth_tag}");
+
+    cookie_jar = cookie_jar.add(
+        Cookie::build(SESSION_COOKIE_NAME, session_value)
+            .path("/")
+            .http_only(true)
+            .same_site(SameSite::Strict)
+            .domain(cookie_domain.clone())
+            .secure(cookie_secure)
+            .finish(),
+    );
 
     let redirect_url = next_url.unwrap_or("/".to_string());
     Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())

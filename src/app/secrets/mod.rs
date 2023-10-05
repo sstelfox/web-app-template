@@ -10,21 +10,25 @@ pub(crate) use session_creation_key::SessionCreationKey;
 #[derive(Clone)]
 pub struct Secrets {
     provider_credentials: Arc<BTreeMap<Arc<str>, ProviderCredential>>,
-    session_key: SessionCreationKey,
+    session_creation_key: SessionCreationKey,
 }
 
 impl Secrets {
+    pub fn new(
+        credentials: BTreeMap<Arc<str>, ProviderCredential>,
+        session_creation_key: SessionCreationKey,
+    ) -> Self {
+        Self {
+            provider_credentials: Arc::new(credentials),
+            session_creation_key,
+        }
+    }
+
     pub fn provider_credential(&self, config_id: &str) -> Option<&ProviderCredential> {
         self.provider_credentials.get(config_id)
     }
 
-    pub fn new(
-        credentials: BTreeMap<Arc<str>, ProviderCredential>,
-        session_key: SessionCreationKey,
-    ) -> Self {
-        Self {
-            provider_credentials: Arc::new(credentials),
-            session_key,
-        }
+    pub fn session_creation_key(&self) -> SessionCreationKey {
+        self.session_creation_key.clone()
     }
 }

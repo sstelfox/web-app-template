@@ -11,8 +11,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::app::SessionVerificationKey;
+use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
 use crate::database::Database;
-use crate::extractors::{LOGIN_PATH, SESSION_COOKIE_NAME};
 
 pub struct SessionIdentity {
     session_id: Uuid,

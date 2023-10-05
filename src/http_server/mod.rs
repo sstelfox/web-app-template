@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::DefaultBodyLimit;
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
 use axum::Router;
 use axum::{Server, ServiceExt};
 use http::header;
@@ -18,6 +20,7 @@ use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::Level;
 
 use crate::app::{Config, Error, State};
+use crate::extractors::SessionIdentity;
 use crate::{auth, health_check};
 
 mod error_handlers;
@@ -143,6 +146,7 @@ pub async fn run(config: Config) -> Result<(), Error> {
         .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
         .nest("/_status", health_check::router(state.clone()))
+        .route("/", get(home_handler))
         .with_state(state)
         .fallback(error_handlers::not_found_handler);
     let app = middleware_stack.service(root_router);
@@ -154,4 +158,21 @@ pub async fn run(config: Config) -> Result<(), Error> {
         .await?;
 
     Ok(())
+}
+
+pub async fn home_handler(session_id: SessionIdentity) -> Response {
+    axum::response::Html(format!(
+        r#"<!DOCTYPE html>
+           <html>
+             <head>
+               <title>Home</title>
+             </head>
+             <body>
+                <p>User ID: {}, Session ID: {}</p>
+             </body>
+           </html>"#,
+        session_id.user_id(),
+        session_id.session_id(),
+    ))
+    .into_response()
 }
