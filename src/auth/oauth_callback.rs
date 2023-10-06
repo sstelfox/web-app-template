@@ -36,7 +36,7 @@ pub async fn handler(
     let oauth_state_query: (String, Option<String>) = sqlx::query_as(
         r#"SELECT pkce_verifier_secret,next_url
             FROM oauth_state
-            WHERE provider = $1 AND csrf_secret = $2 AND consumed_at IS NULL;"#,
+            WHERE provider = $1 AND csrf_secret = $2;"#,
     )
     .bind(provider.clone())
     .bind(query_secret)
@@ -45,8 +45,7 @@ pub async fn handler(
     .map_err(AuthenticationError::MissingCallbackState)?;
 
     sqlx::query!(
-        r#"UPDATE oauth_state
-            SET consumed_at = CURRENT_TIMESTAMP
+        r#"DELETE FROM oauth_state
             WHERE provider = $1 AND csrf_secret = $2;"#,
         provider,
         query_secret,

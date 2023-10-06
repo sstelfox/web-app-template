@@ -19,26 +19,17 @@ CREATE UNIQUE INDEX idx_unique_users_on_email ON
   users(email);
 
 CREATE TABLE oauth_state (
-  id TEXT NOT NULL PRIMARY KEY DEFAULT (
-    lower(hex(randomblob(4))) || '-' ||
-    lower(hex(randomblob(2))) || '-4' ||
-    substr(lower(hex(randomblob(2))), 2) || '-a' ||
-    substr(lower(hex(randomblob(2))), 2) || '-6' ||
-    substr(lower(hex(randomblob(6))), 2)
-  ),
-
   provider TEXT NOT NULL,
   csrf_secret TEXT NOT NULL,
-  pkce_verifier_secret TEXT NOT NULL,
 
+  pkce_verifier_secret TEXT NOT NULL,
   next_url TEXT,
 
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  consumed_at TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_unique_oauth_state_on_provider_csrf_secret
-  ON oauth_state(provider, csrf_secret) WHERE consumed_at IS NULL;
+  ON oauth_state(provider, csrf_secret);
 
 CREATE TABLE sessions (
   id TEXT NOT NULL PRIMARY KEY DEFAULT (
