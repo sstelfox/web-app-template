@@ -1,3 +1,68 @@
+CREATE TABLE users (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  email TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  locale TEXT,
+  profile_image TEXT,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX idx_unique_users_on_email ON
+  users(email);
+
+CREATE TABLE oauth_state (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  provider TEXT NOT NULL,
+  csrf_secret TEXT NOT NULL,
+  pkce_verifier_secret TEXT NOT NULL,
+
+  next_url TEXT,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  consumed_at TIMESTAMP
+);
+
+CREATE UNIQUE INDEX idx_unique_oauth_state_on_provider_csrf_secret
+  ON oauth_state(provider, csrf_secret) WHERE consumed_at IS NULL;
+
+CREATE TABLE sessions (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  user_id TEXT NOT NULL REFERENCES users(id),
+  provider TEXT NOT NULL,
+
+  client_ip TEXT,
+  user_agent TEXT,
+
+  access_token TEXT NOT NULL,
+  access_expires_at TIMESTAMP,
+  refresh_token TEXT,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE background_tasks (
   id TEXT NOT NULL PRIMARY KEY DEFAULT (
     lower(hex(randomblob(4))) || '-' ||
@@ -10,7 +75,7 @@ CREATE TABLE background_tasks (
   task_queue TEXT NOT NULL DEFAULT 'default',
   state TEXT CHECK (state IN ('new', 'in_progress', 'cancelled', 'failed', 'complete', 'dead')) NOT NULL DEFAULT 'new',
   retry_count INTEGER NOT NULL DEFAULT 0,
-  uniq_hash CHAR(64),
+  uniq_hash TEXT,
 
   -- should probably be structured, for now will be JSON blob
   error TEXT,
@@ -29,55 +94,3 @@ CREATE INDEX background_tasks_on_scheduled_at_idx ON background_tasks(scheduled_
 CREATE INDEX background_tasks_on_state_idx ON background_tasks(state);
 CREATE INDEX background_tasks_on_task_queue_idx ON background_tasks(task_queue);
 CREATE INDEX background_tasks_on_uniq_hash_idx ON background_tasks(uniq_hash) WHERE uniq_hash != NULL;
-
-CREATE TABLE users (
-  id TEXT NOT NULL PRIMARY KEY DEFAULT (
-    lower(hex(randomblob(4))) || '-' ||
-    lower(hex(randomblob(2))) || '-4' ||
-    substr(lower(hex(randomblob(2))), 2) || '-a' ||
-    substr(lower(hex(randomblob(2))), 2) || '-6' ||
-    substr(lower(hex(randomblob(6))), 2)
-  ),
-
-  email VARCHAR(128) NOT NULL,
-  display_name VARCHAR(128) NOT NULL,
-
-  picture VARCHAR(256),
-  locale VARCHAR(16),
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE oauth_state (
-  id TEXT NOT NULL PRIMARY KEY DEFAULT (
-    lower(hex(randomblob(4))) || '-' ||
-    lower(hex(randomblob(2))) || '-4' ||
-    substr(lower(hex(randomblob(2))), 2) || '-a' ||
-    substr(lower(hex(randomblob(2))), 2) || '-6' ||
-    substr(lower(hex(randomblob(6))), 2)
-  ),
-
-  csrf_secret TEXT NOT NULL,
-  pkce_verifier_secret TEXT NOT NULL,
-
-  next_url VARCHAR(256),
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE sessions (
-  id TEXT NOT NULL PRIMARY KEY DEFAULT (
-    lower(hex(randomblob(4))) || '-' ||
-    lower(hex(randomblob(2))) || '-4' ||
-    substr(lower(hex(randomblob(2))), 2) || '-a' ||
-    substr(lower(hex(randomblob(2))), 2) || '-6' ||
-    substr(lower(hex(randomblob(6))), 2)
-  ),
-
-  user_id TEXT NOT NULL REFERENCES users(id),
-  client_ip VARCHAR(64),
-  user_agent VARCHAR(128),
-
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at TIMESTAMP NOT NULL
-);

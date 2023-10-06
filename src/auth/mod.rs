@@ -5,7 +5,7 @@ use oauth2::basic::BasicClient;
 use oauth2::RedirectUrl;
 use url::Url;
 
-use crate::app::{Secrets, State as AppState};
+use crate::app::{Secrets, State};
 
 mod authentication_error;
 mod login;
@@ -38,7 +38,7 @@ pub static SESSION_COOKIE_NAME: &str = "_session_id";
 
 pub const SESSION_TTL: u64 = 28 * 24 * 60 * 60;
 
-pub fn router(state: AppState) -> Router<AppState> {
+pub fn router(state: State) -> Router<State> {
     Router::new()
         .route("/callback/:provider", get(oauth_callback::handler))
         .route("/login", get(select_provider_handler))

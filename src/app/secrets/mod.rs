@@ -1,26 +1,33 @@
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 use std::sync::Arc;
 
-mod provider_credential;
-mod session_creation_key;
+use axum::async_trait;
+use axum::extract::{FromRef, FromRequestParts};
+use http::request::Parts;
 
-pub(crate) use provider_credential::ProviderCredential;
-pub(crate) use session_creation_key::SessionCreationKey;
+mod provider_credential;
+mod service_signing_key;
+
+pub use provider_credential::ProviderCredential;
+pub use service_signing_key::ServiceSigningKey;
+
+use crate::app::State;
 
 #[derive(Clone)]
 pub struct Secrets {
     provider_credentials: Arc<BTreeMap<Arc<str>, ProviderCredential>>,
-    session_creation_key: SessionCreationKey,
+    service_signing_key: ServiceSigningKey,
 }
 
 impl Secrets {
     pub fn new(
         credentials: BTreeMap<Arc<str>, ProviderCredential>,
-        session_creation_key: SessionCreationKey,
+        service_signing_key: ServiceSigningKey,
     ) -> Self {
         Self {
             provider_credentials: Arc::new(credentials),
-            session_creation_key,
+            service_signing_key,
         }
     }
 
@@ -28,7 +35,19 @@ impl Secrets {
         self.provider_credentials.get(config_id)
     }
 
-    pub fn session_creation_key(&self) -> SessionCreationKey {
-        self.session_creation_key.clone()
+    pub fn service_signing_key(&self) -> ServiceSigningKey {
+        self.service_signing_key.clone()
+    }
+}
+
+#[async_trait]
+impl FromRequestParts<State> for Secrets {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        _parts: &mut Parts,
+        state: &State,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Secrets::from_ref(state))
     }
 }

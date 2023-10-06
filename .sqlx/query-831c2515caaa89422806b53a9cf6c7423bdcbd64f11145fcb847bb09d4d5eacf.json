@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO users (email, display_name, picture, locale)\n                        VALUES (LOWER($1), $2, $3, $4) RETURNING id;",
+  "query": "INSERT INTO users (email, display_name, locale, profile_image)\n                        VALUES (LOWER($1), $2, $3, $4) RETURNING id;",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "caed1a85937564bd56a22c5f3e82e36e02fe26a6b1200725f97b85bc340c0a0a"
+  "hash": "831c2515caaa89422806b53a9cf6c7423bdcbd64f11145fcb847bb09d4d5eacf"
 }

@@ -1,108 +1,107 @@
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::FromRef;
-use jwt_simple::algorithms::{ECDSAP384KeyPairLike, ES384KeyPair};
+use jwt_simple::prelude::*;
+//use object_store::local::LocalFileSystem;
 use sha2::Digest;
 
-use crate::app::{
-    Config, Error, ProviderCredential, Secrets, SessionCreationKey, SessionVerificationKey,
-};
-use crate::database::{self, Database};
+use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey};
+use crate::database::{self, Database, DatabaseSetupError};
 
 #[derive(Clone)]
 pub struct State {
     database: Database,
     secrets: Secrets,
-    session_verifier: SessionVerificationKey,
+    service_verifier: ServiceVerificationKey,
+    upload_directory: PathBuf,
 }
 
 impl State {
-    pub fn database(&self) -> &Database {
-        &self.database
+    pub fn database(&self) -> Database {
+        self.database.clone()
     }
 
-    // not implemented as a From trait so it can be async
-    pub async fn from_config(config: &Config) -> Result<Self, Error> {
-        let database = database::connect(&config.db_url()).await?;
-        let path = config.session_key_path();
+    pub async fn from_config(config: &Config) -> Result<Self, StateSetupError> {
+        // Do a test setup to make sure the upload directory exists and is writable as an early
+        // sanity check
+        //LocalFileSystem::new_with_prefix(&config.upload_directory())
+        //    .map_err(StateSetupError::InaccessibleUploadDirectory)?;
 
-        let mut session_key_raw = if path.exists() {
-            // load our key
-            tracing::info!(key_path = ?path, "loading session key");
-            let key_bytes = std::fs::read(path).map_err(Error::UnreadableSessionKey)?;
-            let pem = String::from_utf8_lossy(&key_bytes);
-            ES384KeyPair::from_pem(&pem).map_err(Error::InvalidSessionKey)?
-        } else {
-            // generate a fresh key and write it out
-            tracing::warn!(key_path = ?path, "generating new session key");
+        let database = database::connect(&config.database_url()).await?;
 
-            let key = ES384KeyPair::generate();
-            let pem_key = key.to_pem().expect("fresh keys to export");
-
-            // don't allow overwriting a key if it already exists
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path.clone())
-                .map_err(|err| Error::UnwritableSessionKey(err))?;
-
-            file.write_all(pem_key.as_bytes())
-                .map_err(|err| Error::UnwritableSessionKey(err))?;
-
-            key
-        };
-
-        // mark it with a calculated fingerprint
-        let fingerprint = fingerprint_key(&session_key_raw);
-        session_key_raw = session_key_raw.with_key_id(&fingerprint);
-
-        // wrap our key and verifier
-        let session_key = SessionCreationKey::new(session_key_raw);
-        let session_verifier = session_key.verifier();
+        let service_key = load_or_create_service_key(&config.service_key_path())?;
+        let service_verifier = service_key.verifier();
 
         let mut credentials = BTreeMap::new();
-
         credentials.insert(
             Arc::from("google"),
             ProviderCredential::new(config.google_client_id(), config.google_client_secret()),
         );
-
-        let secrets = Secrets::new(credentials, session_key);
+        let secrets = Secrets::new(credentials, service_key);
 
         Ok(Self {
             database,
             secrets,
-            session_verifier,
+            service_verifier,
+            upload_directory: config.upload_directory(),
         })
     }
 
-    pub fn secrets(&self) -> &Secrets {
-        &self.secrets
+    pub fn secrets(&self) -> Secrets {
+        self.secrets.clone()
     }
 
-    pub fn session_verifier(&self) -> &SessionVerificationKey {
-        &self.session_verifier
+    pub fn service_verifier(&self) -> ServiceVerificationKey {
+        self.service_verifier.clone()
+    }
+
+    pub fn upload_directory(&self) -> PathBuf {
+        self.upload_directory.clone()
     }
 }
 
 impl FromRef<State> for Database {
     fn from_ref(state: &State) -> Self {
-        state.database.clone()
+        state.database()
     }
 }
 
 impl FromRef<State> for Secrets {
     fn from_ref(state: &State) -> Self {
-        state.secrets.clone()
+        state.secrets()
     }
 }
 
-impl FromRef<State> for SessionVerificationKey {
+impl FromRef<State> for ServiceVerificationKey {
     fn from_ref(state: &State) -> Self {
-        state.session_verifier.clone()
+        state.service_verifier()
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum StateSetupError {
+    //#[error("unable to access configured upload directory: {0}")]
+    //InaccessibleUploadDirectory(object_store::Error),
+
+    #[error("private service key could not be loaded: {0}")]
+    InvalidServiceKey(jwt_simple::Error),
+
+    #[error("failed to setup the database: {0}")]
+    DatabaseSetupError(#[from] DatabaseSetupError),
+
+    #[error("failed to write fingerprint: {0}")]
+    FingerprintWriteFailed(std::io::Error),
+
+    #[error("failed to write public key: {0}")]
+    PublicKeyWriteFailed(std::io::Error),
+
+    #[error("unable to write generated service key: {0}")]
+    ServiceKeyWriteFailed(std::io::Error),
+
+    #[error("failed to read private service key: {0}")]
+    UnreadableServiceKey(std::io::Error),
 }
 
 fn fingerprint_key(keys: &ES384KeyPair) -> String {
@@ -117,4 +116,36 @@ fn fingerprint_key(keys: &ES384KeyPair) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+fn load_or_create_service_key(private_path: &PathBuf) -> Result<ServiceSigningKey, StateSetupError> {
+    let mut session_key_raw = if private_path.exists() {
+        let key_bytes = std::fs::read(private_path).map_err(StateSetupError::UnreadableServiceKey)?;
+        let private_pem = String::from_utf8_lossy(&key_bytes);
+
+        ES384KeyPair::from_pem(&private_pem).map_err(StateSetupError::InvalidServiceKey)?
+    } else {
+        let new_key = ES384KeyPair::generate();
+        let private_pem = new_key.to_pem().expect("fresh keys to export");
+
+        std::fs::write(private_path, private_pem).map_err(StateSetupError::ServiceKeyWriteFailed)?;
+
+        let public_spki = new_key.public_key().to_pem().expect("fresh key to have public component");
+        let mut public_path = private_path.clone();
+        public_path.set_extension("public");
+        std::fs::write(public_path, public_spki).map_err(StateSetupError::PublicKeyWriteFailed)?;
+
+        new_key
+    };
+
+    let fingerprint = fingerprint_key(&session_key_raw);
+    session_key_raw = session_key_raw.with_key_id(&fingerprint);
+
+    let mut fingerprint_path = private_path.clone();
+    fingerprint_path.set_extension("fingerprint");
+    if !fingerprint_path.exists() {
+        std::fs::write(fingerprint_path, fingerprint).map_err(StateSetupError::FingerprintWriteFailed)?;
+    }
+
+    Ok(ServiceSigningKey::new(session_key_raw))
 }

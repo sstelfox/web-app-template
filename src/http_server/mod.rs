@@ -19,7 +19,7 @@ use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::Level;
 
-use crate::app::{Config, Error, State};
+use crate::app::{Config, State, StateSetupError};
 use crate::extractors::SessionIdentity;
 use crate::{auth, health_check};
 
@@ -96,10 +96,11 @@ async fn graceful_shutdown_blocker() {
 
     // todo: fail the readiness checks
 
+    // todo: this is the desired k8s behavior... but it slows down normal usage
     //tokio::time::sleep(REQUEST_GRACE_PERIOD).await
 }
 
-pub async fn run(config: Config) -> Result<(), Error> {
+pub async fn run(config: Config) -> Result<(), HttpServerError> {
     let trace_layer = create_trace_layer(config.log_level());
 
     // The order of these layers and configuration extensions was carefully chosen as they will see
@@ -155,9 +156,19 @@ pub async fn run(config: Config) -> Result<(), Error> {
     Server::bind(config.listen_addr())
         .serve(app.into_make_service())
         .with_graceful_shutdown(graceful_shutdown_blocker())
-        .await?;
+        .await
+        .map_err(HttpServerError::ServingFailed)?;
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum HttpServerError {
+    #[error("an error occurred running the HTTP server: {0}")]
+    ServingFailed(#[from] hyper::Error),
+
+    #[error("state initialization failed: {0}")]
+    StateInitializationFailed(#[from] StateSetupError),
 }
 
 pub async fn home_handler(session_id: SessionIdentity) -> Response {

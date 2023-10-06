@@ -2,10 +2,10 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 
-use web_app_template::app::{Config, Error};
+use web_app_template::app::Config;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), ServiceError> {
     let config = Config::from_env_and_args()?;
 
     let (non_blocking_writer, _guard) = tracing_appender::non_blocking(std::io::stdout());
@@ -29,4 +29,13 @@ async fn main() -> Result<(), Error> {
     tracing::info!("shutting down normally");
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ServiceError {
+    #[error("service couldn't initialize the config: {0}")]
+    ConfigSetupFailed(#[from] web_app_template::app::ConfigError),
+
+    #[error("service encountered an issue: {0}")]
+    RunFailed(#[from] web_app_template::http_server::HttpServerError),
 }

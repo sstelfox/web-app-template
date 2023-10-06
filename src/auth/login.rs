@@ -30,7 +30,7 @@ pub async fn handler(
     };
 
     // todo: should return an error here
-    let oauth_client = match oauth_client(&provider, hostname, state.secrets()) {
+    let oauth_client = match oauth_client(&provider, hostname, &state.secrets()) {
         Ok(oc) => oc,
         Err(err) => {
             tracing::error!("failed to build oauth client: {err}");
@@ -59,7 +59,7 @@ pub async fn handler(
         params.next_url,
     );
 
-    if let Err(err) = query.execute(state.database()).await {
+    if let Err(err) = query.execute(&state.database()).await {
         tracing::error!("failed to create oauth session handle: {err}");
         let response = serde_json::json!({"msg": "unable to use login services"});
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();

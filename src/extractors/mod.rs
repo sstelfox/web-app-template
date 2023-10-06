@@ -1,7 +1,6 @@
 mod api_key_identity;
 mod client_ip;
 mod database;
-mod secrets;
 mod server_base;
 mod session_identity;
 
