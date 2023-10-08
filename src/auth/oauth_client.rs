@@ -1,8 +1,12 @@
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use http::StatusCode;
-use oauth2::basic::BasicClient;
-use oauth2::{CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope};
+use oauth2::basic::{BasicClient, BasicTokenType};
+use oauth2::{
+    AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
+    RequestTokenError, Scope, TokenResponse,
+};
+use oauth2::{EmptyExtraTokenFields, StandardTokenResponse};
 use url::Url;
 
 use crate::app::Secrets;
@@ -71,12 +75,28 @@ impl OAuthClient {
             pkce_code_verifier,
         })
     }
+
+    pub fn validate_exchange(
+        &self,
+        authorization_code: AuthorizationCode,
+        pkce_code_verifier: PkceCodeVerifier,
+    ) -> Result<StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>, OAuthClientError>
+    {
+        self.client
+            .exchange_code(authorization_code)
+            .set_pkce_verifier(pkce_code_verifier)
+            .request(oauth2::reqwest::http_client)
+            .map_err(|err| OAuthClientError::ExchangeCodeFailure(err.to_string()))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthClientError {
     #[error("unable to location credentials for '{0}' login provider")]
     CredentialsMissing(&'static str),
+
+    #[error("failed to verify exchange code: {0}")]
+    ExchangeCodeFailure(String),
 }
 
 impl IntoResponse for OAuthClientError {

@@ -5,13 +5,11 @@ use axum::Router;
 use crate::app::State;
 use crate::database::custom_types::LoginProvider;
 
-mod authentication_error;
 mod login;
 mod logout;
 mod oauth_callback;
 mod oauth_client;
 
-use authentication_error::AuthenticationError;
 pub use oauth_client::{OAuthClient, OAuthClientError};
 
 pub static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";

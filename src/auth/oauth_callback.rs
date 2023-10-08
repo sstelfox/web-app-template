@@ -1,7 +1,7 @@
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-//use axum_extra::extract::cookie::{Cookie, SameSite};
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::CookieJar;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use base64::Engine;
@@ -33,30 +33,26 @@ pub async fn handler(
     Query(params): Query<CallbackParameters>,
 ) -> Result<Response, OAuthCallbackError> {
     let csrf_token = CsrfToken::new(params.state);
-    let exchange_code = AuthorizationCode::new(params.code);
+    let authorization_code = AuthorizationCode::new(params.code);
 
-    let oauth_state = VerifyOAuthState::locate_and_delete(&database, provider, csrf_token)
+    let verify_oauth_state = VerifyOAuthState::locate_and_delete(&database, provider, csrf_token)
         .await
         .map_err(OAuthCallbackError::MissingCallbackState)?;
 
     let oauth_client = OAuthClient::configure(provider, hostname.clone(), &state.secrets())
         .map_err(OAuthCallbackError::UnableToConfigureOAuth)?;
 
-    let post_login_redirect_url = oauth_state.post_login_redirect_url();
-    let pkce_code_verifier = oauth_state.pkce_code_verifier();
+    let post_login_redirect_url = verify_oauth_state.post_login_redirect_url();
+    let pkce_code_verifier = verify_oauth_state.pkce_code_verifier();
 
-    //let token_response = tokio::task::spawn_blocking(move || {
-    //    oauth_client
-    //        .exchange_code(exchange_code)
-    //        .set_pkce_verifier(pkce_code_verifier)
-    //        .request(oauth2::reqwest::http_client)
-    //})
-    //.await
-    //.map_err(AuthenticationError::SpawnFailure)?
-    //.map_err(|err| AuthenticationError::ExchangeCodeFailure(err.to_string()))?;
+    let token_response = tokio::task::spawn_blocking(move || {
+        oauth_client.validate_exchange(authorization_code, pkce_code_verifier)
+    })
+    .await
+    .map_err(OAuthCallbackError::SpawnFailure)?;
 
-    //// todo: record these
-    //// todo: lookup using the provider
+    // todo: record these
+    // todo: lookup using the provider
 
     //let access_token = token_response.access_token().secret();
     //let access_expires_at = token_response.expires_in().map(|secs| OffsetDateTime::now_utc() + secs);
@@ -197,6 +193,9 @@ pub struct GoogleUserProfile {
 pub enum OAuthCallbackError {
     #[error("received callback from oauth but we didn't have a matching session")]
     MissingCallbackState(sqlx::Error),
+
+    #[error("failed to spawn blocking task for exchange code authorization: {0}")]
+    SpawnFailure(tokio::task::JoinError),
 
     #[error("failed to configure OAuth client: {0}")]
     UnableToConfigureOAuth(OAuthClientError),
