@@ -49,20 +49,21 @@ pub async fn handler(
         oauth_client.validate_exchange(authorization_code, pkce_code_verifier)
     })
     .await
-    .map_err(OAuthCallbackError::SpawnFailure)?;
+    .map_err(OAuthCallbackError::SpawnFailure)?
+    .map_err(OAuthCallbackError::ValidationFailed)?;
 
-    // todo: record these
-    // todo: lookup using the provider
+    let access_token = token_response.access_token().secret();
+    let access_expires_at = token_response.expires_in().map(|secs| OffsetDateTime::now_utc() + secs);
+    let refresh_token = token_response.refresh_token().map(|rt| rt.secret());
 
-    //let access_token = token_response.access_token().secret();
-    //let access_expires_at = token_response.expires_in().map(|secs| OffsetDateTime::now_utc() + secs);
-    //let refresh_token = token_response.refresh_token().map(|rt| rt.secret());
+    // We're back in provider specific land for getting information about the authenticated user,
+    // todo: need to abstract this somehow for different implementors...
 
-    //let user_info_url = Url::parse_with_params(
-    //    "https://www.googleapis.com/oauth2/v2/userinfo",
-    //    &[("oauth_token", access_token)],
-    //)
-    //.expect("fixed format to be valid");
+    let user_info_url = Url::parse_with_params(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        &[("oauth_token", access_token)],
+    )
+    .expect("fixed format to be valid");
 
     //let user_info: GoogleUserProfile = reqwest::get(user_info_url)
     //    .await
@@ -74,9 +75,6 @@ pub async fn handler(
     //if !user_info.verified_email {
     //    return Err(AuthenticationError::UnverifiedEmail);
     //}
-
-    //// We're back in provider specific land for getting information about the authenticated user,
-    //// todo: allow for providers other than Google here...
 
     //let user_row = sqlx::query!(
     //    "SELECT id FROM users WHERE email = LOWER($1);",
@@ -199,6 +197,9 @@ pub enum OAuthCallbackError {
 
     #[error("failed to configure OAuth client: {0}")]
     UnableToConfigureOAuth(OAuthClientError),
+
+    #[error("failed to validate authorization code: {0}")]
+    ValidationFailed(OAuthClientError),
 }
 
 impl IntoResponse for OAuthCallbackError {
