@@ -4,6 +4,7 @@ use axum_extra::extract::CookieJar;
 
 use crate::auth::{NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME};
 use crate::database::Database;
+use crate::database::models::Session;
 use crate::extractors::SessionIdentity;
 
 pub async fn handler(
@@ -16,8 +17,7 @@ pub async fn handler(
 
         // todo: revoke token?
 
-        let query = sqlx::query!("DELETE FROM sessions WHERE id = $1;", session_id);
-        if let Err(err) = query.execute(&database).await {
+        if let Err(err) = Session::delete(&database, session_id).await {
             tracing::error!("failed to remove session from the db: {err}");
         }
     }

@@ -14,6 +14,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::app::State as AppState;
+use crate::database::models::VerifyOAuthState;
 
 use crate::auth::{
     oauth_client, AuthenticationError, NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL,
@@ -33,30 +34,20 @@ pub async fn handler(
     let csrf_secret = CsrfToken::new(params.state);
     let exchange_code = AuthorizationCode::new(params.code);
 
+    // todo: pass the above types into the query
+
     let query_secret = csrf_secret.secret();
-    let oauth_state_query: (String, Option<String>) = sqlx::query_as(
-        r#"SELECT pkce_verifier_secret,post_login_redirect_url
-            FROM oauth_state
-            WHERE provider = $1 AND csrf_secret = $2;"#,
+
+    let oauth_state = VerifyOAuthState::locate_and_delete(
+        &database,
+        provider,
+        query_secret.to_string(),
     )
-    .bind(provider.clone())
-    .bind(query_secret)
-    .fetch_one(&database)
     .await
     .map_err(AuthenticationError::MissingCallbackState)?;
 
-    sqlx::query!(
-        r#"DELETE FROM oauth_state
-            WHERE provider = $1 AND csrf_secret = $2;"#,
-        provider,
-        query_secret,
-    )
-    .execute(&database)
-    .await
-    .map_err(|_| AuthenticationError::CleanupFailed)?;
-
-    let (pkce_verifier_secret, post_login_redirect_url) = oauth_state_query;
-    let pkce_code_verifier = PkceCodeVerifier::new(pkce_verifier_secret);
+    let post_login_redirect_url = oauth_state.post_login_redirect_url();
+    let pkce_code_verifier = oauth_state.pkce_code_verifier();
 
     let oauth_client = oauth_client(provider, hostname.clone(), &state.secrets())?;
 
