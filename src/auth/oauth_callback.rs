@@ -127,26 +127,25 @@ pub async fn handler(
         .sign_digest_with_rng(&mut rng, digest);
 
     let auth_tag = B64.encode(signature.to_vec());
-    //let session_value = format!("{session_enc}*{auth_tag}");
+    let session_value = format!("{session_enc}*{auth_tag}");
 
-    //cookie_jar = cookie_jar.add(
-    //    Cookie::build(SESSION_COOKIE_NAME, session_value)
-    //        .http_only(true)
-    //        .expires(expires_at)
-    //        .same_site(SameSite::Lax)
-    //        .path("/")
-    //        .domain(cookie_domain)
-    //        .secure(cookie_secure)
-    //        .finish(),
-    //);
+    let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
+    cookie_jar = cookie_jar.add(
+        Cookie::build(SESSION_COOKIE_NAME, session_value)
+            .http_only(true)
+            .expires(expires_at)
+            .same_site(SameSite::Lax)
+            .path("/")
+            .domain(cookie_domain)
+            .secure(cookie_secure)
+            .finish(),
+    );
 
     let redirect_url = verify_oauth_state
         .post_login_redirect_url()
         .unwrap_or("/".to_string());
 
-    //Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
-
-    todo!()
+    Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
 }
 
 #[derive(Deserialize)]
