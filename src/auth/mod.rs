@@ -6,33 +6,20 @@ use oauth2::RedirectUrl;
 use url::Url;
 
 use crate::app::{Secrets, State};
+use crate::database::custom_types::LoginProvider;
 
 mod authentication_error;
 mod login;
 mod logout;
 mod oauth_callback;
-mod provider_config;
 
 use authentication_error::AuthenticationError;
-use provider_config::ProviderConfig;
 
 pub static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";
 
 pub static LOGIN_PATH: &str = "/auth/login";
 
 pub const NEW_USER_COOKIE_NAME: &'static str = "_is_new_user";
-
-pub static PROVIDER_CONFIGS: phf::Map<&'static str, ProviderConfig> = phf::phf_map! {
-    "google" => ProviderConfig::new(
-        "https://accounts.google.com/o/oauth2/v2/auth",
-        Some("https://www.googleapis.com/oauth2/v3/token"),
-        Some("https://oauth2.googleapis.com/revoke"),
-        &[
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/userinfo.profile"
-        ],
-    ),
-};
 
 pub static SESSION_COOKIE_NAME: &str = "_session_id";
 
@@ -66,22 +53,21 @@ pub async fn select_provider_handler() -> Response {
 }
 
 fn oauth_client(
-    config_id: &str,
+    login_provider: &LoginProvider,
     hostname: Url,
     secrets: &Secrets,
 ) -> Result<BasicClient, AuthenticationError> {
-    let provider_config = PROVIDER_CONFIGS
-        .get(config_id)
-        .ok_or(AuthenticationError::UnknownProvider)?;
-    let provider_credentials = secrets.provider_credential(config_id).ok_or(
-        AuthenticationError::ProviderNotConfigured(config_id.to_string()),
+    let provider_config = login_provider.config();
+
+    let provider_credentials = secrets.provider_credential(login_provider).ok_or(
+        AuthenticationError::ProviderNotConfigured(login_provider.as_str()),
     )?;
 
     let auth_url = provider_config.auth_url();
     let token_url = provider_config.token_url();
 
     let mut redirect_url = hostname;
-    redirect_url.set_path(&CALLBACK_PATH_TEMPLATE.replace("{}", config_id));
+    redirect_url.set_path(&CALLBACK_PATH_TEMPLATE.replace("{}", login_provider.as_str()));
     let redirect_url = RedirectUrl::from_url(redirect_url);
 
     let mut client = BasicClient::new(

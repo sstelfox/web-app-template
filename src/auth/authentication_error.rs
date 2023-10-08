@@ -26,7 +26,7 @@ pub enum AuthenticationError {
     ProfileUnavailable(reqwest::Error),
 
     #[error("no credentials available for provider '{0}'")]
-    ProviderNotConfigured(String),
+    ProviderNotConfigured(&'static str),
 
     #[error("failed to save session in the database")]
     SessionSaveFailed(sqlx::Error),

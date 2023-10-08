@@ -9,6 +9,7 @@ use sha2::Digest;
 
 use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey};
 use crate::database::{self, Database, DatabaseSetupError};
+use crate::database::custom_types::LoginProvider;
 
 #[derive(Clone)]
 pub struct State {
@@ -36,7 +37,7 @@ impl State {
 
         let mut credentials = BTreeMap::new();
         credentials.insert(
-            Arc::from("google"),
+            LoginProvider::Google,
             ProviderCredential::new(config.google_client_id(), config.google_client_secret()),
         );
         let secrets = Secrets::new(credentials, service_key);

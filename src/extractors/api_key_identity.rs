@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use axum::extract::rejection::TypedHeaderRejection;
-use axum::extract::{FromRequestParts, TypedHeader};
+use axum::extract::{FromRef, FromRequestParts, TypedHeader};
 use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
@@ -12,6 +12,8 @@ use http::request::Parts;
 use jwt_simple::prelude::*;
 use regex::Regex;
 use uuid::Uuid;
+
+use crate::database::Database;
 
 /// Defines the maximum length of time we consider any individual token valid in seconds. If the
 /// expiration is still in the future, but it was issued more than this many seconds in the past
@@ -40,27 +42,31 @@ impl ApiKeyIdentity {
 #[async_trait]
 impl<S> FromRequestParts<S> for ApiKeyIdentity
 where
+    Database: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = ApiKeyIdentityError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let key_validator = KEY_ID_VALIDATOR.get_or_init(|| Regex::new(KEY_ID_PATTERN).unwrap());
 
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
-            .map_err(|err| Self::Rejection::MissingHeader(err))?;
+            .map_err(ApiKeyIdentityError::MissingHeader)?;
 
         let raw_token = bearer.token();
 
         let unvalidated_header = Token::decode_metadata(&raw_token)
-            .map_err(|err| Self::Rejection::CorruptHeader(err))?;
-        let _key_id = match unvalidated_header.key_id() {
+            .map_err(ApiKeyIdentityError::CorruptHeader)?;
+
+        let key_id = match unvalidated_header.key_id() {
             Some(kid) if key_validator.is_match(kid) => kid.to_string(),
-            Some(_) => return Err(Self::Rejection::InvalidKeyId),
-            None => return Err(Self::Rejection::MissingKeyId),
+            Some(_) => return Err(ApiKeyIdentityError::InvalidKeyId),
+            None => return Err(ApiKeyIdentityError::MissingKeyId),
         };
+
+        let database = Database::from_ref(state);
 
         // todo create a generic "SessionKeyProvider" that takes a key ID and returns an
         //   appropriate verification key, should use that instead of a JwtKey directly

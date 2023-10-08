@@ -6,28 +6,22 @@ use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
 use serde::Deserialize;
 
 use crate::app::State as AppState;
-use crate::auth::{oauth_client, PROVIDER_CONFIGS};
+use crate::database::custom_types::{LoginProvider, LoginProviderConfig};
+use crate::auth::oauth_client;
 use crate::extractors::{ServerBase, SessionIdentity};
 
 pub async fn handler(
     session: Option<SessionIdentity>,
     State(state): State<AppState>,
     ServerBase(hostname): ServerBase,
-    Path(provider): Path<String>,
+    Path(provider): Path<LoginProvider>,
     Query(params): Query<LoginParams>,
 ) -> Response {
     if session.is_some() {
         return Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response();
     }
 
-    let provider_config = match PROVIDER_CONFIGS.get(&provider) {
-        Some(pc) => pc,
-        None => {
-            tracing::error!("attempted to login using unknown provider '{provider}'");
-            let response = serde_json::json!({"msg": "provider is not recognized on this server"});
-            return (StatusCode::NOT_FOUND, Json(response)).into_response();
-        }
-    };
+    let provider_config = provider.config();
 
     // todo: should return an error here
     let oauth_client = match oauth_client(&provider, hostname, &state.secrets()) {

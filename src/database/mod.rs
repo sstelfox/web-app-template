@@ -1,6 +1,9 @@
 use sqlx::SqlitePool;
 
 mod error;
+mod models;
+
+pub mod custom_types;
 pub mod sqlite;
 
 pub use error::DatabaseError;

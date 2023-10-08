@@ -40,18 +40,39 @@ CREATE TABLE sessions (
     substr(lower(hex(randomblob(6))), 2)
   ),
 
-  user_id TEXT NOT NULL REFERENCES users(id),
+  user_id TEXT NOT NULL
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
   provider TEXT NOT NULL,
-
-  client_ip TEXT,
-  user_agent TEXT,
-
   access_token TEXT NOT NULL,
   access_expires_at TIMESTAMP,
   refresh_token TEXT,
 
+  client_ip TEXT,
+  user_agent TEXT,
+
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE api_keys (
+  id TEXT NOT NULL PRIMARY KEY DEFAULT (
+    lower(hex(randomblob(4))) || '-' ||
+    lower(hex(randomblob(2))) || '-4' ||
+    substr(lower(hex(randomblob(2))), 2) || '-a' ||
+    substr(lower(hex(randomblob(2))), 2) || '-6' ||
+    substr(lower(hex(randomblob(6))), 2)
+  ),
+
+  user_id TEXT NOT NULL
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  fingerprint TEXT NOT NULL,
+  public_key BLOB NOT NULL,
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE background_tasks (

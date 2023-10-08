@@ -19,6 +19,7 @@ use crate::auth::{
     oauth_client, AuthenticationError, NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL,
 };
 use crate::database::Database;
+use crate::database::custom_types::LoginProvider;
 use crate::extractors::ServerBase;
 
 pub async fn handler(
@@ -26,7 +27,7 @@ pub async fn handler(
     mut cookie_jar: CookieJar,
     State(state): State<AppState>,
     ServerBase(hostname): ServerBase,
-    Path(provider): Path<String>,
+    Path(provider): Path<LoginProvider>,
     Query(params): Query<CallbackParameters>,
 ) -> Result<Response, AuthenticationError> {
     let csrf_secret = CsrfToken::new(params.state);

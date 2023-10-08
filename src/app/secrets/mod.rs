@@ -13,16 +13,17 @@ pub use provider_credential::ProviderCredential;
 pub use service_signing_key::ServiceSigningKey;
 
 use crate::app::State;
+use crate::database::custom_types::LoginProvider;
 
 #[derive(Clone)]
 pub struct Secrets {
-    provider_credentials: Arc<BTreeMap<Arc<str>, ProviderCredential>>,
+    provider_credentials: Arc<BTreeMap<LoginProvider, ProviderCredential>>,
     service_signing_key: ServiceSigningKey,
 }
 
 impl Secrets {
     pub fn new(
-        credentials: BTreeMap<Arc<str>, ProviderCredential>,
+        credentials: BTreeMap<LoginProvider, ProviderCredential>,
         service_signing_key: ServiceSigningKey,
     ) -> Self {
         Self {
@@ -31,8 +32,8 @@ impl Secrets {
         }
     }
 
-    pub fn provider_credential(&self, config_id: &str) -> Option<&ProviderCredential> {
-        self.provider_credentials.get(config_id)
+    pub fn provider_credential(&self, provider: &LoginProvider) -> Option<&ProviderCredential> {
+        self.provider_credentials.get(provider)
     }
 
     pub fn service_signing_key(&self) -> ServiceSigningKey {
