@@ -1,19 +1,18 @@
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use oauth2::basic::BasicClient;
-use oauth2::RedirectUrl;
-use url::Url;
 
-use crate::app::{Secrets, State};
+use crate::app::State;
 use crate::database::custom_types::LoginProvider;
 
 mod authentication_error;
 mod login;
 mod logout;
 mod oauth_callback;
+mod oauth_client;
 
 use authentication_error::AuthenticationError;
+pub use oauth_client::{OAuthClient, OAuthClientError};
 
 pub static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";
 
@@ -50,37 +49,4 @@ pub async fn select_provider_handler() -> Response {
     </html>"#,
     )
     .into_response()
-}
-
-fn oauth_client(
-    login_provider: LoginProvider,
-    hostname: Url,
-    secrets: &Secrets,
-) -> Result<BasicClient, AuthenticationError> {
-    let provider_config = login_provider.config();
-
-    let provider_credentials = secrets.provider_credential(login_provider).ok_or(
-        AuthenticationError::ProviderNotConfigured(login_provider.as_str()),
-    )?;
-
-    let auth_url = provider_config.auth_url();
-    let token_url = provider_config.token_url();
-
-    let mut redirect_url = hostname;
-    redirect_url.set_path(&CALLBACK_PATH_TEMPLATE.replace("{}", login_provider.as_str()));
-    let redirect_url = RedirectUrl::from_url(redirect_url);
-
-    let mut client = BasicClient::new(
-        provider_credentials.id(),
-        Some(provider_credentials.secret()),
-        auth_url,
-        token_url,
-    )
-    .set_redirect_uri(redirect_url);
-
-    if let Some(ru) = provider_config.revocation_url() {
-        client = client.set_revocation_uri(ru);
-    }
-
-    Ok(client)
 }

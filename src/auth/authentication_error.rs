@@ -16,9 +16,6 @@ pub enum AuthenticationError {
     #[error("a database error occurred while attempting to locate a user: {0}")]
     LookupFailed(sqlx::Error),
 
-    #[error("received callback from oauth but we didn't have a matching session")]
-    MissingCallbackState(sqlx::Error),
-
     #[error("failed to build oauth client: {0}")]
     OAuthClientUnavailable(String),
 
@@ -43,24 +40,8 @@ pub enum AuthenticationError {
 
 impl IntoResponse for AuthenticationError {
     fn into_response(self) -> Response {
-        use AuthenticationError as AE;
-
-        match self {
-            AE::MissingCallbackState(ref err) => {
-                tracing::warn!("{}: {err}", &self);
-                let msg = serde_json::json!({"msg": "unknown authentication callback"});
-                (StatusCode::BAD_REQUEST, Json(msg)).into_response()
-            }
-            AE::ProviderNotConfigured(_) | AE::UnknownProvider => {
-                tracing::warn!("{}", &self);
-                let msg = serde_json::json!({"msg": "unknown provider or provider not configured"});
-                (StatusCode::NOT_FOUND, Json(msg)).into_response()
-            }
-            _ => {
-                tracing::error!("{}", &self);
-                let msg = serde_json::json!({"msg": "authentication workflow broke down"});
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(msg)).into_response()
-            }
-        }
+        tracing::error!("{}", &self);
+        let msg = serde_json::json!({"msg": "authentication workflow broke down"});
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(msg)).into_response()
     }
 }

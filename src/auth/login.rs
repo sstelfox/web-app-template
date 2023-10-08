@@ -1,14 +1,13 @@
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::Json;
 use http::StatusCode;
-use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
 use serde::Deserialize;
 
 use crate::app::State as AppState;
+use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::custom_types::LoginProvider;
 use crate::database::models::NewOAuthState;
-use crate::auth::oauth_client;
 use crate::extractors::{ServerBase, SessionIdentity};
 
 pub async fn handler(
@@ -17,49 +16,50 @@ pub async fn handler(
     ServerBase(hostname): ServerBase,
     Path(provider): Path<LoginProvider>,
     Query(params): Query<LoginParams>,
-) -> Response {
+) -> Result<Response, LoginError> {
     if session.is_some() {
-        return Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response();
+        return Ok(Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response());
     }
 
-    let provider_config = provider.config();
-
-    let oauth_client = match oauth_client(provider, hostname, &state.secrets()) {
-        Ok(oc) => oc,
-        Err(err) => {
-            tracing::error!("failed to build oauth client: {err}");
-            let response = serde_json::json!({"msg": "unable to use login services"});
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
-        }
-    };
-
-    let (pkce_code_challenge, pkce_code_verifier) = PkceCodeChallenge::new_random_sha256();
-    let mut auth_request = oauth_client.authorize_url(CsrfToken::new_random);
-
-    for scope in provider_config.scopes() {
-        auth_request = auth_request.add_scope(Scope::new(scope.to_string()));
-    }
-
-    let (authorize_url, csrf_state) = auth_request.set_pkce_challenge(pkce_code_challenge).url();
-
-    let csrf_secret = csrf_state.secret().to_string();
-    let pkce_verifier_secret = pkce_code_verifier.secret().to_string();
+    let oauth_client = OAuthClient::configure(provider, hostname, &state.secrets())
+        .map_err(LoginError::UnableToConfigureOAuth)?;
+    let challenge = oauth_client.generate_challenge()
+        .await
+        .map_err(LoginError::ChallengeGenerationFailed)?;
 
     let database = state.database();
-    let query_res = NewOAuthState::new(provider, csrf_secret, pkce_verifier_secret, params.next_url)
+    let authorization_url = challenge.authorize_url;
+    let query_res = NewOAuthState::new(provider, challenge.csrf_token, challenge.pkce_code_verifier, params.next_url)
         .save(&database)
         .await;
 
     if let Err(err) = query_res {
         tracing::error!("failed to create oauth session handle: {err}");
         let response = serde_json::json!({"msg": "unable to use login services"});
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+        return Ok((StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response());
     }
 
-    Redirect::to(authorize_url.as_str()).into_response()
+    Ok(Redirect::to(authorization_url.as_str()).into_response())
 }
 
 #[derive(Deserialize)]
 pub struct LoginParams {
     next_url: Option<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LoginError {
+    #[error("unable to generate challenge URL for authentication: {0}")]
+    ChallengeGenerationFailed(OAuthClientError),
+
+    #[error("failed to configure OAuth client: {0}")]
+    UnableToConfigureOAuth(OAuthClientError),
+}
+
+impl IntoResponse for LoginError {
+    fn into_response(self) -> Response {
+        tracing::error!("encountered an issue starting the login process: {self}");
+        let err_msg = serde_json::json!({"msg": "backend service experienced an issue servicing the request"});
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(err_msg)).into_response()
+    }
 }

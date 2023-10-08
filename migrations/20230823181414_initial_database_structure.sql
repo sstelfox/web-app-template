@@ -20,16 +20,17 @@ CREATE UNIQUE INDEX idx_unique_users_on_email ON
 
 CREATE TABLE oauth_state (
   provider TEXT NOT NULL,
-  csrf_secret TEXT NOT NULL,
-  pkce_verifier_secret TEXT NOT NULL,
+
+  csrf_token_secret TEXT NOT NULL,
+  pkce_code_verifier_secret TEXT NOT NULL,
 
   post_login_redirect_url TEXT,
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX idx_unique_oauth_state_on_provider_csrf_secret
-  ON oauth_state(provider, csrf_secret);
+CREATE UNIQUE INDEX idx_unique_oauth_state_on_provider_csrf_token_secret
+  ON oauth_state(provider, csrf_token_secret);
 
 CREATE TABLE sessions (
   id TEXT NOT NULL PRIMARY KEY DEFAULT (
