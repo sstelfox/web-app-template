@@ -17,10 +17,10 @@ use uuid::Uuid;
 
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
-use crate::database::models::VerifyOAuthState;
+use crate::database::models::{CreateUser, CreateSession, VerifyOAuthState, SessionError, UserError};
 
 use crate::auth::{NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL};
-use crate::database::custom_types::LoginProvider;
+use crate::database::custom_types::{LoginProvider, UserId, UserIdError};
 use crate::database::Database;
 use crate::extractors::ServerBase;
 
@@ -79,67 +79,45 @@ pub async fn handler(
         return Err(OAuthCallbackError::UnverifiedEmail);
     }
 
-    //let user_row = sqlx::query!(
-    //    "SELECT id FROM users WHERE email = LOWER($1);",
-    //    user_info.email
-    //)
-    //.fetch_optional(&database)
-    //.await
-    //.map_err(AuthenticationError::LookupFailed)?;
+    // out of provider specific land for the most part
 
-    //let user_id = match user_row {
-    //    Some(u) => Uuid::parse_str(&u.id.to_string()).expect("db ids to be valid"),
-    //    None => {
-    //        let new_user_row = sqlx::query!(
-    //            r#"INSERT INTO users (email, display_name, locale, profile_image)
-    //                    VALUES (LOWER($1), $2, $3, $4) RETURNING id;"#,
-    //            user_info.email,
-    //            user_info.name,
-    //            user_info.locale,
-    //            user_info.picture,
-    //        )
-    //        .fetch_one(&database)
-    //        .await
-    //        .map_err(AuthenticationError::CreationFailed)?;
+    let maybe_user_id = UserId::from_email(&database, &user_info.email)
+        .await
+        .map_err(OAuthCallbackError::FailedUserLookup)?;
 
-    //        cookie_jar = cookie_jar.add(
-    //            Cookie::build(NEW_USER_COOKIE_NAME, "yes")
-    //                .http_only(false)
-    //                .expires(None)
-    //                .same_site(SameSite::Lax)
-    //                .domain(cookie_domain.clone())
-    //                .secure(cookie_secure)
-    //                .finish(),
-    //        );
+    let user_id = match maybe_user_id {
+        Some(uid) => uid,
+        None => {
+            let mut create_user = CreateUser::new(user_info.email, user_info.name);
 
-    //        Uuid::parse_str(&new_user_row.id).expect("db ids to be valid")
-    //    }
-    //};
+            create_user.locale(user_info.locale);
 
-    let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
-    //let db_uid = user_id.clone().to_string();
+            match Url::parse(&user_info.picture) {
+                Ok(url) => { create_user.profile_image(url); },
+                Err(err) => {
+                    tracing::warn!("got invalid profile image, not storing corrupted URL");
+                }
+            }
 
-    //let new_sid_row = sqlx::query!(
-    //    r#"INSERT INTO sessions
-    //        (user_id, provider, access_token, access_expires_at, refresh_token, expires_at)
-    //        VALUES ($1, $2, $3, $4, $5, $6)
-    //        RETURNING id;"#,
-    //    db_uid,
-    //    provider,
-    //    access_token,
-    //    access_expires_at,
-    //    refresh_token,
-    //    expires_at,
-    //)
-    //.fetch_one(&database)
-    //.await
-    //.map_err(AuthenticationError::SessionSaveFailed)?;
+            create_user
+                .save(&database)
+                .await
+                .map_err(OAuthCallbackError::UserCreationFailed)?
+        }
+    };
 
-    //let session_id = Uuid::parse_str(&new_sid_row.id.to_string()).expect("db ids to be valid");
+    let mut create_session = CreateSession::new(user_id, provider, access_token.to_string());
 
-    //let session_enc = B64.encode(session_id.to_bytes_le());
+    // todo: store additional details
+
+    let session_id = create_session
+        .save(&database)
+        .await
+        .map_err(OAuthCallbackError::SessionCreationFailed)?;
+
+    let session_enc = B64.encode(session_id.to_bytes_le());
     let mut digest = hmac_sha512::sha384::Hash::new();
-    //digest.update(session_enc.as_bytes());
+    digest.update(session_enc.as_bytes());
     let mut rng = rand::thread_rng();
 
     let service_signing_key = state.secrets().service_signing_key();
@@ -192,11 +170,17 @@ pub struct GoogleUserProfile {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthCallbackError {
+    #[error("failed to query the databse for a user: {0}")]
+    FailedUserLookup(UserIdError),
+
     #[error("received callback from oauth but we didn't have a matching session")]
     MissingCallbackState(sqlx::Error),
 
     #[error("unable to request user's profile: {0}")]
     ProfileUnavailable(reqwest::Error),
+
+    #[error("failed to create new session after successful login: {0}")]
+    SessionCreationFailed(SessionError),
 
     #[error("failed to spawn blocking task for exchange code authorization: {0}")]
     SpawnFailure(tokio::task::JoinError),
@@ -206,6 +190,9 @@ pub enum OAuthCallbackError {
 
     #[error("user account must be verified before it can be used to login")]
     UnverifiedEmail,
+
+    #[error("failed to create new user after successful login: {0}")]
+    UserCreationFailed(UserError),
 
     #[error("failed to validate authorization code: {0}")]
     ValidationFailed(OAuthClientError),

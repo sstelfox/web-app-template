@@ -1,4 +1,5 @@
 use std::fmt::{self, Display, Formatter};
+use std::ops::Deref;
 
 use uuid::Uuid;
 
@@ -7,6 +8,14 @@ use crate::database::custom_types::Did;
 #[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct SessionId(Did);
+
+impl Deref for SessionId {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.deref()
+    }
+}
 
 impl Display for SessionId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

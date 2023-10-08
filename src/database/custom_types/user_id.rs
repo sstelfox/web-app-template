@@ -1,4 +1,5 @@
 use std::fmt::{self, Display, Formatter};
+use std::ops::Deref;
 
 use uuid::Uuid;
 
@@ -23,6 +24,14 @@ impl UserId {
             Some(sid) => Ok(Some(UserId(Did::try_from(sid).map_err(UserIdError::CorruptId)?))),
             None => Ok(None),
         }
+    }
+}
+
+impl Deref for UserId {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.deref()
     }
 }
 
