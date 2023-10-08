@@ -13,21 +13,22 @@ use uuid::Uuid;
 use crate::app::ServiceVerificationKey;
 use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
 use crate::database::Database;
+use crate::database::custom_types::{SessionId, UserId};
 
 pub struct SessionIdentity {
-    session_id: Uuid,
-    user_id: Uuid,
+    session_id: SessionId,
+    user_id: UserId,
 
     created_at: OffsetDateTime,
     expires_at: OffsetDateTime,
 }
 
 impl SessionIdentity {
-    pub fn session_id(&self) -> Uuid {
+    pub fn session_id(&self) -> SessionId {
         self.session_id
     }
 
-    pub fn user_id(&self) -> Uuid {
+    pub fn user_id(&self) -> UserId {
         self.user_id
     }
 }
@@ -122,9 +123,12 @@ where
         }
 
         let session_id =
-            Uuid::parse_str(&db_session.id).map_err(SessionIdentityError::CorruptDatabaseId)?;
+            Uuid::parse_str(&db_session.id)
+            .map_err(SessionIdentityError::CorruptDatabaseId)?
+            .into();
         let user_id = Uuid::parse_str(&db_session.user_id)
-            .map_err(SessionIdentityError::CorruptDatabaseId)?;
+            .map_err(SessionIdentityError::CorruptDatabaseId)?
+            .into();
 
         Ok(SessionIdentity {
             session_id,

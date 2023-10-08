@@ -1,8 +1,22 @@
+use std::fmt::{self, Debug, Formatter};
+
 use uuid::Uuid;
 
-#[derive(sqlx::Type)]
+#[derive(Clone, Copy, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct Did(Uuid);
+
+impl Debug for Did {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<Uuid> for Did {
+    fn from(val: Uuid) -> Self {
+        Self(val)
+    }
+}
 
 impl TryFrom<String> for Did {
     type Error = uuid::Error;

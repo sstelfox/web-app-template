@@ -21,6 +21,14 @@ pub struct Session {
 }
 
 impl Session {
+    pub async fn delete(database: &Database, id: SessionId) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM sessions WHERE id = $1;", id)
+            .execute(database)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
         let query_result = sqlx::query_as!(
             Self,
