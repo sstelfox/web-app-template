@@ -14,26 +14,35 @@ static LOGIN_PROVIDER_CONFIGS: phf::Map<u8, LoginProviderConfig> = phf::phf_map!
     ),
 };
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
 #[serde(rename = "snake_case")]
 pub enum LoginProvider {
     Google,
 }
 
 impl LoginProvider {
+    pub const fn as_str(&self) -> &'static str {
+        match &self {
+            LoginProvider::Google => "google",
+        }
+    }
+
     pub const fn as_u8(&self) -> u8 {
         match &self {
             LoginProvider::Google => 1,
         }
     }
 
-    pub fn as_str(&self) -> &'static str {
-        match &self {
-            LoginProvider::Google => "google",
-        }
-    }
-
     pub fn config(&self) -> &LoginProviderConfig {
         LOGIN_PROVIDER_CONFIGS.get(&self.as_u8()).expect("hardcoded configs to be present")
+    }
+}
+
+impl From<String> for LoginProvider {
+    fn from(val: String) -> Self {
+        match val.as_str() {
+            "google" => LoginProvider::Google,
+            _ => panic!("attempted to access unknown provider"),
+        }
     }
 }

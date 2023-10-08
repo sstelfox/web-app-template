@@ -21,9 +21,9 @@ CREATE UNIQUE INDEX idx_unique_users_on_email ON
 CREATE TABLE oauth_state (
   provider TEXT NOT NULL,
   csrf_secret TEXT NOT NULL,
-
   pkce_verifier_secret TEXT NOT NULL,
-  next_url TEXT,
+
+  post_login_redirect_url TEXT,
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

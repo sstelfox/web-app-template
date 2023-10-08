@@ -6,7 +6,8 @@ use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
 use serde::Deserialize;
 
 use crate::app::State as AppState;
-use crate::database::custom_types::{LoginProvider, LoginProviderConfig};
+use crate::database::custom_types::LoginProvider;
+use crate::database::models::NewOAuthState;
 use crate::auth::oauth_client;
 use crate::extractors::{ServerBase, SessionIdentity};
 
@@ -23,8 +24,7 @@ pub async fn handler(
 
     let provider_config = provider.config();
 
-    // todo: should return an error here
-    let oauth_client = match oauth_client(&provider, hostname, &state.secrets()) {
+    let oauth_client = match oauth_client(provider, hostname, &state.secrets()) {
         Ok(oc) => oc,
         Err(err) => {
             tracing::error!("failed to build oauth client: {err}");
@@ -42,23 +42,19 @@ pub async fn handler(
 
     let (authorize_url, csrf_state) = auth_request.set_pkce_challenge(pkce_code_challenge).url();
 
-    let csrf_secret = csrf_state.secret();
-    let pkce_verifier_secret = pkce_code_verifier.secret();
+    let csrf_secret = csrf_state.secret().to_string();
+    let pkce_verifier_secret = pkce_code_verifier.secret().to_string();
 
-    let query = sqlx::query!(
-        r#"INSERT INTO oauth_state (provider, csrf_secret, pkce_verifier_secret, next_url)
-                   VALUES ($1, $2, $3, $4);"#,
-        provider,
-        csrf_secret,
-        pkce_verifier_secret,
-        params.next_url,
-    );
+    let database = state.database();
+    let query_res = NewOAuthState::new(provider, csrf_secret, pkce_verifier_secret, params.next_url)
+        .save(&database)
+        .await;
 
-    if let Err(err) = query.execute(&state.database()).await {
+    if let Err(err) = query_res {
         tracing::error!("failed to create oauth session handle: {err}");
         let response = serde_json::json!({"msg": "unable to use login services"});
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
-    };
+    }
 
     Redirect::to(authorize_url.as_str()).into_response()
 }

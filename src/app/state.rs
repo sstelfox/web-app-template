@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use axum::extract::FromRef;
 use jwt_simple::prelude::*;

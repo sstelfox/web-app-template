@@ -35,7 +35,7 @@ pub async fn handler(
 
     let query_secret = csrf_secret.secret();
     let oauth_state_query: (String, Option<String>) = sqlx::query_as(
-        r#"SELECT pkce_verifier_secret,next_url
+        r#"SELECT pkce_verifier_secret,post_login_redirect_url
             FROM oauth_state
             WHERE provider = $1 AND csrf_secret = $2;"#,
     )
@@ -55,10 +55,10 @@ pub async fn handler(
     .await
     .map_err(|_| AuthenticationError::CleanupFailed)?;
 
-    let (pkce_verifier_secret, next_url) = oauth_state_query;
+    let (pkce_verifier_secret, post_login_redirect_url) = oauth_state_query;
     let pkce_code_verifier = PkceCodeVerifier::new(pkce_verifier_secret);
 
-    let oauth_client = oauth_client(&provider, hostname.clone(), &state.secrets())?;
+    let oauth_client = oauth_client(provider, hostname.clone(), &state.secrets())?;
 
     tracing::info!("build oauth client");
 
@@ -192,7 +192,7 @@ pub async fn handler(
             .finish(),
     );
 
-    let redirect_url = next_url.unwrap_or("/".to_string());
+    let redirect_url = post_login_redirect_url.unwrap_or("/".to_string());
     Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
 }
 

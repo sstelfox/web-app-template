@@ -53,7 +53,7 @@ pub async fn select_provider_handler() -> Response {
 }
 
 fn oauth_client(
-    login_provider: &LoginProvider,
+    login_provider: LoginProvider,
     hostname: Url,
     secrets: &Secrets,
 ) -> Result<BasicClient, AuthenticationError> {

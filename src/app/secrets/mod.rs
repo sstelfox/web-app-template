@@ -32,8 +32,8 @@ impl Secrets {
         }
     }
 
-    pub fn provider_credential(&self, provider: &LoginProvider) -> Option<&ProviderCredential> {
-        self.provider_credentials.get(provider)
+    pub fn provider_credential(&self, provider: LoginProvider) -> Option<&ProviderCredential> {
+        self.provider_credentials.get(&provider)
     }
 
     pub fn service_signing_key(&self) -> ServiceSigningKey {
