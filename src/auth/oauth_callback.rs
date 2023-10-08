@@ -32,10 +32,7 @@ pub async fn handler(
     Path(provider): Path<LoginProvider>,
     Query(params): Query<CallbackParameters>,
 ) -> Result<Response, OAuthCallbackError> {
-    let csrf_token = CsrfToken::new(params.state);
-    let authorization_code = AuthorizationCode::new(params.code);
-
-    let verify_oauth_state = VerifyOAuthState::locate_and_delete(&database, provider, csrf_token)
+    let verify_oauth_state = VerifyOAuthState::locate_and_delete(&database, provider, params.csrf_token)
         .await
         .map_err(OAuthCallbackError::MissingCallbackState)?;
 
@@ -46,7 +43,7 @@ pub async fn handler(
     let pkce_code_verifier = verify_oauth_state.pkce_code_verifier();
 
     let token_response = tokio::task::spawn_blocking(move || {
-        oauth_client.validate_exchange(authorization_code, pkce_code_verifier)
+        oauth_client.validate_exchange(params.authorization_code, pkce_code_verifier)
     })
     .await
     .map_err(OAuthCallbackError::SpawnFailure)?
@@ -165,7 +162,10 @@ pub async fn handler(
     //        .finish(),
     //);
 
-    let redirect_url = post_login_redirect_url.unwrap_or("/".to_string());
+    let redirect_url = verify_oauth_state
+        .post_login_redirect_url()
+        .unwrap_or("/".to_string());
+
     //Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
 
     todo!()
@@ -173,8 +173,11 @@ pub async fn handler(
 
 #[derive(Deserialize)]
 pub struct CallbackParameters {
-    code: String,
-    state: String,
+    #[serde(rename = "code")]
+    authorization_code: AuthorizationCode,
+
+    #[serde(rename = "state")]
+    csrf_token: CsrfToken,
 }
 
 #[derive(Deserialize)]
