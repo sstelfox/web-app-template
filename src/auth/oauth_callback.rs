@@ -1,6 +1,6 @@
-use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 //use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::CookieJar;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
@@ -19,11 +19,9 @@ use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::models::VerifyOAuthState;
 
-use crate::auth::{
-    NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL,
-};
-use crate::database::Database;
+use crate::auth::{NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL};
 use crate::database::custom_types::LoginProvider;
+use crate::database::Database;
 use crate::extractors::ServerBase;
 
 pub async fn handler(
@@ -37,13 +35,9 @@ pub async fn handler(
     let csrf_token = CsrfToken::new(params.state);
     let exchange_code = AuthorizationCode::new(params.code);
 
-    let oauth_state = VerifyOAuthState::locate_and_delete(
-        &database,
-        provider,
-        csrf_token,
-    )
-    .await
-    .map_err(OAuthCallbackError::MissingCallbackState)?;
+    let oauth_state = VerifyOAuthState::locate_and_delete(&database, provider, csrf_token)
+        .await
+        .map_err(OAuthCallbackError::MissingCallbackState)?;
 
     let oauth_client = OAuthClient::configure(provider, hostname.clone(), &state.secrets())
         .map_err(OAuthCallbackError::UnableToConfigureOAuth)?;

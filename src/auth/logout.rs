@@ -3,8 +3,8 @@ use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
 
 use crate::auth::{NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME};
-use crate::database::Database;
 use crate::database::models::Session;
+use crate::database::Database;
 use crate::extractors::SessionIdentity;
 
 pub async fn handler(

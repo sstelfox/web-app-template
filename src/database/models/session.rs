@@ -1,7 +1,7 @@
 use time::OffsetDateTime;
 
-use crate::database::Database;
 use crate::database::custom_types::{LoginProvider, SessionId, UserId};
+use crate::database::Database;
 
 #[derive(sqlx::FromRow)]
 pub struct Session {
@@ -30,13 +30,9 @@ impl Session {
     }
 
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
-        let query_result = sqlx::query_as!(
-            Self,
-            "SELECT * FROM sessions WHERE id = $1;",
-            id,
-        )
-        .fetch_one(database)
-        .await;
+        let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id,)
+            .fetch_one(database)
+            .await;
 
         match query_result {
             Ok(sess) => Ok(Some(sess)),

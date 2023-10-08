@@ -14,7 +14,9 @@ static LOGIN_PROVIDER_CONFIGS: phf::Map<u8, LoginProviderConfig> = phf::phf_map!
     ),
 };
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type,
+)]
 #[serde(rename = "snake_case")]
 pub enum LoginProvider {
     Google,
@@ -34,7 +36,9 @@ impl LoginProvider {
     }
 
     pub fn config(&self) -> &LoginProviderConfig {
-        LOGIN_PROVIDER_CONFIGS.get(&self.as_u8()).expect("hardcoded configs to be present")
+        LOGIN_PROVIDER_CONFIGS
+            .get(&self.as_u8())
+            .expect("hardcoded configs to be present")
     }
 }
 

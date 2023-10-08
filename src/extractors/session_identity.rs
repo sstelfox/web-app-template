@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use crate::app::ServiceVerificationKey;
 use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
-use crate::database::Database;
 use crate::database::custom_types::{SessionId, UserId};
+use crate::database::Database;
 
 pub struct SessionIdentity {
     session_id: SessionId,
@@ -122,8 +122,7 @@ where
             return Err(SessionIdentityError::SessionExpired);
         }
 
-        let session_id =
-            Uuid::parse_str(&db_session.id)
+        let session_id = Uuid::parse_str(&db_session.id)
             .map_err(SessionIdentityError::CorruptDatabaseId)?
             .into();
         let user_id = Uuid::parse_str(&db_session.user_id)

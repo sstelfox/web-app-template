@@ -1,15 +1,15 @@
-use axum::Json;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use http::StatusCode;
-use oauth2::{CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope};
 use oauth2::basic::BasicClient;
+use oauth2::{CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope};
 use url::Url;
 
 use crate::app::Secrets;
 use crate::auth::CALLBACK_PATH_TEMPLATE;
-use crate::database::Database;
 use crate::database::custom_types::LoginProvider;
 use crate::database::models::NewOAuthState;
+use crate::database::Database;
 
 pub struct OAuthClient {
     client: BasicClient,
@@ -46,7 +46,10 @@ impl OAuthClient {
             client = client.set_revocation_uri(ru);
         }
 
-        Ok(Self { client, login_provider })
+        Ok(Self {
+            client,
+            login_provider,
+        })
     }
 
     pub async fn generate_challenge(&self) -> Result<OAuthChallenge, OAuthClientError> {
@@ -59,7 +62,8 @@ impl OAuthClient {
             auth_request = auth_request.add_scope(Scope::new(scope.to_string()));
         }
 
-        let (authorize_url, csrf_token) = auth_request.set_pkce_challenge(pkce_code_challenge).url();
+        let (authorize_url, csrf_token) =
+            auth_request.set_pkce_challenge(pkce_code_challenge).url();
 
         Ok(OAuthChallenge {
             authorize_url,

@@ -57,8 +57,8 @@ where
 
         let raw_token = bearer.token();
 
-        let unvalidated_header = Token::decode_metadata(&raw_token)
-            .map_err(ApiKeyIdentityError::CorruptHeader)?;
+        let unvalidated_header =
+            Token::decode_metadata(&raw_token).map_err(ApiKeyIdentityError::CorruptHeader)?;
 
         let key_id = match unvalidated_header.key_id() {
             Some(kid) if key_validator.is_match(kid) => kid.to_string(),

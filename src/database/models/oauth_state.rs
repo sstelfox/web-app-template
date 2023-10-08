@@ -1,7 +1,7 @@
 use oauth2::{CsrfToken, PkceCodeVerifier};
 
-use crate::database::Database;
 use crate::database::custom_types::LoginProvider;
+use crate::database::Database;
 
 pub struct NewOAuthState {
     provider: LoginProvider,
@@ -103,7 +103,7 @@ impl VerifyOAuthState {
         Ok(found_state)
     }
 
-    pub fn pkce_code_verifier(&self) ->  PkceCodeVerifier {
+    pub fn pkce_code_verifier(&self) -> PkceCodeVerifier {
         PkceCodeVerifier::new(self.pkce_code_verifier_secret.clone())
     }
 
