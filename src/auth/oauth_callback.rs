@@ -76,10 +76,6 @@ pub async fn handler(
         .await
         .map_err(OAuthCallbackError::ProfileUnavailable)?;
 
-    if !user_info.verified_email {
-        return Err(OAuthCallbackError::UnverifiedEmail);
-    }
-
     // out of provider specific land for the most part
 
     let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
@@ -90,6 +86,10 @@ pub async fn handler(
     let user_id = match maybe_user_id {
         Some(uid) => uid,
         None => {
+            if !user_info.verified_email {
+                return Err(OAuthCallbackError::UnverifiedEmail);
+            }
+
             let mut create_user = CreateUser::new(user_info.email, user_info.name);
 
             create_user.locale(user_info.locale);
@@ -122,6 +122,8 @@ pub async fn handler(
             new_user_id
         }
     };
+
+    tracing::info!("user session is being created for {user_id}");
 
     let mut create_session = CreateSession::new(user_id, provider, access_token.clone());
 

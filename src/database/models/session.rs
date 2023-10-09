@@ -53,6 +53,7 @@ impl CreateSession {
     }
 
     pub async fn save(self, database: &Database) -> Result<SessionId, SessionError> {
+        let user_id_str = self.user_id.to_string();
         let client_ip_str = self.client_ip.map(|cip| cip.to_string());
         let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
 
@@ -66,7 +67,7 @@ impl CreateSession {
                 (user_id, provider, access_token_secret, access_expires_at, refresh_token, client_ip, user_agent, expires_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id;"#,
-            self.user_id,
+            user_id_str,
             self.provider,
             access_token_secret,
             self.access_expires_at,

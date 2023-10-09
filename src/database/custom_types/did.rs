@@ -1,4 +1,4 @@
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::Deref;
 
 use uuid::Uuid;
@@ -9,7 +9,7 @@ pub struct Did(Uuid);
 
 impl Debug for Did {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        Debug::fmt(&self.0, f)
     }
 }
 
@@ -18,6 +18,12 @@ impl Deref for Did {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Display for Did {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

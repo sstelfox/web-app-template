@@ -37,7 +37,7 @@ impl Deref for UserId {
 
 impl Display for UserId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self.0)
     }
 }
 

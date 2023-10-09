@@ -19,7 +19,7 @@ impl Deref for SessionId {
 
 impl Display for SessionId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self.0)
     }
 }
 
