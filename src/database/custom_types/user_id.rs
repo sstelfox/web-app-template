@@ -31,7 +31,7 @@ impl Deref for UserId {
     type Target = Uuid;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.deref()
+        self.0.deref()
     }
 }
 

@@ -133,7 +133,7 @@ impl Config {
     }
 
     pub fn log_level(&self) -> Level {
-        self.log_level.clone()
+        self.log_level
     }
 
     pub fn service_key_path(&self) -> PathBuf {

@@ -108,7 +108,7 @@ pub struct Session {
 
 impl Session {
     pub fn created_at(&self) -> OffsetDateTime {
-        self.created_at.clone()
+        self.created_at
     }
 
     pub async fn delete(database: &Database, id: SessionId) -> Result<(), sqlx::Error> {
@@ -120,11 +120,11 @@ impl Session {
     }
 
     pub fn expires_at(&self) -> OffsetDateTime {
-        self.expires_at.clone()
+        self.expires_at
     }
 
     pub fn id(&self) -> SessionId {
-        self.id.clone()
+        self.id
     }
 
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
@@ -140,7 +140,7 @@ impl Session {
     }
 
     pub fn user_id(&self) -> UserId {
-        self.user_id.clone()
+        self.user_id
     }
 }
 

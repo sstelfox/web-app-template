@@ -26,8 +26,8 @@ impl CurrentTask {
         Self {
             id: task.id,
             current_attempt: task.current_attempt,
-            scheduled_at: task.scheduled_at.clone(),
-            started_at: task.started_at.expect("task to be started").clone(),
+            scheduled_at: task.scheduled_at,
+            started_at: task.started_at.expect("task to be started"),
         }
     }
 }
@@ -219,7 +219,7 @@ impl TaskStore for MemoryTaskStore {
         let unique_key = task.unique_key().await;
 
         if let Some(new_key) = &unique_key {
-            if MemoryTaskStore::is_key_present(&conn, &new_key).await {
+            if MemoryTaskStore::is_key_present(conn, new_key).await {
                 return Ok(None);
             }
         }

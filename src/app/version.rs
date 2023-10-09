@@ -10,6 +10,12 @@ pub struct Version {
     pub version: &'static str,
 }
 
+impl Default for Version {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Version {
     pub fn new() -> Self {
         Self {

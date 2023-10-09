@@ -25,9 +25,9 @@ use crate::{auth, health_check};
 
 mod error_handlers;
 
-static FILTERED_VALUE: &'static str = "<filtered>";
+static FILTERED_VALUE: &str = "<filtered>";
 
-static MISSING_VALUE: &'static str = "<not_provided>";
+static MISSING_VALUE: &str = "<not_provided>";
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
@@ -77,8 +77,8 @@ fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
     };
 
     let mut filtered_query_pairs = vec![];
-    for query_pair in query.split("&") {
-        let mut qp_iter = query_pair.split("=");
+    for query_pair in query.split('&') {
+        let mut qp_iter = query_pair.split('=');
 
         match (qp_iter.next(), qp_iter.next()) {
             (Some(key), Some(val)) if !key.is_empty() && !val.is_empty() => {
@@ -134,8 +134,7 @@ async fn graceful_shutdown_blocker() {
 
     tokio::select! {
         _ = sigint.recv() => {
-            tracing::debug!("gracefully exiting immediately on SIGINT");
-            return;
+            tracing::debug!("gracefully exiting immediately on SIGINT");;
         }
         _ = sigterm.recv() => tracing::debug!("initiaing graceful shutdown with delay on SIGTERM"),
     }

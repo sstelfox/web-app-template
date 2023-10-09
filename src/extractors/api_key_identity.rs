@@ -58,15 +58,15 @@ where
         let raw_token = bearer.token();
 
         let unvalidated_header =
-            Token::decode_metadata(&raw_token).map_err(ApiKeyIdentityError::CorruptHeader)?;
+            Token::decode_metadata(raw_token).map_err(ApiKeyIdentityError::CorruptHeader)?;
 
-        let key_id = match unvalidated_header.key_id() {
+        let _key_id = match unvalidated_header.key_id() {
             Some(kid) if key_validator.is_match(kid) => kid.to_string(),
             Some(_) => return Err(ApiKeyIdentityError::InvalidKeyId),
             None => return Err(ApiKeyIdentityError::MissingKeyId),
         };
 
-        let database = Database::from_ref(state);
+        let _database = Database::from_ref(state);
 
         // todo create a generic "SessionKeyProvider" that takes a key ID and returns an
         //   appropriate verification key, should use that instead of a JwtKey directly
