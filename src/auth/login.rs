@@ -17,7 +17,12 @@ pub async fn handler(
     Path(provider): Path<String>,
     Query(params): Query<LoginParams>,
 ) -> Result<Response, LoginError> {
+    // already logged in, go wherever the user was originally intended or back to the root
     if session.is_some() {
+        // this may be the result of a bug elsewhere improperly requiring authentication, it could
+        // also indicate a phishing page is setup in front of us trying to collect authenticate
+        // details
+        tracing::warn!("already logged in user go directed to login handler");
         return Ok(Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response());
     }
 
