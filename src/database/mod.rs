@@ -1,14 +1,17 @@
+use axum::async_trait;
+use axum::extract::rejection::HostRejection;
+use axum::extract::{FromRequestParts, Host};
+use http::request::Parts;
 use sqlx::SqlitePool;
+use url::Url;
 
-mod error;
-pub mod models;
+mod database;
 
 pub mod custom_types;
+pub mod models;
 pub mod sqlite;
 
-pub use error::DatabaseError;
-
-pub type Database = SqlitePool;
+pub use database::{Database, DatabaseError};
 
 pub async fn connect(db_url: &url::Url) -> Result<Database, DatabaseSetupError> {
     // todo: I should figure out a way to delay the actual connection and running of migrations,
@@ -23,7 +26,7 @@ pub async fn connect(db_url: &url::Url) -> Result<Database, DatabaseSetupError> 
     if db_url.scheme() == "sqlite" {
         let db = sqlite::connect_sqlite(db_url).await?;
         sqlite::mitrate_sqlite(&db).await?;
-        return Ok(db);
+        return Ok(Database::new(db));
     }
 
     Err(DatabaseSetupError::UnknownDbType(

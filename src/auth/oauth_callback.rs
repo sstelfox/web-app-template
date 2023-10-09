@@ -8,12 +8,11 @@ use base64::Engine;
 use ecdsa::signature::RandomizedDigestSigner;
 use http::StatusCode;
 use jwt_simple::algorithms::ECDSAP384KeyPairLike;
-use oauth2::{AuthorizationCode, CsrfToken, PkceCodeVerifier, TokenResponse};
+use oauth2::{AuthorizationCode, CsrfToken, TokenResponse};
 use serde::Deserialize;
 use std::time::Duration;
 use time::OffsetDateTime;
 use url::Url;
-use uuid::Uuid;
 
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
@@ -79,6 +78,7 @@ pub async fn handler(
 
     // out of provider specific land for the most part
 
+    let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
     let maybe_user_id = UserId::from_email(&database, &user_info.email)
         .await
         .map_err(OAuthCallbackError::FailedUserLookup)?;
@@ -97,10 +97,23 @@ pub async fn handler(
                 }
             }
 
-            create_user
+            let new_user_id = create_user
                 .save(&database)
                 .await
-                .map_err(OAuthCallbackError::UserCreationFailed)?
+                .map_err(OAuthCallbackError::UserCreationFailed)?;
+
+            cookie_jar = cookie_jar.add(
+                Cookie::build(NEW_USER_COOKIE_NAME, "yes")
+                    .http_only(false)
+                    .expires(expires_at)
+                    .same_site(SameSite::Lax)
+                    .path("/")
+                    .domain(cookie_domain.clone())
+                    .secure(cookie_secure)
+                    .finish(),
+            );
+
+            new_user_id
         }
     };
 
@@ -122,6 +135,8 @@ pub async fn handler(
         .map_err(OAuthCallbackError::SessionCreationFailed)?;
 
     let session_enc = B64.encode(session_id.to_bytes_le());
+    tracing::info!(session_enc = ?session_enc, sesion_enc_len = ?session_enc.len(), "encoded length");
+
     let mut digest = hmac_sha512::sha384::Hash::new();
     digest.update(session_enc.as_bytes());
     let mut rng = rand::thread_rng();
@@ -133,9 +148,9 @@ pub async fn handler(
         .sign_digest_with_rng(&mut rng, digest);
 
     let auth_tag = B64.encode(signature.to_vec());
+    tracing::info!(auth_tag = ?auth_tag, auth_tag_len = ?auth_tag.len(), "auth tag length");
     let session_value = format!("{session_enc}*{auth_tag}");
 
-    let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
     cookie_jar = cookie_jar.add(
         Cookie::build(SESSION_COOKIE_NAME, session_value)
             .http_only(true)

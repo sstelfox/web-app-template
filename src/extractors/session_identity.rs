@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use axum::async_trait;
 use axum::extract::{FromRef, FromRequestParts, OriginalUri};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -112,7 +114,7 @@ where
             r#"SELECT id, user_id, created_at, expires_at FROM sessions WHERE id = $1;"#,
             db_sid,
         )
-        .fetch_one(&database)
+        .fetch_one(database.deref())
         .await
         .map_err(SessionIdentityError::LookupFailed)?;
 

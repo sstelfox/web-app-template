@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use time::OffsetDateTime;
 use url::Url;
 
@@ -43,7 +45,7 @@ impl CreateUser {
             self.locale,
             profile_image_str,
         )
-        .fetch_one(database)
+        .fetch_one(database.deref())
         .await
         .map_err(UserError::SaveFailed)?;
 

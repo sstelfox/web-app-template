@@ -24,7 +24,6 @@ where
             .to_string();
 
         let host = Host::from_request_parts(parts, state).await?;
-
         let url = Url::parse(&format!("{connection_scheme}://{}", host.0))
             .expect("built value to be valid");
 

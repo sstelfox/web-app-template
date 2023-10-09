@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use oauth2::{CsrfToken, PkceCodeVerifier};
 
 use crate::database::custom_types::LoginProvider;
@@ -47,7 +49,7 @@ impl NewOAuthState {
             pkce_code_verifier_secret,
             self.post_login_redirect_url,
         )
-        .execute(database)
+        .execute(database.deref())
         .await?;
 
         Ok(())
@@ -65,8 +67,21 @@ impl VerifyOAuthState {
         database: &Database,
         provider: LoginProvider,
         csrf_token: CsrfToken,
-    ) -> Result<Self, sqlx::Error> {
-        todo!()
+    ) -> Result<(), sqlx::Error> {
+        tracing::debug!("accessing OAuth CSRF token secret");
+        let csrf_token_secret = csrf_token.secret();
+
+        sqlx::query_as!(
+            Self,
+            r#"DELETE FROM oauth_state
+                   WHERE provider = $1 AND csrf_token_secret = $2;"#,
+            provider,
+            csrf_token_secret,
+        )
+        .execute(database.deref())
+        .await?;
+
+        Ok(())
     }
 
     pub async fn locate(
@@ -80,12 +95,12 @@ impl VerifyOAuthState {
         sqlx::query_as!(
             Self,
             r#"SELECT pkce_code_verifier_secret, post_login_redirect_url
-                FROM oauth_state
-                WHERE provider = $1 AND csrf_token_secret = $2;"#,
+                   FROM oauth_state
+                   WHERE provider = $1 AND csrf_token_secret = $2;"#,
             provider,
             csrf_token_secret,
         )
-        .fetch_one(database)
+        .fetch_one(database.deref())
         .await
     }
 

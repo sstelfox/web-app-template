@@ -1,4 +1,5 @@
 use std::net::IpAddr;
+use std::ops::Deref;
 use std::time::Duration;
 
 use oauth2::AccessToken;
@@ -71,7 +72,7 @@ impl CreateSession {
             self.user_agent,
             expires_at,
         )
-        .fetch_one(database)
+        .fetch_one(database.deref())
         .await
         .map_err(SessionError::SaveFailed)?;
 
@@ -104,7 +105,7 @@ pub struct Session {
 impl Session {
     pub async fn delete(database: &Database, id: SessionId) -> Result<(), sqlx::Error> {
         sqlx::query!("DELETE FROM sessions WHERE id = $1;", id)
-            .execute(database)
+            .execute(database.deref())
             .await?;
 
         Ok(())
@@ -112,7 +113,7 @@ impl Session {
 
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
         let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id,)
-            .fetch_one(database)
+            .fetch_one(database.deref())
             .await;
 
         match query_result {

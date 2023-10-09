@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT pkce_code_verifier_secret, post_login_redirect_url\n                FROM oauth_state\n                WHERE provider = $1 AND csrf_token_secret = $2;",
+  "query": "SELECT pkce_code_verifier_secret, post_login_redirect_url\n                   FROM oauth_state\n                   WHERE provider = $1 AND csrf_token_secret = $2;",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       true
     ]
   },
-  "hash": "ac9ed7f4be57fbf1d5ec01cd3b69cd7c37ad27d868f22db9ee7f06c4d5313069"
+  "hash": "f1a1368ca043154dd823a33d704cbcc15de715efee259dbf01a8ad733c6fb13b"
 }

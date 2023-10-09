@@ -16,7 +16,7 @@ impl UserId {
             "SELECT id FROM users WHERE email = LOWER($1);",
             email,
         )
-        .fetch_optional(database)
+        .fetch_optional(database.deref())
         .await
         .map_err(UserIdError::LookupFailed)?;
 

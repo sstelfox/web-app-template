@@ -49,7 +49,7 @@ struct DbSource {
 impl DataSource for DbSource {
     async fn is_ready(&self) -> Result<(), DataSourceError> {
         let _ = sqlx::query("SELECT 1 as id;")
-            .fetch_one(&self.db)
+            .fetch_one(self.db.deref())
             .await
             .map_err(|_| DataSourceError::DependencyFailure)?;
 

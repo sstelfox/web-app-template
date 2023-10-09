@@ -3,7 +3,6 @@ use axum::routing::get;
 use axum::Router;
 
 use crate::app::State;
-use crate::database::custom_types::LoginProvider;
 
 mod login;
 mod logout;
