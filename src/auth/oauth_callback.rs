@@ -16,7 +16,9 @@ use url::Url;
 
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
-use crate::database::models::{CreateUser, CreateSession, VerifyOAuthState, SessionError, UserError};
+use crate::database::models::{
+    CreateSession, CreateUser, SessionError, UserError, VerifyOAuthState,
+};
 
 use crate::auth::{NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL};
 use crate::database::custom_types::{LoginProvider, UserId, UserIdError};
@@ -31,9 +33,10 @@ pub async fn handler(
     Path(provider): Path<LoginProvider>,
     Query(params): Query<CallbackParameters>,
 ) -> Result<Response, OAuthCallbackError> {
-    let verify_oauth_state = VerifyOAuthState::locate_and_delete(&database, provider, params.csrf_token)
-        .await
-        .map_err(OAuthCallbackError::MissingCallbackState)?;
+    let verify_oauth_state =
+        VerifyOAuthState::locate_and_delete(&database, provider, params.csrf_token)
+            .await
+            .map_err(OAuthCallbackError::MissingCallbackState)?;
 
     let oauth_client = OAuthClient::configure(provider, hostname.clone(), &state.secrets())
         .map_err(OAuthCallbackError::UnableToConfigureOAuth)?;
@@ -89,7 +92,9 @@ pub async fn handler(
             create_user.locale(user_info.locale);
 
             match Url::parse(&user_info.picture) {
-                Ok(url) => { create_user.profile_image(url); },
+                Ok(url) => {
+                    create_user.profile_image(url);
+                }
                 Err(err) => {
                     tracing::warn!("got invalid profile image, not storing corrupted URL: {err}");
                 }

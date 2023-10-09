@@ -203,7 +203,7 @@ impl TaskStore for MemoryTaskStore {
         let payload = serde_json::to_value(task).map_err(|_| TaskQueueError::Unknown)?;
 
         let task = Task {
-            id: id.clone(),
+            id,
 
             next_id: None,
             previous_id: None,

@@ -3,8 +3,8 @@ use std::ops::Deref;
 
 use uuid::Uuid;
 
-use crate::database::Database;
 use crate::database::custom_types::Did;
+use crate::database::Database;
 
 #[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(transparent)]
@@ -12,16 +12,16 @@ pub struct UserId(Did);
 
 impl UserId {
     pub async fn from_email(database: &Database, email: &str) -> Result<Option<Self>, UserIdError> {
-        let maybe_id: Option<String> = sqlx::query_scalar!(
-            "SELECT id FROM users WHERE email = LOWER($1);",
-            email,
-        )
-        .fetch_optional(database.deref())
-        .await
-        .map_err(UserIdError::LookupFailed)?;
+        let maybe_id: Option<String> =
+            sqlx::query_scalar!("SELECT id FROM users WHERE email = LOWER($1);", email,)
+                .fetch_optional(database.deref())
+                .await
+                .map_err(UserIdError::LookupFailed)?;
 
         match maybe_id {
-            Some(sid) => Ok(Some(UserId(Did::try_from(sid).map_err(UserIdError::CorruptId)?))),
+            Some(sid) => Ok(Some(UserId(
+                Did::try_from(sid).map_err(UserIdError::CorruptId)?,
+            ))),
             None => Ok(None),
         }
     }

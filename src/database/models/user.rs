@@ -3,8 +3,8 @@ use std::ops::Deref;
 use time::OffsetDateTime;
 use url::Url;
 
-use crate::database::Database;
 use crate::database::custom_types::UserId;
+use crate::database::Database;
 
 pub struct CreateUser {
     email: String,

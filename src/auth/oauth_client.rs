@@ -3,8 +3,7 @@ use axum::Json;
 use http::StatusCode;
 use oauth2::basic::{BasicClient, BasicTokenType};
 use oauth2::{
-    AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
-    Scope,
+    AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
 };
 use oauth2::{EmptyExtraTokenFields, StandardTokenResponse};
 use url::Url;
