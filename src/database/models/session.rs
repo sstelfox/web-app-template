@@ -9,6 +9,7 @@ use crate::auth::SESSION_TTL;
 use crate::database::custom_types::{LoginProvider, SessionId, UserId};
 use crate::database::Database;
 
+#[derive(Debug)]
 pub struct CreateSession {
     user_id: UserId,
     provider: LoginProvider,
@@ -55,12 +56,14 @@ impl CreateSession {
         let client_ip_str = self.client_ip.map(|cip| cip.to_string());
         let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
 
-        tracing::debug!("accessing OAuth access token secret");
+        tracing::debug!("accessing OAuth access token secret to save it to the database");
         let access_token_secret = self.access_token.secret();
+
+        tracing::warn!("{:?}", self);
 
         let session_id_str = sqlx::query_scalar!(
             r#"INSERT INTO sessions
-                (user_id, provider, access_token, access_expires_at, refresh_token, client_ip, user_agent, expires_at)
+                (user_id, provider, access_token_secret, access_expires_at, refresh_token, client_ip, user_agent, expires_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id;"#,
             self.user_id,
@@ -91,7 +94,7 @@ pub struct Session {
     user_id: UserId,
 
     provider: LoginProvider,
-    access_token: String,
+    access_token_secret: String,
     access_expires_at: Option<OffsetDateTime>,
     refresh_token: Option<String>,
 

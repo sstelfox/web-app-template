@@ -19,7 +19,7 @@
         "type_info": "Text"
       },
       {
-        "name": "access_token",
+        "name": "access_token_secret",
         "ordinal": 3,
         "type_info": "Text"
       },

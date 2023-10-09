@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM oauth_state WHERE provider = $1 AND csrf_token_secret = $2;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a44d46eb6f8fd7b7632a7d03adeee17a9361f0f91327061d1fe1535be5f40031"
+}

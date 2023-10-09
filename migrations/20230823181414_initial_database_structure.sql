@@ -46,7 +46,7 @@ CREATE TABLE sessions (
     ON DELETE CASCADE,
 
   provider TEXT NOT NULL,
-  access_token TEXT NOT NULL,
+  access_token_secret TEXT NOT NULL,
   access_expires_at TIMESTAMP,
   refresh_token TEXT,
 
