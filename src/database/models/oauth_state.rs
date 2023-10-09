@@ -37,7 +37,7 @@ impl CreateOAuthState {
         self.pkce_code_verifier.secret().to_string()
     }
 
-    pub async fn save(self, database: &Database) -> Result<(), sqlx::Error> {
+    pub async fn save(self, database: &Database) -> Result<(), OAuthStateError> {
         let csrf_token_secret = self.csrf_token_secret();
         let pkce_code_verifier_secret = self.pkce_code_verifier_secret();
 
@@ -50,7 +50,8 @@ impl CreateOAuthState {
             self.post_login_redirect_url,
         )
         .execute(database.deref())
-        .await?;
+        .await
+        .map_err(OAuthStateError::Creating)?;
 
         Ok(())
     }
@@ -79,7 +80,7 @@ impl VerifyOAuthState {
         )
         .execute(database.deref())
         .await
-        .map_err(OAuthStateError::DeleteFailed)?;
+        .map_err(OAuthStateError::Deleting)?;
 
         Ok(())
     }
@@ -102,7 +103,7 @@ impl VerifyOAuthState {
         )
         .fetch_optional(database.deref())
         .await
-        .map_err(OAuthStateError::LocateFailed)
+        .map_err(OAuthStateError::Locating)
     }
 
     pub async fn locate_and_delete(
@@ -132,11 +133,11 @@ impl VerifyOAuthState {
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthStateError {
     #[error("failed to create new database session: {0}")]
-    CreationFailed(sqlx::Error),
+    Creating(sqlx::Error),
 
     #[error("failed to locate existing database session: {0}")]
-    LocateFailed(sqlx::Error),
+    Locating(sqlx::Error),
 
     #[error("failed to delete existing database session: {0}")]
-    DeleteFailed(sqlx::Error),
+    Deleting(sqlx::Error),
 }

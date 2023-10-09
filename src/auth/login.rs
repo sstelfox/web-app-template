@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::custom_types::LoginProvider;
-use crate::database::models::CreateOAuthState;
+use crate::database::models::{CreateOAuthState, OAuthStateError};
 use crate::extractors::{ServerBase, SessionIdentity};
 
 pub async fn handler(
@@ -59,7 +59,7 @@ pub enum LoginError {
     UnableToConfigureOAuth(OAuthClientError),
 
     #[error("unable to create session in the database: {0}")]
-    UnableToStoreSession(sqlx::Error),
+    UnableToStoreSession(OAuthStateError),
 }
 
 impl IntoResponse for LoginError {

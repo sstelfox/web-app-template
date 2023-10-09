@@ -134,7 +134,7 @@ async fn graceful_shutdown_blocker() {
 
     tokio::select! {
         _ = sigint.recv() => {
-            tracing::debug!("gracefully exiting immediately on SIGINT");;
+            tracing::debug!("gracefully exiting immediately on SIGINT");
         }
         _ = sigterm.recv() => tracing::debug!("initiaing graceful shutdown with delay on SIGTERM"),
     }
