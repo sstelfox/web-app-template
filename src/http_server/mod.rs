@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use axum::{Server, ServiceExt};
-use http::header;
+use http::{header, Request};
 use tokio::signal::unix::{signal, SignalKind};
 use tower::ServiceBuilder;
 use tower_http::classify::{ServerErrorsAsFailures, SharedClassifier};
@@ -14,10 +14,10 @@ use tower_http::request_id::MakeRequestUuid;
 use tower_http::sensitive_headers::{
     SetSensitiveRequestHeadersLayer, SetSensitiveResponseHeadersLayer,
 };
-use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, TraceLayer};
+use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, MakeSpan, TraceLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tower_http::{LatencyUnit, ServiceBuilderExt};
-use tracing::Level;
+use tracing::{Level, Span};
 
 use crate::app::{Config, State, StateSetupError};
 use crate::extractors::SessionIdentity;
@@ -33,7 +33,7 @@ const REQUEST_MAX_SIZE: usize = 256 * 1_024;
 
 /// The maximum number of seconds that any individual request can take before it is dropped with an
 /// error.
-const REQUEST_TIMEOUT_SECS: u64 = 15;
+const REQUEST_TIMEOUT_SECS: u64 = 5;
 
 const SENSITIVE_HEADERS: &[http::HeaderName] = &[
     header::AUTHORIZATION,
@@ -41,6 +41,23 @@ const SENSITIVE_HEADERS: &[http::HeaderName] = &[
     header::PROXY_AUTHORIZATION,
     header::SET_COOKIE,
 ];
+
+#[derive(Clone, Default)]
+struct SensitiveRequestMakeSpan;
+
+impl<B> MakeSpan<B> for SensitiveRequestMakeSpan {
+    fn make_span(&mut self, request: &Request<B>) -> Span {
+        let filtered_uri = request.uri();
+
+        tracing::span!(
+            Level::INFO,
+            "http_request",
+            method = %request.method(),
+            uri = %filtered_uri,
+            version = ?request.version(),
+        )
+    }
+}
 
 fn create_trace_layer(log_level: Level) -> TraceLayer<SharedClassifier<ServerErrorsAsFailures>> {
     TraceLayer::new_for_http()
@@ -101,7 +118,16 @@ async fn graceful_shutdown_blocker() {
 }
 
 pub async fn run(config: Config) -> Result<(), HttpServerError> {
-    let trace_layer = create_trace_layer(config.log_level());
+    //let trace_layer = create_trace_layer(config.log_level());
+    let trace_layer = TraceLayer::new_for_http()
+        .make_span_with(SensitiveRequestMakeSpan)
+        .on_response(
+            DefaultOnResponse::new()
+                .include_headers(false)
+                .level(config.log_level())
+                .latency_unit(LatencyUnit::Micros),
+        )
+        .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros));
 
     // The order of these layers and configuration extensions was carefully chosen as they will see
     // the requests to responses effectively in the order they're defined.
