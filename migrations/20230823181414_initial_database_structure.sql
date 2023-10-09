@@ -86,7 +86,7 @@ CREATE TABLE background_tasks (
   ),
 
   task_queue TEXT NOT NULL DEFAULT 'default',
-  state TEXT CHECK (state IN ('new', 'in_progress', 'cancelled', 'failed', 'complete', 'dead')) NOT NULL DEFAULT 'new',
+  state TEXT CHECK (state IN ('new', 'in_progress', 'retry', 'cancelled', 'failed', 'complete', 'dead')) NOT NULL DEFAULT 'new',
   retry_count INTEGER NOT NULL DEFAULT 0,
   uniq_hash TEXT,
 

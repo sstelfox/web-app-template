@@ -2,16 +2,35 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use axum::async_trait;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
+
+pub struct CurrentTask {
+    id: Uuid,
+    current_attempt: usize,
+    scheduled_at: OffsetDateTime,
+    started_at: OffsetDateTime,
+}
+
+impl CurrentTask {
+    pub fn new(task: &Task) -> Self {
+        Self {
+            id: task.id,
+            current_attempt: task.current_attempt,
+            scheduled_at: task.scheduled_at.clone(),
+            started_at: task.started_at.expect("task to be started").clone(),
+        }
+    }
+}
 
 #[async_trait]
 pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send {
@@ -20,9 +39,9 @@ pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send {
     const TASK_NAME: &'static str;
 
     type Error: std::error::Error;
-    type TaskContext: Clone + Send;
+    type TaskContext: Clone + Send + 'static; // todo: might be able to drop 'static here...
 
-    async fn run(&self, ctx: Self::TaskContext) -> Result<(), Self::Error>;
+    async fn run(&self, task: CurrentTask, ctx: Self::TaskContext) -> Result<(), Self::Error>;
 
     async fn unique_key(&self) -> Option<String> {
         None
@@ -96,7 +115,7 @@ impl TaskLike for TestTask {
     type Error = TestTaskError;
     type TaskContext = ();
 
-    async fn run(&self, _ctx: Self::TaskContext) -> Result<(), Self::Error> {
+    async fn run(&self, _task: CurrentTask, _ctx: Self::TaskContext) -> Result<(), Self::Error> {
         tracing::info!("the test task value is {}", self.number);
         Ok(())
     }
@@ -117,6 +136,7 @@ impl std::error::Error for TestTaskError {}
 pub enum TaskState {
     New,
     InProgress,
+    Retry,
     Complete,
     Error,
     TimedOut,
@@ -136,18 +156,20 @@ pub struct Task {
 
     unique_key: Option<String>,
     state: TaskState,
-    remaining_retries: usize,
+
+    current_attempt: usize,
+    maximum_attempts: usize,
 
     // will need a live-cancel signal and likely a custom Future impl to ensure its used for proper
     // timeout handling
     payload: serde_json::Value,
     error: Option<serde_json::Value>,
 
-    scheduled_at: Instant,
-    scheduled_to_run_at: Instant,
+    scheduled_at: OffsetDateTime,
+    scheduled_to_run_at: OffsetDateTime,
 
-    started_at: Option<Instant>,
-    finished_at: Option<Instant>,
+    started_at: Option<OffsetDateTime>,
+    finished_at: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Default)]
@@ -213,13 +235,14 @@ impl TaskStore for MemoryTaskStore {
 
             unique_key,
             state: TaskState::New,
-            remaining_retries: T::MAX_RETRIES,
+            current_attempt: 0,
+            maximum_attempts: T::MAX_RETRIES,
 
             payload,
             error: None,
 
-            scheduled_at: Instant::now(),
-            scheduled_to_run_at: Instant::now(),
+            scheduled_at: OffsetDateTime::now_utc(),
+            scheduled_to_run_at: OffsetDateTime::now_utc(),
 
             started_at: None,
             finished_at: None,
@@ -246,8 +269,8 @@ impl TaskStore for MemoryTaskStore {
         }
 
         // no retries remaining mark the task as dead
-        if target_task.remaining_retries <= 0 {
-            tracing::warn!(?id, "task failed with no more retries remaining");
+        if target_task.current_attempt >= target_task.maximum_attempts  {
+            tracing::warn!(?id, "task failed with no more attempts remaining");
             target_task.state = TaskState::Dead;
             return Ok(None);
         }
@@ -260,12 +283,12 @@ impl TaskStore for MemoryTaskStore {
         new_task.id = new_id;
         new_task.previous_id = Some(target_task.id);
 
-        new_task.remaining_retries -= 1;
-        new_task.state = TaskState::New;
-        new_task.scheduled_at = Instant::now();
+        new_task.current_attempt += 1;
+        new_task.state = TaskState::Retry;
+        new_task.scheduled_at = OffsetDateTime::now_utc();
         // for now just retry again in five minutes, will probably want some kind of backoff for
         // this
-        new_task.scheduled_to_run_at = Instant::now() + Duration::from_secs(300);
+        new_task.scheduled_to_run_at = OffsetDateTime::now_utc() + Duration::from_secs(300);
 
         tasks.insert(new_task.id, new_task);
 
@@ -278,7 +301,7 @@ impl TaskStore for MemoryTaskStore {
         let mut tasks = self.tasks.lock().await;
         let mut next_task = None;
 
-        let reference_time = Instant::now();
+        let reference_time = OffsetDateTime::now_utc();
         let mut tasks_to_retry = Vec::new();
 
         for (id, task) in tasks
@@ -292,17 +315,17 @@ impl TaskStore for MemoryTaskStore {
                         continue;
                     }
 
-                    task.started_at = Some(Instant::now());
+                    task.started_at = Some(OffsetDateTime::now_utc());
                     task.state = TaskState::InProgress;
 
                     next_task = Some(task.clone());
                     break;
                 }
                 (TaskState::InProgress, Some(started_at)) => {
-                    if Instant::now().duration_since(started_at) >= TASK_EXECUTION_TIMEOUT {
+                    if (started_at + TASK_EXECUTION_TIMEOUT) >= OffsetDateTime::now_utc() {
                         // todo: need to send cancel signal to the task
                         task.state = TaskState::TimedOut;
-                        task.finished_at = Some(Instant::now());
+                        task.finished_at = Some(OffsetDateTime::now_utc());
 
                         tasks_to_retry.push(id);
 
@@ -314,9 +337,8 @@ impl TaskStore for MemoryTaskStore {
                 (state, None) => {
                     tracing::error!(id = ?task.id, ?state, "encountered task in illegal state");
 
-                    task.remaining_retries = 0;
                     task.state = TaskState::Error;
-                    task.finished_at = Some(Instant::now());
+                    task.finished_at = Some(OffsetDateTime::now_utc());
                 }
                 _ => (),
             }
@@ -359,7 +381,7 @@ impl TaskStore for MemoryTaskStore {
             _ => (),
         }
 
-        task.finished_at = Some(Instant::now());
+        task.finished_at = Some(OffsetDateTime::now_utc());
         task.state = new_state;
 
         Ok(())
