@@ -56,24 +56,27 @@ pub trait TaskLikeExt {
     ) -> Result<Option<Uuid>, TaskQueueError>;
 }
 
-#[derive(Debug)]
-pub enum TaskQueueError {
-    UnknownTask(Uuid),
-    Unknown,
-}
-
-impl Display for TaskQueueError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use TaskQueueError::*;
-
-        match &self {
-            UnknownTask(id) => f.write_fmt(format_args!("unable to find task with ID {id}")),
-            Unknown => f.write_str("unspecified error with the task queue"),
-        }
+#[async_trait]
+impl<T> TaskLikeExt for T
+where
+    T: TaskLike,
+{
+    async fn enqueue<S: TaskStore>(
+        self,
+        connection: &mut S::Connection,
+    ) -> Result<Option<Uuid>, TaskQueueError> {
+        S::enqueue(connection, self).await
     }
 }
 
-impl std::error::Error for TaskQueueError {}
+#[derive(Debug, thiserror::Error)]
+pub enum TaskQueueError {
+    #[error("unable to find task with ID {0}")]
+    UnknownTask(Uuid),
+
+    #[error("unspecified error with the task queue")]
+    Unknown,
+}
 
 #[async_trait]
 pub trait TaskStore: Send + Sync + 'static {
