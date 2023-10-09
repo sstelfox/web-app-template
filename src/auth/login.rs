@@ -14,12 +14,14 @@ pub async fn handler(
     session: Option<SessionIdentity>,
     State(state): State<AppState>,
     ServerBase(hostname): ServerBase,
-    Path(provider): Path<LoginProvider>,
+    Path(provider): Path<String>,
     Query(params): Query<LoginParams>,
 ) -> Result<Response, LoginError> {
     if session.is_some() {
         return Ok(Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response());
     }
+
+    let provider = LoginProvider::from(provider);
 
     let oauth_client = OAuthClient::configure(provider, hostname, &state.secrets())
         .map_err(LoginError::UnableToConfigureOAuth)?;

@@ -30,9 +30,11 @@ pub async fn handler(
     mut cookie_jar: CookieJar,
     State(state): State<AppState>,
     ServerBase(hostname): ServerBase,
-    Path(provider): Path<LoginProvider>,
+    Path(provider): Path<String>,
     Query(params): Query<CallbackParameters>,
 ) -> Result<Response, OAuthCallbackError> {
+    let provider = LoginProvider::from(provider);
+
     let verify_oauth_state =
         VerifyOAuthState::locate_and_delete(&database, provider, params.csrf_token)
             .await
