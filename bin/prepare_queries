@@ -5,7 +5,7 @@ set -o errexit
 cd $(dirname %0)
 
 # Relative paths don't work reliably with sqlx
-SQLITE_URL="sqlite://$(pwd)/data/server.db"
+SQLITE_URL="sqlite://$(pwd)/data/service.db"
 
 function sqlite_setup() {
   mkdir -p data

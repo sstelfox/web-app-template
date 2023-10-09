@@ -85,25 +85,40 @@ CREATE TABLE background_tasks (
     substr(lower(hex(randomblob(6))), 2)
   ),
 
-  task_queue TEXT NOT NULL DEFAULT 'default',
-  state TEXT CHECK (state IN ('new', 'in_progress', 'retry', 'cancelled', 'failed', 'complete', 'dead')) NOT NULL DEFAULT 'new',
-  retry_count INTEGER NOT NULL DEFAULT 0,
-  uniq_hash TEXT,
+  next_id TEXT NULL
+    REFERENCES background_tasks(id)
+    ON DELETE SET NULL,
+  previous_id TEXT NULL
+    REFERENCES background_tasks(id)
+    ON DELETE SET NULL,
 
-  -- should probably be structured, for now will be JSON blob
-  error TEXT,
+  name TEXT NOT NULL,
+  task_queue TEXT NOT NULL DEFAULT 'default',
+
+  unique_key TEXT,
+  state TEXT NOT NULL
+    CHECK (state IN ('new', 'in_progress', 'retry', 'cancelled', 'error', 'complete', 'timed_out', 'dead'))
+    DEFAULT 'new',
+
+  current_attempt INTEGER NOT NULL DEFAULT 0,
+  maximum_attempts INTEGER NOT NULL,
 
   -- actually a JSON blob might want to split more of this out
-  metadata TEXT NOT NULL,
+  payload BLOB NOT NULL,
 
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- should probably be structured, for now will be JSON blob
+  error BLOB,
+
   scheduled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  scheduled_to_run_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   started_at TIMESTAMP,
-  ended_at TIMESTAMP
+  finished_at TIMESTAMP
 );
 
-CREATE INDEX background_tasks_on_scheduled_at_idx ON background_tasks(scheduled_at);
-CREATE INDEX background_tasks_on_state_idx ON background_tasks(state);
-CREATE INDEX background_tasks_on_task_queue_idx ON background_tasks(task_queue);
-CREATE INDEX background_tasks_on_uniq_hash_idx ON background_tasks(uniq_hash) WHERE uniq_hash != NULL;
+CREATE INDEX idx_background_tasks_on_scheduled_at ON background_tasks(scheduled_at);
+CREATE INDEX idx_background_tasks_on_scheduled_to_run_at ON background_tasks(scheduled_to_run_at);
+CREATE INDEX idx_background_tasks_on_state ON background_tasks(state);
+CREATE INDEX idx_background_tasks_on_name ON background_tasks(name);
+CREATE INDEX idx_background_tasks_on_task_queue ON background_tasks(task_queue);
+CREATE INDEX idx_background_tasks_on_unique_key ON background_tasks(unique_key) WHERE unique_key != NULL;

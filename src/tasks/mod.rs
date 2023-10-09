@@ -140,10 +140,10 @@ pub enum TaskState {
     New,
     InProgress,
     Retry,
-    Complete,
-    Error,
-    TimedOut,
     Cancelled,
+    Error,
+    Complete,
+    TimedOut,
     Dead,
 }
 
