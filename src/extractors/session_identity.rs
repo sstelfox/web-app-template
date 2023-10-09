@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use axum::async_trait;
 use axum::extract::{FromRef, FromRequestParts, OriginalUri};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -15,6 +13,7 @@ use uuid::Uuid;
 use crate::app::ServiceVerificationKey;
 use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
 use crate::database::custom_types::{SessionId, UserId};
+use crate::database::models::Session;
 use crate::database::Database;
 
 pub struct SessionIdentity {
@@ -104,47 +103,40 @@ where
         let session_id_bytes: [u8; 16] = session_id_bytes
             .try_into()
             .expect("signed session ID to be valid byte slice");
-        let session_id = Uuid::from_bytes_le(session_id_bytes);
+        let session_id = SessionId::from(Uuid::from_bytes_le(session_id_bytes));
 
         let database = Database::from_ref(state);
+        let maybe_db_session = Session::locate(&database, session_id)
+            .await
+            .map_err(SessionIdentityError::LookupFailed)?;
 
-        let db_sid = session_id.to_string();
-        let db_session = sqlx::query_as!(
-            DatabaseSession,
-            r#"SELECT id, user_id, created_at, expires_at FROM sessions WHERE id = $1;"#,
-            db_sid,
-        )
-        .fetch_one(database.deref())
-        .await
-        .map_err(SessionIdentityError::LookupFailed)?;
+        let db_session = match maybe_db_session {
+            Some(ds) => ds,
+            None => {
+                return Err(SessionIdentityError::NoMatchingSession);
+            }
+        };
 
         // todo: check session against client IP address and user agent
 
-        if db_session.expires_at <= OffsetDateTime::now_utc() {
+        if db_session.expires_at() <= OffsetDateTime::now_utc() {
             return Err(SessionIdentityError::SessionExpired);
         }
 
-        let session_id = Uuid::parse_str(&db_session.id)
-            .map_err(SessionIdentityError::CorruptDatabaseId)?
-            .into();
-        let user_id = Uuid::parse_str(&db_session.user_id)
-            .map_err(SessionIdentityError::CorruptDatabaseId)?
-            .into();
-
         Ok(SessionIdentity {
-            session_id,
-            user_id,
+            session_id: db_session.id(),
+            user_id: db_session.user_id(),
 
-            created_at: db_session.created_at,
-            expires_at: db_session.expires_at,
+            created_at: db_session.created_at(),
+            expires_at: db_session.expires_at(),
         })
     }
 }
 
 #[derive(sqlx::FromRow)]
 struct DatabaseSession {
-    id: String,
-    user_id: String,
+    id: SessionId,
+    user_id: UserId,
 
     created_at: OffsetDateTime,
     expires_at: OffsetDateTime,
@@ -169,6 +161,9 @@ pub enum SessionIdentityError {
 
     #[error("unable to lookup session in database: {0}")]
     LookupFailed(sqlx::Error),
+
+    #[error("received valid authorization token, but did not find matching one in the database. revocation?")]
+    NoMatchingSession,
 
     #[error("user didn't have an existing session")]
     NoSession(String),

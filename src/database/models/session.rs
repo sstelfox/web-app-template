@@ -103,10 +103,14 @@ pub struct Session {
     user_agent: Option<String>,
 
     created_at: OffsetDateTime,
-    expires_at: Option<OffsetDateTime>,
+    expires_at: OffsetDateTime,
 }
 
 impl Session {
+    pub fn created_at(&self) -> OffsetDateTime {
+        self.created_at.clone()
+    }
+
     pub async fn delete(database: &Database, id: SessionId) -> Result<(), sqlx::Error> {
         sqlx::query!("DELETE FROM sessions WHERE id = $1;", id)
             .execute(database.deref())
@@ -115,8 +119,16 @@ impl Session {
         Ok(())
     }
 
+    pub fn expires_at(&self) -> OffsetDateTime {
+        self.expires_at.clone()
+    }
+
+    pub fn id(&self) -> SessionId {
+        self.id.clone()
+    }
+
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
-        let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id,)
+        let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id)
             .fetch_one(database.deref())
             .await;
 
@@ -125,6 +137,10 @@ impl Session {
             Err(sqlx::Error::RowNotFound) => Ok(None),
             Err(err) => Err(err),
         }
+    }
+
+    pub fn user_id(&self) -> UserId {
+        self.user_id.clone()
     }
 }
 
