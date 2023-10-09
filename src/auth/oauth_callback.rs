@@ -38,9 +38,7 @@ pub async fn handler(
     let oauth_client = OAuthClient::configure(provider, hostname.clone(), &state.secrets())
         .map_err(OAuthCallbackError::UnableToConfigureOAuth)?;
 
-    let post_login_redirect_url = verify_oauth_state.post_login_redirect_url();
     let pkce_code_verifier = verify_oauth_state.pkce_code_verifier();
-
     let token_response = tokio::task::spawn_blocking(move || {
         oauth_client.validate_exchange(params.authorization_code, pkce_code_verifier)
     })

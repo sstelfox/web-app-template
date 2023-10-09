@@ -28,7 +28,10 @@ impl Config {
     }
 
     pub fn from_env_and_args() -> Result<Self, ConfigError> {
-        dotenvy::dotenv().map_err(ConfigError::EnvironmentUnavailable)?;
+        if dotenvy::dotenv().is_err() {
+            tracing::warn!("no dotfile environment config files detected");
+        }
+
         let mut cli_args = Arguments::from_env();
 
         if cli_args.contains("-h") || cli_args.contains("--help") {

@@ -4,7 +4,7 @@ use http::StatusCode;
 use oauth2::basic::{BasicClient, BasicTokenType};
 use oauth2::{
     AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
-    RequestTokenError, Scope, TokenResponse,
+    Scope,
 };
 use oauth2::{EmptyExtraTokenFields, StandardTokenResponse};
 use url::Url;
@@ -12,8 +12,6 @@ use url::Url;
 use crate::app::Secrets;
 use crate::auth::CALLBACK_PATH_TEMPLATE;
 use crate::database::custom_types::LoginProvider;
-use crate::database::models::NewOAuthState;
-use crate::database::Database;
 
 pub struct OAuthClient {
     client: BasicClient,

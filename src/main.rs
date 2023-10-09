@@ -5,8 +5,14 @@ use tracing_subscriber::{EnvFilter, Layer};
 use web_app_template::app::Config;
 
 #[tokio::main]
-async fn main() -> Result<(), ServiceError> {
-    let config = Config::from_env_and_args()?;
+async fn main() {
+    let config = match Config::from_env_and_args() {
+        Ok(c) => c,
+        Err(err) => {
+            println!("failed to load config: {err}");
+            std::process::exit(2);
+        }
+    };
 
     let (non_blocking_writer, _guard) = tracing_appender::non_blocking(std::io::stdout());
     let env_filter = EnvFilter::builder()
@@ -24,11 +30,10 @@ async fn main() -> Result<(), ServiceError> {
     web_app_template::report_version();
     web_app_template::test_tasks_placeholder().await;
 
-    web_app_template::http_server::run(config).await?;
-
-    tracing::info!("shutting down normally");
-
-    Ok(())
+    match web_app_template::http_server::run(config).await {
+        Ok(_) => tracing::info!("shutting down normally"),
+        Err(err) => tracing::error!("http server exited with an error: {err}"),
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

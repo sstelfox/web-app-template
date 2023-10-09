@@ -1,10 +1,3 @@
-use axum::async_trait;
-use axum::extract::rejection::HostRejection;
-use axum::extract::{FromRequestParts, Host};
-use http::request::Parts;
-use sqlx::SqlitePool;
-use url::Url;
-
 mod database;
 
 pub mod custom_types;
