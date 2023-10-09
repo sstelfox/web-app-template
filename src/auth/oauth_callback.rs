@@ -49,9 +49,7 @@ pub async fn handler(
     .map_err(OAuthCallbackError::SpawnFailure)?
     .map_err(OAuthCallbackError::ValidationFailed)?;
 
-    let access_token = token_response.access_token().secret();
-    let access_expires_at = token_response.expires_in().map(|secs| OffsetDateTime::now_utc() + secs);
-    let refresh_token = token_response.refresh_token().map(|rt| rt.secret());
+    let access_token = token_response.access_token();
 
     let cookie_domain = hostname
         .host_str()
@@ -64,7 +62,7 @@ pub async fn handler(
 
     let user_info_url = Url::parse_with_params(
         "https://www.googleapis.com/oauth2/v2/userinfo",
-        &[("oauth_token", access_token)],
+        &[("oauth_token", access_token.secret())],
     )
     .expect("fixed format to be valid");
 
@@ -95,7 +93,7 @@ pub async fn handler(
             match Url::parse(&user_info.picture) {
                 Ok(url) => { create_user.profile_image(url); },
                 Err(err) => {
-                    tracing::warn!("got invalid profile image, not storing corrupted URL");
+                    tracing::warn!("got invalid profile image, not storing corrupted URL: {err}");
                 }
             }
 
@@ -106,9 +104,17 @@ pub async fn handler(
         }
     };
 
-    let mut create_session = CreateSession::new(user_id, provider, access_token.to_string());
+    let mut create_session = CreateSession::new(user_id, provider, access_token.clone());
 
-    // todo: store additional details
+    if let Some(access_lifetime) = token_response.expires_in() {
+        create_session.access_expires_at(OffsetDateTime::now_utc() + access_lifetime);
+    }
+
+    if let Some(refresh_token) = token_response.refresh_token() {
+        create_session.refresh_token(refresh_token.secret().to_string());
+    }
+
+    // todo: store client IP and user_agent in the session if they're available as well
 
     let session_id = create_session
         .save(&database)
