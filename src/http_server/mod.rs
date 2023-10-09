@@ -7,6 +7,7 @@ use axum::routing::get;
 use axum::Router;
 use axum::{Server, ServiceExt};
 use http::{header, Request};
+use http::uri::PathAndQuery;
 use tokio::signal::unix::{signal, SignalKind};
 use tower::ServiceBuilder;
 use tower_http::classify::{ServerErrorsAsFailures, SharedClassifier};
@@ -24,6 +25,10 @@ use crate::extractors::SessionIdentity;
 use crate::{auth, health_check};
 
 mod error_handlers;
+
+static FILTERED_VALUE: &'static str = "<filtered>";
+
+static MISSING_VALUE: &'static str = "<not_provided>";
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
@@ -47,16 +52,53 @@ struct SensitiveRequestMakeSpan;
 
 impl<B> MakeSpan<B> for SensitiveRequestMakeSpan {
     fn make_span(&mut self, request: &Request<B>) -> Span {
-        let filtered_uri = request.uri();
+        let path_and_query = request
+            .uri()
+            .clone()
+            .into_parts()
+            .path_and_query
+            .expect("http requests to have a path");
 
         tracing::span!(
             Level::INFO,
             "http_request",
             method = %request.method(),
-            uri = %filtered_uri,
+            uri = %filter_path_and_query(&path_and_query),
             version = ?request.version(),
         )
     }
+}
+
+fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
+    let query = match path_and_query.query() {
+        Some(q) => q,
+        None => {
+            return path_and_query.to_string();
+        }
+    };
+
+    let mut filtered_query_pairs = vec![];
+    for query_pair in query.split("&") {
+        let mut qp_iter = query_pair.split("=");
+
+        match (qp_iter.next(), qp_iter.next()) {
+            (Some(key), Some(val)) if !key.is_empty() && !val.is_empty() => {
+                filtered_query_pairs.push([key, FILTERED_VALUE].join("="));
+            }
+            (Some(key), None) if !key.is_empty() => {
+                filtered_query_pairs.push([key, MISSING_VALUE].join("="));
+            }
+            unknown => {
+                tracing::warn!("encountered weird query pair: {unknown:?}");
+            }
+        }
+    }
+
+    if filtered_query_pairs.is_empty() {
+        return path_and_query.path().to_string();
+    }
+
+    format!("{}?{}", path_and_query.path(), filtered_query_pairs.join("&"))
 }
 
 fn create_trace_layer(log_level: Level) -> TraceLayer<SharedClassifier<ServerErrorsAsFailures>> {
