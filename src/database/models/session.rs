@@ -112,7 +112,9 @@ impl Session {
     }
 
     pub async fn delete(database: &Database, id: SessionId) -> Result<(), sqlx::Error> {
-        sqlx::query!("DELETE FROM sessions WHERE id = $1;", id)
+        let id_str = id.to_string();
+
+        sqlx::query!("DELETE FROM sessions WHERE id = $1;", id_str)
             .execute(database.deref())
             .await?;
 
@@ -128,7 +130,9 @@ impl Session {
     }
 
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
-        let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id)
+        let id_str = id.to_string();
+
+        let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id_str)
             .fetch_one(database.deref())
             .await;
 

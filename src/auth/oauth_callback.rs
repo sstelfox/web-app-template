@@ -123,8 +123,6 @@ pub async fn handler(
         }
     };
 
-    tracing::info!("user session is being created for {user_id}");
-
     let mut create_session = CreateSession::new(user_id, provider, access_token.clone());
 
     if let Some(access_lifetime) = token_response.expires_in() {
@@ -143,7 +141,6 @@ pub async fn handler(
         .map_err(OAuthCallbackError::SessionCreationFailed)?;
 
     let session_enc = B64.encode(session_id.to_bytes_le());
-    tracing::info!(session_enc = ?session_enc, sesion_enc_len = ?session_enc.len(), "encoded length");
 
     let mut digest = hmac_sha512::sha384::Hash::new();
     digest.update(session_enc.as_bytes());
@@ -157,7 +154,7 @@ pub async fn handler(
 
     let auth_tag = B64.encode(signature.to_vec());
     tracing::info!(auth_tag = ?auth_tag, auth_tag_len = ?auth_tag.len(), "auth tag length");
-    let session_value = format!("{session_enc}*{auth_tag}");
+    let session_value = [session_enc, auth_tag].join("");
 
     cookie_jar = cookie_jar.add(
         Cookie::build(SESSION_COOKIE_NAME, session_value)

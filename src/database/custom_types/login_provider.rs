@@ -25,7 +25,7 @@ pub enum LoginProvider {
 impl LoginProvider {
     pub const fn as_str(&self) -> &'static str {
         match &self {
-            LoginProvider::Google => "google",
+            LoginProvider::Google => "Google",
         }
     }
 
@@ -45,7 +45,7 @@ impl LoginProvider {
 impl From<String> for LoginProvider {
     fn from(val: String) -> Self {
         match val.as_str() {
-            "google" => LoginProvider::Google,
+            "Google" => LoginProvider::Google,
             _ => panic!("attempted to access unknown provider"),
         }
     }

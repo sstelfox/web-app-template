@@ -9,6 +9,7 @@ mod extractors;
 mod health_check;
 pub mod http_server;
 mod tasks;
+pub mod utils;
 
 /// Sets up system panics to use the tracing infrastructure to log reported issues. This doesn't
 /// prevent the panic from taking out the service but ensures that it and any available information

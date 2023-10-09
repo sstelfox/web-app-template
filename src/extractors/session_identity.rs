@@ -15,6 +15,7 @@ use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
 use crate::database::custom_types::{SessionId, UserId};
 use crate::database::models::Session;
 use crate::database::Database;
+use crate::utils::remove_cookie;
 
 pub struct SessionIdentity {
     session_id: SessionId,
@@ -63,19 +64,11 @@ where
 
         let raw_cookie_val = session_cookie.value();
 
-        // todo: these are going to be fixed lengths, validate the length and switch to split_at
-        let mut cookie_pieces = raw_cookie_val.split('*');
-
-        let session_id_b64 = cookie_pieces
-            .next()
-            .ok_or(SessionIdentityError::EncodingError)?;
-        let authentication_tag_b64 = cookie_pieces
-            .next()
-            .ok_or(SessionIdentityError::EncodingError)?;
-
-        if cookie_pieces.next().is_some() {
-            return Err(SessionIdentityError::EncodingError);
+        if raw_cookie_val.len() != 150 { // 22 bytes digest, 128 bytes hmac
+            // invalid session length
         }
+
+        let (session_id_b64, authentication_tag_b64) = raw_cookie_val.split_at(22);
 
         let authentication_tag_bytes = B64
             .decode(authentication_tag_b64)
@@ -176,8 +169,9 @@ impl IntoResponse for SessionIdentityError {
     fn into_response(self) -> Response {
         use SessionIdentityError as SIE;
 
-        // todo: Need to drop this intoresponse as it can't properly handle return urls or cleaning
-        // out bad cookie states
+        let mut cookie_jar = CookieJar::default();
+
+        cookie_jar = remove_cookie(SESSION_COOKIE_NAME, cookie_jar);
 
         match self {
             SIE::NoSession(_orig_uri) => {
@@ -186,6 +180,6 @@ impl IntoResponse for SessionIdentityError {
             err => tracing::warn!("session validation error: {err}"),
         }
 
-        Redirect::to(LOGIN_PATH).into_response()
+        (cookie_jar, Redirect::to(LOGIN_PATH)).into_response()
     }
 }

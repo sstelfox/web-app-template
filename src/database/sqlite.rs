@@ -5,6 +5,7 @@ use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
 };
 use sqlx::ConnectOptions;
+use tracing::log::LevelFilter;
 use url::Url;
 
 use crate::database::DatabaseSetupError;
@@ -16,6 +17,8 @@ pub async fn connect_sqlite(url: &Url) -> Result<SqlitePool, DatabaseSetupError>
         .map_err(DatabaseSetupError::Unavailable)?
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
+        .log_statements(LevelFilter::Trace)
+        .log_slow_statements(LevelFilter::Warn, Duration::from_millis(100))
         .statement_cache_capacity(2_500)
         .synchronous(SqliteSynchronous::Normal);
 
