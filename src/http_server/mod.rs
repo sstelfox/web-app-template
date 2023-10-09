@@ -10,12 +10,11 @@ use http::{header, Request};
 use http::uri::PathAndQuery;
 use tokio::signal::unix::{signal, SignalKind};
 use tower::ServiceBuilder;
-use tower_http::classify::{ServerErrorsAsFailures, SharedClassifier};
 use tower_http::request_id::MakeRequestUuid;
 use tower_http::sensitive_headers::{
     SetSensitiveRequestHeadersLayer, SetSensitiveResponseHeadersLayer,
 };
-use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, MakeSpan, TraceLayer};
+use tower_http::trace::{DefaultOnFailure, DefaultOnResponse, MakeSpan, TraceLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::{Level, Span};
@@ -99,18 +98,6 @@ fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
     }
 
     format!("{}?{}", path_and_query.path(), filtered_query_pairs.join("&"))
-}
-
-fn create_trace_layer(log_level: Level) -> TraceLayer<SharedClassifier<ServerErrorsAsFailures>> {
-    TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(log_level))
-        .on_response(
-            DefaultOnResponse::new()
-                .include_headers(false)
-                .level(log_level)
-                .latency_unit(LatencyUnit::Micros),
-        )
-        .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros))
 }
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:
