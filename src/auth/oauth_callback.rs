@@ -17,7 +17,7 @@ use url::Url;
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::models::{
-    CreateSession, CreateUser, SessionError, UserError, VerifyOAuthState,
+    CreateSession, CreateUser, OAuthStateError, SessionError, UserError, VerifyOAuthState,
 };
 
 use crate::auth::{NEW_USER_COOKIE_NAME, SESSION_COOKIE_NAME, SESSION_TTL};
@@ -36,7 +36,8 @@ pub async fn handler(
     let verify_oauth_state =
         VerifyOAuthState::locate_and_delete(&database, provider, params.csrf_token)
             .await
-            .map_err(OAuthCallbackError::MissingCallbackState)?;
+            .map_err(OAuthCallbackError::LookupFailed)?
+            .ok_or(OAuthCallbackError::NoMatchingState)?;
 
     let oauth_client = OAuthClient::configure(provider, hostname.clone(), &state.secrets())
         .map_err(OAuthCallbackError::UnableToConfigureOAuth)?;
@@ -196,8 +197,11 @@ pub enum OAuthCallbackError {
     #[error("failed to query the databse for a user: {0}")]
     FailedUserLookup(UserIdError),
 
-    #[error("received callback from oauth but we didn't have a matching session")]
-    MissingCallbackState(sqlx::Error),
+    #[error("unable to query OAuth states for callback parameter")]
+    LookupFailed(OAuthStateError),
+
+    #[error("received OAuth callback query but no matching session parameters were present")]
+    NoMatchingState,
 
     #[error("unable to request user's profile: {0}")]
     ProfileUnavailable(reqwest::Error),
@@ -224,10 +228,9 @@ pub enum OAuthCallbackError {
 impl IntoResponse for OAuthCallbackError {
     fn into_response(self) -> Response {
         match self {
-            OAuthCallbackError::MissingCallbackState(ref err) => {
-                tracing::warn!("{}: {err}", &self);
-                let msg = serde_json::json!({"msg": "unknown authentication callback"});
-                (StatusCode::BAD_REQUEST, Json(msg)).into_response()
+            OAuthCallbackError::NoMatchingState => {
+                let msg = serde_json::json!({"msg": "no matching authentication state"});
+                (StatusCode::NOT_FOUND, Json(msg)).into_response()
             }
             _ => {
                 tracing::error!("encountered an issue completing the login process: {self}");

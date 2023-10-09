@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::custom_types::LoginProvider;
-use crate::database::models::NewOAuthState;
+use crate::database::models::CreateOAuthState;
 use crate::extractors::{ServerBase, SessionIdentity};
 
 pub async fn handler(
@@ -30,7 +30,7 @@ pub async fn handler(
     let authorization_url = oauth_challenge.authorize_url;
 
     let database = state.database();
-    NewOAuthState::new(
+    CreateOAuthState::new(
         provider,
         oauth_challenge.csrf_token,
         oauth_challenge.pkce_code_verifier,
