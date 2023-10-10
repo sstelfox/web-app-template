@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use axum::async_trait;
-use futures::Future;
-use futures::future::join_all;
+use futures::{Future, FutureExt};
+use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,8 @@ use tokio::time::timeout;
 use uuid::Uuid;
 
 // constants
+
+const MAXIMUM_CHECK_DELAY: Duration = Duration::from_millis(250);
 
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -101,6 +104,30 @@ pub trait TaskStore: Send + Sync + 'static {
 }
 
 // structs
+
+struct CatchPanicFuture<F: Future + Send + 'static> {
+    inner: BoxFuture<'static, F::Output>,
+}
+
+impl<F: Future + Send + 'static> CatchPanicFuture<F> {
+    pub fn wrap(f: F) -> Self {
+        Self { inner: f.boxed() }
+    }
+}
+
+impl<F: Future + Send + 'static> Future for CatchPanicFuture<F> {
+    type Output = Result<F::Output, TaskExecError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let inner = &mut self.inner;
+
+        match catch_unwind(move || inner.poll_unpin(cx)) {
+            Ok(Poll::Pending) => Poll::Pending,
+            Ok(Poll::Ready(value)) => Poll::Ready(Ok(value)),
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+}
 
 pub struct CreateTask {
     name: String,
@@ -283,7 +310,34 @@ where
 
         let deserialize_and_run_task_fn = self.task_registry
             .get(task.name.as_str())
-            .ok_or_else(|| WorkerError::UnregisteredTaskName(task.name))?;
+            .ok_or_else(|| WorkerError::UnregisteredTaskName(task.name))?
+            .clone();
+
+        let safe_runner = CatchPanicFuture::wrap({
+            let context = (self.context_data_fn)();
+            let payload = task.payload.clone();
+
+            async move { deserialize_and_run_task_fn(task_info, payload, context).await }
+        });
+
+        let task_result = match safe_runner.await {
+            Ok(res) => res,
+            Err(err) => {
+                // todo: should note the task as having panicked if that's why this failed. There
+                // is also a chance that the worker is corrupted in some way by the panic so I
+                // should set a flag on this worker and handle two consecutive panics as a worker
+                // problem. The second task triggering the panic should be presumed innocent and
+                // restored to a runnable state.
+                //
+                // Decode errors should not be retried or consider but should be logged. Regular
+                // task failure is subject to retries if available
+
+                tracing::error!("task execution in worker failed: {err}");
+                return Ok(());
+            }
+        };
+
+        tracing::warn!("{task_result:?}");
 
         todo!()
     }
@@ -314,12 +368,25 @@ where
                 continue;
             }
 
-            // need to wait on shutdown signal or until another task is ready... for now we
-            // can use a fixed check interval but this should probably be handled by some
-            // form of a centralized wake up manager when things are enqueued which can
-            // also 'alarm' when a pending task is ready to be scheduled
+            // todo this should probably be handled by some form of a centralized wake up manager
+            // when things are enqueued which can also 'alarm' when a pending task is ready to be
+            // scheduled instead of relying... and that change should probably be done using
+            // future wakers instead of internal timeouts but some central scheduler
+            match &mut self.shutdown_signal {
+                Some(ss) => {
+                    if let Ok(_signaled) = tokio::time::timeout(MAXIMUM_CHECK_DELAY, ss.changed()).await {
+                        // todo might want to handle graceful / non-graceful differently
+                        tracing::info!("received worker shutdown signal while idle");
+                        return Ok(());
+                    }
 
-            todo!()
+                    // intentionally letting the 'error' type fall through here as it means we
+                    // timed out on waiting for a shutdown signal and should continue
+                }
+                None => {
+                    let _ = tokio::time::sleep(MAXIMUM_CHECK_DELAY).await;
+                }
+            }
         }
     }
 }
@@ -465,6 +532,23 @@ pub enum WorkerPoolError {
 }
 
 // local helper functions
+
+fn catch_unwind<F: FnOnce() -> R, R>(f: F) -> Result<R, TaskExecError> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(res) => Ok(res),
+        Err(panic_err) => {
+            if let Some(msg) = panic_err.downcast_ref::<&'static str>() {
+                return Err(TaskExecError::Panicked(msg.to_string()));
+            }
+
+            if let Some(msg) = panic_err.downcast_ref::<String>() {
+                return Err(TaskExecError::Panicked(msg.to_string()));
+            }
+
+            Err(TaskExecError::Panicked("unknown panic message format".to_string()))
+        },
+    }
+}
 
 fn deserialize_and_run_task<TL>(
     current_task: CurrentTask,
