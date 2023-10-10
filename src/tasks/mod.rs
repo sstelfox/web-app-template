@@ -12,6 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -440,13 +441,6 @@ impl TaskStore for MemoryTaskStore {
     }
 }
 
-fn sort_tasks(a: &Task, b: &Task) -> Ordering {
-    match a.scheduled_to_run_at.cmp(&b.scheduled_to_run_at) {
-        Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
-        ord => ord,
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum TaskExecError {
     #[error("task deserialization failed: {0}")]
@@ -481,6 +475,11 @@ where
     Context: Clone + Send + 'static,
     S: TaskStore + Clone,
 {
+    pub fn configure_queue(mut self, config: QueueConfig) -> Self {
+        self.worker_queues.insert(config.name.clone(), config);
+        self
+    }
+
     pub fn new<A>(task_store: S, application_data_fn: A) -> Self
     where
         A: Fn() -> Context + Send + Sync + 'static,
@@ -490,7 +489,7 @@ where
             application_data_fn: Arc::new(application_data_fn),
             task_registry: BTreeMap::new(),
             queue_tasks: BTreeMap::new(),
-            worker_queues:BTreeMap::new(),
+            worker_queues: BTreeMap::new(),
         }
     }
 
@@ -508,6 +507,17 @@ where
 
         self
     }
+
+    pub async fn start<F>(self, _shutdown_signal: F) -> Result<JoinHandle<()>, WorkerPoolError>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        todo!()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WorkerPoolError {
 }
 
 fn deserialize_and_run_task<TL>(
@@ -526,6 +536,13 @@ where
             Err(err) => Err(TaskExecError::ExecutionFailed(err.to_string())),
         }
     })
+}
+
+fn sort_tasks(a: &Task, b: &Task) -> Ordering {
+    match a.scheduled_to_run_at.cmp(&b.scheduled_to_run_at) {
+        Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
+        ord => ord,
+    }
 }
 
 // example specific task implementation, everything above is supporting infrastructure

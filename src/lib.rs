@@ -55,6 +55,21 @@ pub async fn test_tasks_placeholder() {
             .await
             .unwrap();
     }
+
+    let (tx, mut rx) = tokio::sync::watch::channel(false);
+
+    let worker_pool = tasks::WorkerPool::new(mts, move || { () })
+        .register_task_type::<tasks::TestTask>()
+        .configure_queue("default".into())
+        .start(async move { let _ = rx.changed().await; });
+
+    let pool_run_handle = tokio::spawn(async move {
+        worker_pool.await.expect("pool run to succeed");
+    });
+
+    let _ = tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    let _ = tx.send(true);
+    let _ = pool_run_handle.await;
 }
 
 #[cfg(test)]
