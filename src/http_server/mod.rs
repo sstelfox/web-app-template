@@ -8,7 +8,7 @@ use axum::Router;
 use axum::{Server, ServiceExt};
 use http::{header, Request};
 use http::uri::PathAndQuery;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::watch;
 use tower::ServiceBuilder;
 use tower_http::request_id::MakeRequestUuid;
 use tower_http::sensitive_headers::{
@@ -28,8 +28,6 @@ mod error_handlers;
 static FILTERED_VALUE: &str = "<filtered>";
 
 static MISSING_VALUE: &str = "<not_provided>";
-
-const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 /// The largest size content that any client can send us before we reject it. This is a pretty
 /// heavily restricted default but most JSON responses are relatively tiny.
@@ -100,53 +98,7 @@ fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
     format!("{}?{}", path_and_query.path(), filtered_query_pairs.join("&"))
 }
 
-/// Follow k8s signal handling rules for these different signals. The order of shutdown events are:
-///
-/// 1. Pod is set to the "Terminating" state and removed from the endpoints list of all services,
-///    new traffic should stop appearing
-/// 2. The preStop Hook is executed if configured, can send a command or an http request. Should be
-///    implemented if SIGTERM doesn't gracefully shutdown your app. Simultaneously k8s will start
-///    issuing endpoint update commands indicating the service should be removed from load
-///    balancers.
-/// 3. SIGTERM signal is sent to the pod, your service should start shutting down cleanly, service
-///    has 30 seconds to perform any clean up, shutdown, and state saving. The service may still
-///    receive requests for up to 10 seconds on GKE according to some blog post. This would make
-///    sense as the event time needs to propagate through the system and is supported by this quote
-///    about service meshes:
-///
-///    > Since the components might be busy doing something else, there is no guarantee on how
-///    > long it will take to remove the IP address from their internal state.
-///
-///    I've seen recommendations that the readiness probe should start failing here and others
-///    reporting that won't do anything. As far as I can tell failing the readiness probe here
-///    makes sense and at worse will do nothing.
-///
-///    It seems that the common recommendation here is to wait for 10-15 seconds in the
-///    graceperiod, with readiness failing, then exit
-/// 4. If the container doesn't exit on its own after 30 seconds it will receive a SIGKILL which we
-///    can't respond to, we just get killed.
-///
-/// This also handles SIGINT which K8s doesn't issue, those will be coming from users running the
-/// server locally and should shut the server down immediately.
-async fn graceful_shutdown_blocker() {
-    let mut sigint = signal(SignalKind::interrupt()).unwrap();
-    let mut sigterm = signal(SignalKind::terminate()).unwrap();
-
-    tokio::select! {
-        _ = sigint.recv() => {
-            tracing::debug!("gracefully exiting immediately on SIGINT");
-        }
-        _ = sigterm.recv() => tracing::debug!("initiaing graceful shutdown with delay on SIGTERM"),
-    }
-
-    // todo: fail the readiness checks
-
-    // todo: this is the desired k8s behavior... but it slows down normal usage
-    //tokio::time::sleep(REQUEST_GRACE_PERIOD).await
-}
-
-pub async fn run(config: Config) -> Result<(), HttpServerError> {
-    //let trace_layer = create_trace_layer(config.log_level());
+pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result<(), HttpServerError> {
     let trace_layer = TraceLayer::new_for_http()
         .make_span_with(SensitiveRequestMakeSpan)
         .on_response(
@@ -209,7 +161,7 @@ pub async fn run(config: Config) -> Result<(), HttpServerError> {
     tracing::info!(addr = ?config.listen_addr(), "server listening");
     Server::bind(config.listen_addr())
         .serve(app.into_make_service())
-        .with_graceful_shutdown(graceful_shutdown_blocker())
+        .with_graceful_shutdown(async move { let _ = shutdown_rx.changed().await; })
         .await
         .map_err(HttpServerError::ServingFailed)?;
 

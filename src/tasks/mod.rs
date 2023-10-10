@@ -13,7 +13,7 @@ use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -526,7 +526,7 @@ where
             }
         }
 
-        let (tx, rx) = tokio::sync::watch::channel(());
+        let (tx, rx) = watch::channel(());
         let mut worker_handles = Vec::new();
 
         for (queue_name, queue_config) in self.worker_queues.iter() {

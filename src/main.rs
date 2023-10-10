@@ -1,8 +1,15 @@
+use std::time::Duration;
+
+use futures::future::join_all;
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 
 use web_app_template::app::Config;
+
+const FINAL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[tokio::main]
 async fn main() {
@@ -28,11 +35,16 @@ async fn main() {
 
     web_app_template::register_panic_logger();
     web_app_template::report_version();
-    web_app_template::test_tasks_placeholder().await;
 
-    match web_app_template::http_server::run(config).await {
-        Ok(_) => tracing::info!("shutting down normally"),
-        Err(err) => tracing::error!("http server exited with an error: {err}"),
+    let (graceful_waiter, shutdown_rx) = web_app_template::graceful_shutdown_blocker();
+    let worker_handle: JoinHandle<()> = web_app_template::background_workers(shutdown_rx.clone()).await;
+    let http_handle: JoinHandle<()> = web_app_template::http_server(config, shutdown_rx.clone()).await;
+
+    let _ = graceful_waiter.await;
+
+    if let Err(_) = timeout(FINAL_SHUTDOWN_TIMEOUT, join_all(vec![worker_handle, http_handle])).await {
+        tracing::error!("hit final shutdown timeout. exiting with remaining work in progress");
+        std::process::exit(3);
     }
 }
 
