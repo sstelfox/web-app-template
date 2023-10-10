@@ -7,17 +7,21 @@ use std::time::Duration;
 
 use axum::async_trait;
 use futures::Future;
+use futures::future::join_all;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use uuid::Uuid;
 
 // constants
 
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
+
+const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 // types
 
@@ -129,19 +133,19 @@ impl CurrentTask {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct QueueConfig {
     name: &'static str,
-    num_workers: usize,
+    worker_count: usize,
 }
 
 impl QueueConfig {
     pub fn new(name: &'static str) -> Self {
         Self {
             name,
-            num_workers: 1,
+            worker_count: 1,
         }
     }
 
-    pub fn num_workers(mut self, num_workers: usize) -> Self {
-        self.num_workers = num_workers;
+    pub fn worker_count(mut self, worker_count: usize) -> Self {
+        self.worker_count = worker_count;
         self
     }
 }
@@ -236,20 +240,64 @@ pub enum TaskState {
     Dead,
 }
 
+struct Worker<Context, S>
+where
+    Context: Clone + Send + 'static,
+    S: TaskStore + Clone,
+{
+    name: String,
+    config: QueueConfig,
+
+    context_data_fn: StateFn<Context>,
+    store: S,
+    task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
+
+    shutdown_signal: Option<tokio::sync::watch::Receiver<()>>,
+}
+
+impl<Context, S> Worker<Context, S>
+where
+    Context: Clone + Send + 'static,
+    S: TaskStore + Clone,
+{
+    fn new(
+        name: String,
+        config: QueueConfig,
+        context_data_fn: StateFn<Context>,
+        store: S,
+        task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
+        shutdown_signal: Option<tokio::sync::watch::Receiver<()>>,
+    ) -> Self {
+        Self {
+            name,
+            config,
+            context_data_fn,
+            store,
+            task_registry,
+            shutdown_signal,
+        }
+    }
+
+    async fn run_tasks(&mut self) -> Result<(), WorkerError> {
+        todo!()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WorkerError {
+}
+
 #[derive(Clone)]
 pub struct WorkerPool<Context, S>
 where
     Context: Clone + Send + 'static,
     S: TaskStore + Clone,
 {
+    context_data_fn: StateFn<Context>,
     task_store: S,
-
-    application_data_fn: StateFn<Context>,
-
     task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
 
     queue_tasks: BTreeMap<&'static str, Vec<&'static str>>,
-
     worker_queues: BTreeMap<&'static str, QueueConfig>,
 }
 
@@ -263,14 +311,15 @@ where
         self
     }
 
-    pub fn new<A>(task_store: S, application_data_fn: A) -> Self
+    pub fn new<A>(task_store: S, context_data_fn: A) -> Self
     where
         A: Fn() -> Context + Send + Sync + 'static,
     {
         Self {
+            context_data_fn: Arc::new(context_data_fn),
             task_store,
-            application_data_fn: Arc::new(application_data_fn),
             task_registry: BTreeMap::new(),
+
             queue_tasks: BTreeMap::new(),
             worker_queues: BTreeMap::new(),
         }
@@ -291,7 +340,7 @@ where
         self
     }
 
-    pub async fn start<F>(self, _shutdown_signal: F) -> Result<JoinHandle<()>, WorkerPoolError>
+    pub async fn start<F>(self, shutdown_signal: F) -> Result<JoinHandle<()>, WorkerPoolError>
     where
         F: Future<Output = ()> + Send + 'static,
     {
@@ -301,7 +350,62 @@ where
             }
         }
 
-        todo!()
+        let (tx, rx) = tokio::sync::watch::channel(());
+        let mut worker_handles = Vec::new();
+
+        for (queue_name, queue_config) in self.worker_queues.iter() {
+            for idx in 0..queue_config.worker_count {
+                let worker_name = format!("worker-{queue_name}-{idx}");
+
+                // todo: make the worker_name into a span attached to this future and drop it from
+                // the worker attributes
+
+                let mut worker: Worker<Context, S> = Worker::new(
+                    worker_name.clone(),
+                    queue_config.clone(),
+                    self.context_data_fn.clone(),
+                    self.task_store.clone(),
+                    self.task_registry.clone(),
+                    Some(rx.clone()),
+                );
+
+                let worker_handle = tokio::spawn(async move {
+                    match worker.run_tasks().await {
+                        Ok(()) => tracing::info!(name = ?worker_name, "worker stopped successfully"),
+                        Err(err) => tracing::error!(name = ?worker_name, "worker stopped due to error: {err}"),
+                    }
+                });
+
+                worker_handles.push(worker_handle);
+            }
+        }
+
+        let shutdown_guard = tokio::spawn(async move {
+            // Wait until we receive a shutdown signal directly or the channel errors out due to
+            // the other side being dropped
+            let _ = shutdown_signal.await;
+
+            // In either case, its time to shut things down. Let's try and notify our workers for
+            // graceful shutdown.
+            let _ = tx.send(());
+
+            // try and collect error from workers but if it takes too long abandon them
+            let worker_errors: Vec<_> = match timeout(WORKER_SHUTDOWN_TIMEOUT, join_all(worker_handles)).await {
+                Ok(res) => res.into_iter().filter(Result::is_err).map(Result::unwrap_err).collect(),
+                Err(_) => {
+                    tracing::warn!("timed out waiting for workers to shutdown, not reporting outstanding errors");
+                    Vec::new()
+                }
+            };
+
+            if worker_errors.is_empty() {
+                tracing::info!("worker pool shutdown gracefully");
+            } else {
+                tracing::error!("workers reported the following errors during shutdown:\n{:?}", worker_errors);
+            }
+        });
+
+        Ok(shutdown_guard)
     }
 }
 
