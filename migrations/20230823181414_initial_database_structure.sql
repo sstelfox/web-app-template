@@ -97,7 +97,7 @@ CREATE TABLE background_tasks (
 
   unique_key TEXT,
   state TEXT NOT NULL
-    CHECK (state IN ('new', 'in_progress', 'retry', 'cancelled', 'error', 'complete', 'timed_out', 'dead'))
+    CHECK (state IN ('new', 'in_progress', 'panicked', 'retry', 'cancelled', 'error', 'complete', 'timed_out', 'dead'))
     DEFAULT 'new',
 
   current_attempt INTEGER NOT NULL DEFAULT 0,

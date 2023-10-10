@@ -116,7 +116,7 @@ impl<F: Future + Send + 'static> CatchPanicFuture<F> {
 }
 
 impl<F: Future + Send + 'static> Future for CatchPanicFuture<F> {
-    type Output = Result<F::Output, TaskExecError>;
+    type Output = Result<F::Output, CaughtPanic>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let inner = &mut self.inner;
@@ -128,6 +128,17 @@ impl<F: Future + Send + 'static> Future for CatchPanicFuture<F> {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct CaughtPanic(String);
+
+impl Display for CaughtPanic {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "panicked message: {}", self.0)
+    }
+}
+
+impl std::error::Error for CaughtPanic {}
 
 pub struct CreateTask {
     name: String,
@@ -242,8 +253,8 @@ pub enum TaskExecError {
     #[error("task execution failed: {0}")]
     ExecutionFailed(String),
 
-    #[error("task panicked with: {0}")]
-    Panicked(String),
+    #[error("task panicked: {0}")]
+    Panicked(#[from] CaughtPanic),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -259,6 +270,7 @@ pub enum TaskQueueError {
 pub enum TaskState {
     New,
     InProgress,
+    Panicked,
     Retry,
     Cancelled,
     Error,
@@ -320,26 +332,49 @@ where
             async move { deserialize_and_run_task_fn(task_info, payload, context).await }
         });
 
+        // an error here occurs only when the task panicks, deserialization and regular task
+        // execution errors are handled next
+        //
+        // todo: should note the task as having panicked if that's why this failed. There is also a
+        // chance that the worker is corrupted in some way by the panic so I should set a flag on
+        // this worker and handle two consecutive panics as a worker problem. The second task
+        // triggering the panic should be presumed innocent and restored to a runnable state.
         let task_result = match safe_runner.await {
-            Ok(res) => res,
+            Ok(tr) => tr,
             Err(err) => {
-                // todo: should note the task as having panicked if that's why this failed. There
-                // is also a chance that the worker is corrupted in some way by the panic so I
-                // should set a flag on this worker and handle two consecutive panics as a worker
-                // problem. The second task triggering the panic should be presumed innocent and
-                // restored to a runnable state.
-                //
-                // Decode errors should not be retried or consider but should be logged. Regular
-                // task failure is subject to retries if available
+                tracing::error!("task panicked: {err}");
 
-                tracing::error!("task execution in worker failed: {err}");
+                // todo: save panic message into the task.error and save it back to the memory
+                // store somehow...
+                self.store.update_state(task.id, TaskState::Panicked)
+                    .await
+                    .map_err(WorkerError::UpdateTaskStatusFailed)?;
+
+                // we didn't complete successfully, but we do want to keep processing tasks for
+                // now. We may be corrupted due to the panic somehow if additional errors crop up.
+                // Left as future work to handle this edge case.
                 return Ok(());
             }
         };
 
-        tracing::warn!("{task_result:?}");
+        match task_result {
+            Ok(_) => {
+                self.store.update_state(task.id, TaskState::Complete)
+                    .await
+                    .map_err(WorkerError::UpdateTaskStatusFailed)?;
+            }
+            Err(err) => {
+                tracing::error!("task failed with error: {err}");
 
-        todo!()
+                // todo: need to set the current task as error'd...
+
+                self.store.enqueue_retry(task.id)
+                    .await
+                    .map_err(WorkerError::RetryTaskFailed)?;
+            }
+        }
+
+        Ok(())
     }
 
     async fn run_tasks(&mut self) -> Result<(), WorkerError> {
@@ -396,8 +431,14 @@ pub enum WorkerError {
     #[error("worker detected an error in the shutdown channel and forced and immediate exit")]
     EmergencyShutdown,
 
+    #[error("failed to enqueue a failed task for re-execution: {0}")]
+    RetryTaskFailed(TaskQueueError),
+
     #[error("error while attempting to retrieve the next task: {0}")]
     StoreUnavailable(TaskQueueError),
+
+    #[error("failed to update task status with store: {0}")]
+    UpdateTaskStatusFailed(TaskQueueError),
 
     #[error("during execution of a dequeued task, encountered unregistered task '{0}'")]
     UnregisteredTaskName(String),
@@ -533,19 +574,19 @@ pub enum WorkerPoolError {
 
 // local helper functions
 
-fn catch_unwind<F: FnOnce() -> R, R>(f: F) -> Result<R, TaskExecError> {
+fn catch_unwind<F: FnOnce() -> R, R>(f: F) -> Result<R, CaughtPanic> {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
         Ok(res) => Ok(res),
         Err(panic_err) => {
             if let Some(msg) = panic_err.downcast_ref::<&'static str>() {
-                return Err(TaskExecError::Panicked(msg.to_string()));
+                return Err(CaughtPanic(msg.to_string()));
             }
 
             if let Some(msg) = panic_err.downcast_ref::<String>() {
-                return Err(TaskExecError::Panicked(msg.to_string()));
+                return Err(CaughtPanic(msg.to_string()));
             }
 
-            Err(TaskExecError::Panicked("unknown panic message format".to_string()))
+            Err(CaughtPanic("unknown panic message format".to_string()))
         },
     }
 }
@@ -819,6 +860,7 @@ impl TaskLike for TestTask {
 
     async fn run(&self, _task: CurrentTask, _ctx: Self::Context) -> Result<(), Self::Error> {
         tracing::info!("the test task value is {}", self.number);
+        //Err(TestTaskError::Unknown)
         Ok(())
     }
 }
