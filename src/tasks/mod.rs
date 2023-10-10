@@ -44,6 +44,7 @@ pub type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
 
 #[async_trait]
 pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
+    // todo: rename MAX_ATTEMPTS
     const MAX_RETRIES: usize = 3;
 
     const QUEUE_NAME: &'static str = "default";
@@ -159,6 +160,7 @@ impl Display for CaughtPanic {
 
 impl std::error::Error for CaughtPanic {}
 
+#[derive(Deserialize, Serialize)]
 pub struct CreateTask {
     name: String,
     queue_name: String,
@@ -167,6 +169,20 @@ pub struct CreateTask {
     maximum_attempts: usize,
 
     scheduled_to_run_at: OffsetDateTime,
+}
+
+impl CreateTask {
+    fn new<T: TaskLike>(task: T, run_at: OffsetDateTime) -> Self {
+        Self {
+            name: T::TASK_NAME.to_string(),
+            queue_name: T::QUEUE_NAME.to_string(),
+
+            payload: serde_json::to_value(&task).expect("valid encoding"),
+            maximum_attempts: T::MAX_RETRIES,
+
+            scheduled_to_run_at: run_at,
+        }
+    }
 }
 
 pub struct CurrentTask {
@@ -526,7 +542,7 @@ where
             }
         }
 
-        let (tx, rx) = watch::channel(());
+        let (inner_shutdown_tx, inner_shutdown_rx) = watch::channel(());
         let mut worker_handles = Vec::new();
 
         for (queue_name, queue_config) in self.worker_queues.iter() {
@@ -542,7 +558,7 @@ where
                     self.context_data_fn.clone(),
                     self.task_store.clone(),
                     self.task_registry.clone(),
-                    Some(rx.clone()),
+                    Some(inner_shutdown_rx.clone()),
                 );
 
                 let worker_handle = tokio::spawn(async move {
@@ -563,7 +579,7 @@ where
 
             // In either case, its time to shut things down. Let's try and notify our workers for
             // graceful shutdown.
-            let _ = tx.send(());
+            let _ = inner_shutdown_tx.send(());
 
             // try and collect error from workers but if it takes too long abandon them
             let worker_errors: Vec<_> = match timeout(WORKER_SHUTDOWN_TIMEOUT, join_all(worker_handles)).await {
@@ -583,6 +599,31 @@ where
 
         Ok(shutdown_guard)
     }
+}
+
+#[derive(Clone)]
+pub struct WorkScheduler<T: TaskStore>(T);
+
+impl<T: TaskStore> WorkScheduler<T> {
+    pub fn new(store: T) -> Self {
+        Self(store)
+    }
+
+    pub async fn enqueue(&mut self, _task: impl TaskLike) -> Result<(), WorkSchedulerError> {
+
+        // todo: get this working...
+        //task.enqueue::<T>(&mut (self.0 as T::Connection))
+        //    .await
+        //    .map_err(WorkSchedulerError::EnqueueFailed)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WorkSchedulerError {
+    #[error("failed to enqueue task to workers: {0}")]
+    EnqueueFailed(TaskQueueError),
 }
 
 #[derive(Debug, thiserror::Error)]

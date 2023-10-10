@@ -12,31 +12,26 @@ mod database;
 mod extractors;
 mod health_check;
 pub mod http_server;
-mod tasks;
+pub mod tasks;
 pub mod utils;
 
 use tasks::{MemoryTaskStore, TaskStore};
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
-pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
-    let mut mts = MemoryTaskStore::default();
+pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> (JoinHandle<()>, tasks::WorkScheduler<MemoryTaskStore>) {
+    let mts = MemoryTaskStore::default();
 
-    for num in [78, 23, 102].iter() {
-        MemoryTaskStore::enqueue(&mut mts, tasks::TestTask::new(*num))
-            .await
-            .expect("enqueue to succeed");
-    }
-
-    // todo: probably want some kind of external queue for submission into the pool? Or should I
-    // just keep a handle on the pool and allow submissions from that?
-
-    tasks::WorkerPool::new(mts, move || { () })
+    let worker_handle = tasks::WorkerPool::new(mts.clone(), move || { () })
         .register_task_type::<tasks::TestTask>()
         .configure_queue(tasks::QueueConfig::new("default"))
         .start(async move { let _ = shutdown_rx.changed().await; })
         .await
-        .expect("worker start up to succeed")
+        .expect("worker start up to succeed");
+
+    let scheduler = tasks::WorkScheduler::new(mts);
+
+    (worker_handle, scheduler)
 }
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:

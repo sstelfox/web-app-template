@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use futures::future::join_all;
-use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -37,8 +36,15 @@ async fn main() {
     web_app_template::report_version();
 
     let (graceful_waiter, shutdown_rx) = web_app_template::graceful_shutdown_blocker();
-    let worker_handle: JoinHandle<()> = web_app_template::background_workers(shutdown_rx.clone()).await;
-    let http_handle: JoinHandle<()> = web_app_template::http_server(config, shutdown_rx.clone()).await;
+    let (worker_handle, mut work_scheduler) = web_app_template::background_workers(shutdown_rx.clone()).await;
+    // todo: pass work scheduler into http server for its state
+    let http_handle = web_app_template::http_server(config, shutdown_rx.clone()).await;
+
+    for num in [78, 23, 102].iter() {
+        work_scheduler.enqueue(web_app_template::tasks::TestTask::new(*num))
+            .await
+            .expect("enqueue to succeed");
+    }
 
     let _ = graceful_waiter.await;
 
