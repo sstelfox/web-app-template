@@ -15,7 +15,11 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
+// constants
+
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
+
+// types
 
 pub type ExecuteTaskFn<Context> = Arc<
     dyn Fn(
@@ -29,25 +33,7 @@ pub type ExecuteTaskFn<Context> = Arc<
 
 pub type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct QueueConfig {
-    name: &'static str,
-    num_workers: usize,
-}
-
-impl QueueConfig {
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            num_workers: 1,
-        }
-    }
-
-    pub fn num_workers(mut self, num_workers: usize) -> Self {
-        self.num_workers = num_workers;
-        self
-    }
-}
+// traits
 
 #[async_trait]
 pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
@@ -88,6 +74,30 @@ where
     }
 }
 
+#[async_trait]
+pub trait TaskStore: Send + Sync + 'static {
+    type Connection: Send;
+
+    async fn cancel(&self, id: TaskId) -> Result<(), TaskQueueError> {
+        self.update_state(id, TaskState::Cancelled).await
+    }
+
+    async fn enqueue<T: TaskLike>(
+        conn: &mut Self::Connection,
+        task: T,
+    ) -> Result<Option<TaskId>, TaskQueueError>
+    where
+        Self: Sized;
+
+    async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError>;
+
+    async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
+
+    async fn update_state(&self, id: TaskId, state: TaskState) -> Result<(), TaskQueueError>;
+}
+
+// structs
+
 pub struct CreateTask {
     name: String,
     queue_name: String,
@@ -113,6 +123,26 @@ impl CurrentTask {
             scheduled_at: task.scheduled_at,
             started_at: task.started_at.expect("task to be started"),
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct QueueConfig {
+    name: &'static str,
+    num_workers: usize,
+}
+
+impl QueueConfig {
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            num_workers: 1,
+        }
+    }
+
+    pub fn num_workers(mut self, num_workers: usize) -> Self {
+        self.num_workers = num_workers;
+        self
     }
 }
 
@@ -144,37 +174,6 @@ impl From<TaskId> for Uuid {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum TaskQueueError {
-    #[error("unable to find task with ID {0}")]
-    UnknownTask(TaskId),
-
-    #[error("unspecified error with the task queue")]
-    Unknown,
-}
-
-#[async_trait]
-pub trait TaskStore: Send + Sync + 'static {
-    type Connection: Send;
-
-    async fn cancel(&self, id: TaskId) -> Result<(), TaskQueueError> {
-        self.update_state(id, TaskState::Cancelled).await
-    }
-
-    async fn enqueue<T: TaskLike>(
-        conn: &mut Self::Connection,
-        task: T,
-    ) -> Result<Option<TaskId>, TaskQueueError>
-    where
-        Self: Sized;
-
-    async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError>;
-
-    async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
-
-    async fn update_state(&self, id: TaskId, state: TaskState) -> Result<(), TaskQueueError>;
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Task {
     pub id: TaskId,
@@ -204,6 +203,27 @@ pub struct Task {
     finished_at: Option<OffsetDateTime>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum TaskExecError {
+    #[error("task deserialization failed: {0}")]
+    TaskDeserializationFailed(#[from] serde_json::Error),
+
+    #[error("task execution failed: {0}")]
+    ExecutionFailed(String),
+
+    #[error("task panicked with: {0}")]
+    Panicked(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TaskQueueError {
+    #[error("unable to find task with ID {0}")]
+    UnknownTask(TaskId),
+
+    #[error("unspecified error with the task queue")]
+    Unknown,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TaskState {
     New,
@@ -215,6 +235,110 @@ pub enum TaskState {
     TimedOut,
     Dead,
 }
+
+#[derive(Clone)]
+pub struct WorkerPool<Context, S>
+where
+    Context: Clone + Send + 'static,
+    S: TaskStore + Clone,
+{
+    task_store: S,
+
+    application_data_fn: StateFn<Context>,
+
+    task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
+
+    queue_tasks: BTreeMap<&'static str, Vec<&'static str>>,
+
+    worker_queues: BTreeMap<&'static str, QueueConfig>,
+}
+
+impl<Context, S> WorkerPool<Context, S>
+where
+    Context: Clone + Send + 'static,
+    S: TaskStore + Clone,
+{
+    pub fn configure_queue(mut self, config: QueueConfig) -> Self {
+        self.worker_queues.insert(config.name, config);
+        self
+    }
+
+    pub fn new<A>(task_store: S, application_data_fn: A) -> Self
+    where
+        A: Fn() -> Context + Send + Sync + 'static,
+    {
+        Self {
+            task_store,
+            application_data_fn: Arc::new(application_data_fn),
+            task_registry: BTreeMap::new(),
+            queue_tasks: BTreeMap::new(),
+            worker_queues: BTreeMap::new(),
+        }
+    }
+
+    pub fn register_task_type<TL>(mut self) -> Self
+    where
+        TL: TaskLike<Context = Context>,
+    {
+        self.queue_tasks
+            .entry(TL::QUEUE_NAME)
+            .or_insert_with(Vec::new)
+            .push(TL::TASK_NAME);
+
+        self.task_registry
+            .insert(TL::TASK_NAME, Arc::new(deserialize_and_run_task::<TL>));
+
+        self
+    }
+
+    pub async fn start<F>(self, _shutdown_signal: F) -> Result<JoinHandle<()>, WorkerPoolError>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        for (queue_name, queue_tracked_tasks) in self.queue_tasks.iter() {
+            if !self.worker_queues.contains_key(queue_name) {
+                return Err(WorkerPoolError::QueueNotConfigured(queue_name, queue_tracked_tasks.clone()));
+            }
+        }
+
+        todo!()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WorkerPoolError {
+    #[error("found named queue '{0}' defined by task(s) {1:?} that doesn't have a matching queue config")]
+    QueueNotConfigured(&'static str, Vec<&'static str>),
+}
+
+// local helper functions
+
+fn deserialize_and_run_task<TL>(
+    current_task: CurrentTask,
+    payload: serde_json::Value,
+    context: TL::Context,
+) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
+where
+    TL: TaskLike,
+{
+    Box::pin(async move {
+        let task: TL = serde_json::from_value(payload)?;
+
+        match task.run(current_task, context).await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(TaskExecError::ExecutionFailed(err.to_string())),
+        }
+    })
+}
+
+fn sort_tasks(a: &Task, b: &Task) -> Ordering {
+    match a.scheduled_to_run_at.cmp(&b.scheduled_to_run_at) {
+        Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
+        ord => ord,
+    }
+}
+
+// concrete work store implementation
 
 #[derive(Clone, Default)]
 pub struct MemoryTaskStore {
@@ -432,119 +556,11 @@ impl TaskStore for MemoryTaskStore {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum TaskExecError {
-    #[error("task deserialization failed: {0}")]
-    TaskDeserializationFailed(#[from] serde_json::Error),
+// sample context implementation
 
-    #[error("task execution failed: {0}")]
-    ExecutionFailed(String),
+// todo
 
-    #[error("task panicked with: {0}")]
-    Panicked(String),
-}
-
-#[derive(Clone)]
-pub struct WorkerPool<Context, S>
-where
-    Context: Clone + Send + 'static,
-    S: TaskStore + Clone,
-{
-    task_store: S,
-
-    application_data_fn: StateFn<Context>,
-
-    task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
-
-    queue_tasks: BTreeMap<&'static str, Vec<&'static str>>,
-
-    worker_queues: BTreeMap<&'static str, QueueConfig>,
-}
-
-impl<Context, S> WorkerPool<Context, S>
-where
-    Context: Clone + Send + 'static,
-    S: TaskStore + Clone,
-{
-    pub fn configure_queue(mut self, config: QueueConfig) -> Self {
-        self.worker_queues.insert(config.name, config);
-        self
-    }
-
-    pub fn new<A>(task_store: S, application_data_fn: A) -> Self
-    where
-        A: Fn() -> Context + Send + Sync + 'static,
-    {
-        Self {
-            task_store,
-            application_data_fn: Arc::new(application_data_fn),
-            task_registry: BTreeMap::new(),
-            queue_tasks: BTreeMap::new(),
-            worker_queues: BTreeMap::new(),
-        }
-    }
-
-    pub fn register_task_type<TL>(mut self) -> Self
-    where
-        TL: TaskLike<Context = Context>,
-    {
-        self.queue_tasks
-            .entry(TL::QUEUE_NAME)
-            .or_insert_with(Vec::new)
-            .push(TL::TASK_NAME);
-
-        self.task_registry
-            .insert(TL::TASK_NAME, Arc::new(deserialize_and_run_task::<TL>));
-
-        self
-    }
-
-    pub async fn start<F>(self, _shutdown_signal: F) -> Result<JoinHandle<()>, WorkerPoolError>
-    where
-        F: Future<Output = ()> + Send + 'static,
-    {
-        for (queue_name, queue_tracked_tasks) in self.queue_tasks.iter() {
-            if !self.worker_queues.contains_key(queue_name) {
-                return Err(WorkerPoolError::QueueNotConfigured(queue_name, queue_tracked_tasks.clone()));
-            }
-        }
-
-        todo!()
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum WorkerPoolError {
-    #[error("found named queue '{0}' defined by task(s) {1:?} that doesn't have a matching queue config")]
-    QueueNotConfigured(&'static str, Vec<&'static str>),
-}
-
-fn deserialize_and_run_task<TL>(
-    current_task: CurrentTask,
-    payload: serde_json::Value,
-    context: TL::Context,
-) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
-where
-    TL: TaskLike,
-{
-    Box::pin(async move {
-        let task: TL = serde_json::from_value(payload)?;
-
-        match task.run(current_task, context).await {
-            Ok(_) => Ok(()),
-            Err(err) => Err(TaskExecError::ExecutionFailed(err.to_string())),
-        }
-    })
-}
-
-fn sort_tasks(a: &Task, b: &Task) -> Ordering {
-    match a.scheduled_to_run_at.cmp(&b.scheduled_to_run_at) {
-        Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
-        ord => ord,
-    }
-}
-
-// example specific task implementation, everything above is supporting infrastructure
+// concrete task implementation
 
 #[derive(Deserialize, Serialize)]
 pub struct TestTask {
