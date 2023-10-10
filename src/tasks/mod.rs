@@ -89,6 +89,10 @@ pub trait TaskStore: Send + Sync + 'static {
         self.update_state(id, TaskState::Cancelled).await
     }
 
+    async fn completed(&self, id: TaskId) -> Result<(), TaskQueueError> {
+        self.update_state(id, TaskState::Complete).await
+    }
+
     async fn enqueue<T: TaskLike>(
         conn: &mut Self::Connection,
         task: T,
@@ -96,9 +100,24 @@ pub trait TaskStore: Send + Sync + 'static {
     where
         Self: Sized;
 
+    async fn errored(&self, id: TaskId, error: TaskExecError) -> Result<Option<TaskId>, TaskQueueError> {
+        use TaskExecError as TEE;
+
+        match error {
+            TEE::DeserializationFailed(_) | TEE::Panicked(_) => {
+                self.update_state(id, TaskState::Dead).await?;
+                Ok(None)
+            }
+            TEE::ExecutionFailed(_) => {
+                self.update_state(id, TaskState::Error).await?;
+                self.retry(id).await
+            }
+        }
+    }
+
     async fn next(&self, queue_name: &str, task_names: &[&str]) -> Result<Option<Task>, TaskQueueError>;
 
-    async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
+    async fn retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
 
     async fn update_state(&self, id: TaskId, state: TaskState) -> Result<(), TaskQueueError>;
 }
@@ -236,7 +255,7 @@ pub struct Task {
     // timeout handling
 
     payload: serde_json::Value,
-    error: Option<serde_json::Value>,
+    error: Option<String>,
 
     scheduled_at: OffsetDateTime,
     scheduled_to_run_at: OffsetDateTime,
@@ -248,7 +267,7 @@ pub struct Task {
 #[derive(Debug, thiserror::Error)]
 pub enum TaskExecError {
     #[error("task deserialization failed: {0}")]
-    TaskDeserializationFailed(#[from] serde_json::Error),
+    DeserializationFailed(#[from] serde_json::Error),
 
     #[error("task execution failed: {0}")]
     ExecutionFailed(String),
@@ -366,9 +385,7 @@ where
             Err(err) => {
                 tracing::error!("task failed with error: {err}");
 
-                // todo: need to set the current task as error'd...
-
-                self.store.enqueue_retry(task.id)
+                self.store.errored(task.id, TaskExecError::ExecutionFailed(err.to_string()))
                     .await
                     .map_err(WorkerError::RetryTaskFailed)?;
             }
@@ -399,6 +416,7 @@ where
                 .map_err(WorkerError::StoreUnavailable)?;
 
             if let Some(task) = next_task {
+                tracing::info!(id = ?task.id, "starting execution of task");
                 self.run(task).await?;
                 continue;
             }
@@ -419,6 +437,7 @@ where
                     // timed out on waiting for a shutdown signal and should continue
                 }
                 None => {
+                    tracing::info!("no tasks available for worker, sleeping for a time...");
                     let _ = tokio::time::sleep(MAXIMUM_CHECK_DELAY).await;
                 }
             }
@@ -637,7 +656,7 @@ impl MemoryTaskStore {
             };
 
             // any task that has already ended isn't considered for uniqueness checks
-            if !matches!(task.state, TaskState::New | TaskState::InProgress) {
+            if !matches!(task.state, TaskState::New | TaskState::InProgress | TaskState::Retry) {
                 continue;
             }
 
@@ -700,7 +719,60 @@ impl TaskStore for MemoryTaskStore {
         Ok(Some(id))
     }
 
-    async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError> {
+    async fn next(&self, queue_name: &str, task_names: &[&str]) -> Result<Option<Task>, TaskQueueError> {
+        let mut tasks = self.tasks.lock().await;
+        let mut next_task = None;
+
+        let reference_time = OffsetDateTime::now_utc();
+        let mut tasks_to_retry = Vec::new();
+
+        for (id, task) in tasks
+            .iter_mut()
+            .filter(|(_, task)| task_names.contains(&task.name.as_str()) && task.scheduled_to_run_at <= reference_time)
+            // only care about tasks that have a state to advance
+            .filter(|(_, task)| matches!(task.state, TaskState::New | TaskState::InProgress | TaskState::Retry))
+            .sorted_by(|a, b| sort_tasks(a.1, b.1))
+        {
+            match (task.state, task.started_at) {
+                (TaskState::New | TaskState::Retry, None) => {
+                    if task.queue_name != queue_name {
+                        continue;
+                    }
+
+                    task.started_at = Some(OffsetDateTime::now_utc());
+                    task.state = TaskState::InProgress;
+
+                    next_task = Some(task.clone());
+                    break;
+                }
+                (TaskState::InProgress, Some(started_at)) => {
+                    if (started_at + TASK_EXECUTION_TIMEOUT) >= OffsetDateTime::now_utc() {
+                        // todo: need to send cancel signal to the task
+                        task.state = TaskState::TimedOut;
+                        task.finished_at = Some(OffsetDateTime::now_utc());
+
+                        tasks_to_retry.push(id);
+                    }
+                }
+                (state, _) => {
+                    tracing::error!(id = ?task.id, ?state, "encountered task in illegal state");
+                    task.state = TaskState::Dead;
+                    task.finished_at = Some(OffsetDateTime::now_utc());
+                }
+            }
+        }
+
+        for id in tasks_to_retry.into_iter() {
+            // attempt to requeue any of these tasks we encountered, if we fail to requeue them its
+            // not a big deal but we will keep trying if they stay in that state... Might want to
+            // put some kind of time window on these or something
+            let _ = self.retry(*id).await;
+        }
+
+        Ok(next_task)
+    }
+
+    async fn retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError> {
         let mut tasks = self.tasks.lock().await;
 
         let target_task = match tasks.get_mut(&id) {
@@ -731,71 +803,17 @@ impl TaskStore for MemoryTaskStore {
 
         new_task.current_attempt += 1;
         new_task.state = TaskState::Retry;
+        new_task.started_at = None;
         new_task.scheduled_at = OffsetDateTime::now_utc();
-        // for now just retry again in five minutes, will probably want some kind of backoff for
-        // this
-        new_task.scheduled_to_run_at = OffsetDateTime::now_utc() + Duration::from_secs(300);
+
+        // really rough exponential backoff, 4, 8, and 16 seconds by default
+        let backoff_secs = 2u64.saturating_pow(new_task.current_attempt.saturating_add(1) as u32);
+        tracing::info!(?id, ?new_id, "task will be retried {backoff_secs} secs in the future");
+        new_task.scheduled_to_run_at = OffsetDateTime::now_utc() + Duration::from_secs(backoff_secs);
 
         tasks.insert(new_task.id, new_task);
 
-        tracing::info!(?id, ?new_id, "task will be retried in the future");
-
         Ok(Some(new_id))
-    }
-
-    async fn next(&self, queue_name: &str, _task_names: &[&str]) -> Result<Option<Task>, TaskQueueError> {
-        let mut tasks = self.tasks.lock().await;
-        let mut next_task = None;
-
-        let reference_time = OffsetDateTime::now_utc();
-        let mut tasks_to_retry = Vec::new();
-
-        for (id, task) in tasks
-            .iter_mut()
-            .filter(|(_, task)| task.scheduled_to_run_at <= reference_time)
-            .sorted_by(|a, b| sort_tasks(a.1, b.1))
-        {
-            match (task.state, task.started_at) {
-                (TaskState::New, None) => {
-                    if task.queue_name != queue_name {
-                        continue;
-                    }
-
-                    task.started_at = Some(OffsetDateTime::now_utc());
-                    task.state = TaskState::InProgress;
-
-                    next_task = Some(task.clone());
-                    break;
-                }
-                (TaskState::InProgress, Some(started_at)) => {
-                    if (started_at + TASK_EXECUTION_TIMEOUT) >= OffsetDateTime::now_utc() {
-                        // todo: need to send cancel signal to the task
-                        task.state = TaskState::TimedOut;
-                        task.finished_at = Some(OffsetDateTime::now_utc());
-
-                        tasks_to_retry.push(id);
-
-                        continue;
-                    }
-                }
-                // cancelled is the only other state allowed to not have a started_at
-                (TaskState::Cancelled, None) => (),
-                (state, None) => {
-                    tracing::error!(id = ?task.id, ?state, "encountered task in illegal state");
-
-                    task.state = TaskState::Error;
-                    task.finished_at = Some(OffsetDateTime::now_utc());
-                }
-                _ => (),
-            }
-        }
-
-        for id in tasks_to_retry.into_iter() {
-            // this is best effort mostly for timed out
-            let _ = self.enqueue_retry(*id).await;
-        }
-
-        Ok(next_task)
     }
 
     async fn update_state(&self, id: TaskId, new_state: TaskState) -> Result<(), TaskQueueError> {
@@ -860,8 +878,7 @@ impl TaskLike for TestTask {
 
     async fn run(&self, _task: CurrentTask, _ctx: Self::Context) -> Result<(), Self::Error> {
         tracing::info!("the test task value is {}", self.number);
-        //Err(TestTaskError::Unknown)
-        Ok(())
+        Err(TestTaskError::Unknown)
     }
 }
 

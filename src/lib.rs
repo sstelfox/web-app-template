@@ -49,12 +49,8 @@ pub async fn test_tasks_placeholder() {
         tracing::info!(?id, "enqueued task");
     }
 
-    //while let Some(task) = mts.next("default", &["test_task"]).await.unwrap() {
-    //    tracing::info!(id = ?task.id, "running task");
-    //    mts.update_state(task.id, tasks::TaskState::Complete)
-    //        .await
-    //        .unwrap();
-    //}
+    // todo: probably want some kind of external queue for submission into the pool? Or should I
+    // just keep a handle on the pool and allow submissions from that?
 
     let (tx, mut rx) = tokio::sync::watch::channel(false);
 
@@ -67,7 +63,7 @@ pub async fn test_tasks_placeholder() {
         worker_pool.await.expect("pool run to succeed");
     });
 
-    let _ = tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    let _ = tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     let _ = tx.send(true);
     let _ = pool_run_handle.await;
 }
