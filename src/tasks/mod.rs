@@ -93,7 +93,7 @@ pub trait TaskStore: Send + Sync + 'static {
     where
         Self: Sized;
 
-    async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError>;
+    async fn next(&self, queue_name: &str, task_names: &[&str]) -> Result<Option<Task>, TaskQueueError>;
 
     async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
 
@@ -224,7 +224,7 @@ pub enum TaskQueueError {
     #[error("unable to find task with ID {0}")]
     UnknownTask(TaskId),
 
-    #[error("unspecified error with the task queue")]
+    #[error("I lazily hit one of the queue errors I haven't implemented yet")]
     Unknown,
 }
 
@@ -246,7 +246,7 @@ where
     S: TaskStore + Clone,
 {
     name: String,
-    config: QueueConfig,
+    queue_config: QueueConfig,
 
     context_data_fn: StateFn<Context>,
     store: S,
@@ -262,7 +262,7 @@ where
 {
     fn new(
         name: String,
-        config: QueueConfig,
+        queue_config: QueueConfig,
         context_data_fn: StateFn<Context>,
         store: S,
         task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
@@ -270,7 +270,7 @@ where
     ) -> Self {
         Self {
             name,
-            config,
+            queue_config,
             context_data_fn,
             store,
             task_registry,
@@ -278,13 +278,62 @@ where
         }
     }
 
-    async fn run_tasks(&mut self) -> Result<(), WorkerError> {
+    async fn run(&self, task: Task) -> Result<(), WorkerError> {
+        let task_info = CurrentTask::new(&task);
+
+        let deserialize_and_run_task_fn = self.task_registry
+            .get(task.name.as_str())
+            .ok_or_else(|| WorkerError::UnregisteredTaskName(task.name))?;
+
         todo!()
+    }
+
+    async fn run_tasks(&mut self) -> Result<(), WorkerError> {
+        let relevant_task_names: Vec<&'static str> = self.task_registry.keys().cloned().collect();
+
+        loop {
+            // check to see if its time to shutdown the worker
+            //
+            // todo: turn this into a select with a short fallback timeout on task execution to try
+            // and finish it within our graceful shutdown window
+            if let Some(shutdown_signal) = &self.shutdown_signal {
+                match shutdown_signal.has_changed() {
+                    Ok(true) => return Ok(()),
+                    Err(_) => return Err(WorkerError::EmergencyShutdown),
+                    _ => (),
+                }
+            }
+
+            let next_task = self.store
+                .next(self.queue_config.name, &relevant_task_names)
+                .await
+                .map_err(WorkerError::StoreUnavailable)?;
+
+            if let Some(task) = next_task {
+                self.run(task).await?;
+                continue;
+            }
+
+            // need to wait on shutdown signal or until another task is ready... for now we
+            // can use a fixed check interval but this should probably be handled by some
+            // form of a centralized wake up manager when things are enqueued which can
+            // also 'alarm' when a pending task is ready to be scheduled
+
+            todo!()
+        }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerError {
+    #[error("worker detected an error in the shutdown channel and forced and immediate exit")]
+    EmergencyShutdown,
+
+    #[error("error while attempting to retrieve the next task: {0}")]
+    StoreUnavailable(TaskQueueError),
+
+    #[error("during execution of a dequeued task, encountered unregistered task '{0}'")]
+    UnregisteredTaskName(String),
 }
 
 #[derive(Clone)]
@@ -569,7 +618,7 @@ impl TaskStore for MemoryTaskStore {
         Ok(Some(new_id))
     }
 
-    async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError> {
+    async fn next(&self, queue_name: &str, _task_names: &[&str]) -> Result<Option<Task>, TaskQueueError> {
         let mut tasks = self.tasks.lock().await;
         let mut next_task = None;
 
