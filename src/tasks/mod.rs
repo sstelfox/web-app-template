@@ -1,10 +1,12 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::async_trait;
+use futures::Future;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -14,8 +16,98 @@ use uuid::Uuid;
 
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
+pub type ExecuteTaskFn<Context> = Arc<
+    dyn Fn(
+        CurrentTask,
+        serde_json::Value,
+        Context,
+    ) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
+    + Send
+    + Sync,
+>;
+
+pub type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct QueueConfig {
+    name: String,
+    num_workers: usize,
+}
+
+impl QueueConfig {
+    pub fn new(name: impl ToString) -> Self {
+        Self {
+            name: name.to_string(),
+            num_workers: 1,
+        }
+    }
+
+    pub fn num_workers(mut self, num_workers: usize) -> Self {
+        self.num_workers = num_workers;
+        self
+    }
+}
+
+impl<S> From<S> for QueueConfig
+where
+    S: ToString,
+{
+    fn from(name: S) -> Self {
+        Self::new(name.to_string())
+    }
+}
+
+#[async_trait]
+pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
+    const MAX_RETRIES: usize = 3;
+
+    const QUEUE_NAME: &'static str = "default";
+
+    const TASK_NAME: &'static str;
+
+    type Error: std::error::Error;
+    type Context: Clone + Send + 'static;
+
+    async fn run(&self, task: CurrentTask, ctx: Self::Context) -> Result<(), Self::Error>;
+
+    async fn unique_key(&self) -> Option<String> {
+        None
+    }
+}
+
+#[async_trait]
+pub trait TaskLikeExt {
+    async fn enqueue<S: TaskStore>(
+        self,
+        connection: &mut S::Connection,
+    ) -> Result<Option<TaskId>, TaskQueueError>;
+}
+
+#[async_trait]
+impl<T> TaskLikeExt for T
+where
+    T: TaskLike,
+{
+    async fn enqueue<S: TaskStore>(
+        self,
+        connection: &mut S::Connection,
+    ) -> Result<Option<TaskId>, TaskQueueError> {
+        S::enqueue(connection, self).await
+    }
+}
+
+pub struct CreateTask {
+    name: String,
+    queue_name: String,
+
+    payload: serde_json::Value,
+    maximum_attempts: usize,
+
+    scheduled_to_run_at: OffsetDateTime,
+}
+
 pub struct CurrentTask {
-    id: Uuid,
+    id: TaskId,
     current_attempt: usize,
     scheduled_at: OffsetDateTime,
     started_at: OffsetDateTime,
@@ -32,47 +124,38 @@ impl CurrentTask {
     }
 }
 
-#[async_trait]
-pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send {
-    const MAX_RETRIES: usize = 3;
-    const QUEUE_NAME: &'static str = "default";
-    const TASK_NAME: &'static str;
+#[derive(Clone, Copy, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct TaskId(Uuid);
 
-    type Error: std::error::Error;
-    type TaskContext: Clone + Send + 'static; // todo: might be able to drop 'static here...
-
-    async fn run(&self, task: CurrentTask, ctx: Self::TaskContext) -> Result<(), Self::Error>;
-
-    async fn unique_key(&self) -> Option<String> {
-        None
+impl Debug for TaskId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("TaskId").field(&self.0).finish()
     }
 }
 
-#[async_trait]
-pub trait TaskLikeExt {
-    async fn enqueue<S: TaskStore>(
-        self,
-        connection: &mut S::Connection,
-    ) -> Result<Option<Uuid>, TaskQueueError>;
+impl Display for TaskId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
-#[async_trait]
-impl<T> TaskLikeExt for T
-where
-    T: TaskLike,
-{
-    async fn enqueue<S: TaskStore>(
-        self,
-        connection: &mut S::Connection,
-    ) -> Result<Option<Uuid>, TaskQueueError> {
-        S::enqueue(connection, self).await
+impl From<Uuid> for TaskId {
+    fn from(value: Uuid) -> Self {
+        Self(value)
+    }
+}
+
+impl From<TaskId> for Uuid {
+    fn from(value: TaskId) -> Self {
+        value.0
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum TaskQueueError {
     #[error("unable to find task with ID {0}")]
-    UnknownTask(Uuid),
+    UnknownTask(TaskId),
 
     #[error("unspecified error with the task queue")]
     Unknown,
@@ -82,58 +165,52 @@ pub enum TaskQueueError {
 pub trait TaskStore: Send + Sync + 'static {
     type Connection: Send;
 
-    async fn cancel(&self, id: Uuid) -> Result<(), TaskQueueError> {
+    async fn cancel(&self, id: TaskId) -> Result<(), TaskQueueError> {
         self.update_state(id, TaskState::Cancelled).await
     }
 
     async fn enqueue<T: TaskLike>(
         conn: &mut Self::Connection,
         task: T,
-    ) -> Result<Option<Uuid>, TaskQueueError>
+    ) -> Result<Option<TaskId>, TaskQueueError>
     where
         Self: Sized;
 
     async fn next(&self, queue_name: &str) -> Result<Option<Task>, TaskQueueError>;
 
-    async fn enqueue_retry(&self, id: Uuid) -> Result<Option<Uuid>, TaskQueueError>;
+    async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
 
-    async fn update_state(&self, id: Uuid, state: TaskState) -> Result<(), TaskQueueError>;
+    async fn update_state(&self, id: TaskId, state: TaskState) -> Result<(), TaskQueueError>;
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct TestTask {
-    number: usize,
+#[derive(Clone, Debug, PartialEq)]
+pub struct Task {
+    pub id: TaskId,
+
+    next_id: Option<TaskId>,
+    previous_id: Option<TaskId>,
+
+    name: String,
+    queue_name: String,
+
+    unique_key: Option<String>,
+    state: TaskState,
+
+    current_attempt: usize,
+    maximum_attempts: usize,
+
+    // will need a live-cancel signal and likely a custom Future impl to ensure its used for proper
+    // timeout handling
+
+    payload: serde_json::Value,
+    error: Option<serde_json::Value>,
+
+    scheduled_at: OffsetDateTime,
+    scheduled_to_run_at: OffsetDateTime,
+
+    started_at: Option<OffsetDateTime>,
+    finished_at: Option<OffsetDateTime>,
 }
-
-impl TestTask {
-    pub fn new(number: usize) -> Self {
-        Self { number }
-    }
-}
-
-#[async_trait]
-impl TaskLike for TestTask {
-    const TASK_NAME: &'static str = "test_task";
-
-    type Error = TestTaskError;
-    type TaskContext = ();
-
-    async fn run(&self, _task: CurrentTask, _ctx: Self::TaskContext) -> Result<(), Self::Error> {
-        tracing::info!("the test task value is {}", self.number);
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct TestTaskError;
-
-impl Display for TestTaskError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("unspecified error with the task")
-    }
-}
-
-impl std::error::Error for TestTaskError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TaskState {
@@ -147,37 +224,9 @@ pub enum TaskState {
     Dead,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Task {
-    pub id: Uuid,
-
-    next_id: Option<Uuid>,
-    previous_id: Option<Uuid>,
-
-    name: String,
-    queue_name: String,
-
-    unique_key: Option<String>,
-    state: TaskState,
-
-    current_attempt: usize,
-    maximum_attempts: usize,
-
-    // will need a live-cancel signal and likely a custom Future impl to ensure its used for proper
-    // timeout handling
-    payload: serde_json::Value,
-    error: Option<serde_json::Value>,
-
-    scheduled_at: OffsetDateTime,
-    scheduled_to_run_at: OffsetDateTime,
-
-    started_at: Option<OffsetDateTime>,
-    finished_at: Option<OffsetDateTime>,
-}
-
 #[derive(Clone, Default)]
 pub struct MemoryTaskStore {
-    pub tasks: Arc<Mutex<BTreeMap<Uuid, Task>>>,
+    pub tasks: Arc<Mutex<BTreeMap<TaskId, Task>>>,
 }
 
 impl MemoryTaskStore {
@@ -215,7 +264,7 @@ impl TaskStore for MemoryTaskStore {
     async fn enqueue<T: TaskLike>(
         conn: &mut Self::Connection,
         task: T,
-    ) -> Result<Option<Uuid>, TaskQueueError> {
+    ) -> Result<Option<TaskId>, TaskQueueError> {
         let unique_key = task.unique_key().await;
 
         if let Some(new_key) = &unique_key {
@@ -224,7 +273,7 @@ impl TaskStore for MemoryTaskStore {
             }
         }
 
-        let id = Uuid::new_v4();
+        let id = TaskId::from(Uuid::new_v4());
         let payload = serde_json::to_value(task).map_err(|_| TaskQueueError::Unknown)?;
 
         let task = Task {
@@ -257,7 +306,7 @@ impl TaskStore for MemoryTaskStore {
         Ok(Some(id))
     }
 
-    async fn enqueue_retry(&self, id: Uuid) -> Result<Option<Uuid>, TaskQueueError> {
+    async fn enqueue_retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError> {
         let mut tasks = self.tasks.lock().await;
 
         let target_task = match tasks.get_mut(&id) {
@@ -272,7 +321,7 @@ impl TaskStore for MemoryTaskStore {
         }
 
         // no retries remaining mark the task as dead
-        if target_task.current_attempt >= target_task.maximum_attempts  {
+        if target_task.current_attempt >= target_task.maximum_attempts {
             tracing::warn!(?id, "task failed with no more attempts remaining");
             target_task.state = TaskState::Dead;
             return Ok(None);
@@ -280,7 +329,7 @@ impl TaskStore for MemoryTaskStore {
 
         let mut new_task = target_task.clone();
 
-        let new_id = Uuid::new_v4();
+        let new_id = TaskId::from(Uuid::new_v4());
         target_task.next_id = Some(new_task.id);
 
         new_task.id = new_id;
@@ -355,7 +404,7 @@ impl TaskStore for MemoryTaskStore {
         Ok(next_task)
     }
 
-    async fn update_state(&self, id: Uuid, new_state: TaskState) -> Result<(), TaskQueueError> {
+    async fn update_state(&self, id: TaskId, new_state: TaskState) -> Result<(), TaskQueueError> {
         let mut tasks = self.tasks.lock().await;
 
         let task = match tasks.get_mut(&id) {
@@ -396,4 +445,117 @@ fn sort_tasks(a: &Task, b: &Task) -> Ordering {
         Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
         ord => ord,
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TaskExecError {
+    #[error("task deserialization failed: {0}")]
+    TaskDeserializationFailed(#[from] serde_json::Error),
+
+    #[error("task execution failed: {0}")]
+    ExecutionFailed(String),
+
+    #[error("task panicked with: {0}")]
+    Panicked(String),
+}
+
+#[derive(Clone)]
+pub struct WorkerPool<Context, S>
+where
+    Context: Clone + Send + 'static,
+    S: TaskStore + Clone,
+{
+    task_store: S,
+
+    application_data_fn: StateFn<Context>,
+
+    task_registry: BTreeMap<&'static str, ExecuteTaskFn<Context>>,
+
+    queue_tasks: BTreeMap<&'static str, Vec<&'static str>>,
+
+    worker_queues: BTreeMap<String, QueueConfig>,
+}
+
+impl<Context, S> WorkerPool<Context, S>
+where
+    Context: Clone + Send + 'static,
+    S: TaskStore + Clone,
+{
+    pub fn new<A>(task_store: S, application_data_fn: A) -> Self
+    where
+        A: Fn() -> Context + Send + Sync + 'static,
+    {
+        Self {
+            task_store,
+            application_data_fn: Arc::new(application_data_fn),
+            task_registry: BTreeMap::new(),
+            queue_tasks: BTreeMap::new(),
+            worker_queues:BTreeMap::new(),
+        }
+    }
+
+    pub fn register_task_type<TL>(mut self) -> Self
+    where
+        TL: TaskLike<Context = Context>,
+    {
+        self.queue_tasks
+            .entry(TL::QUEUE_NAME)
+            .or_insert_with(Vec::new)
+            .push(TL::TASK_NAME);
+
+        self.task_registry
+            .insert(TL::TASK_NAME, Arc::new(deserialize_and_run_task::<TL>));
+
+        self
+    }
+}
+
+fn deserialize_and_run_task<TL>(
+    current_task: CurrentTask,
+    payload: serde_json::Value,
+    context: TL::Context,
+) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
+where
+    TL: TaskLike,
+{
+    Box::pin(async move {
+        let task: TL = serde_json::from_value(payload)?;
+
+        match task.run(current_task, context).await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(TaskExecError::ExecutionFailed(err.to_string())),
+        }
+    })
+}
+
+// example specific task implementation, everything above is supporting infrastructure
+
+#[derive(Deserialize, Serialize)]
+pub struct TestTask {
+    number: usize,
+}
+
+impl TestTask {
+    pub fn new(number: usize) -> Self {
+        Self { number }
+    }
+}
+
+#[async_trait]
+impl TaskLike for TestTask {
+    const TASK_NAME: &'static str = "test_task";
+
+    type Error = TestTaskError;
+    type Context = ();
+
+    async fn run(&self, _task: CurrentTask, _ctx: Self::Context) -> Result<(), Self::Error> {
+        tracing::info!("the test task value is {}", self.number);
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TestTaskError {
+    #[error("unspecified error with the task")]
+    Unknown,
 }
