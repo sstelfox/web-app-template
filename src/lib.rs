@@ -60,7 +60,7 @@ pub async fn test_tasks_placeholder() {
 
     let worker_pool = tasks::WorkerPool::new(mts, move || { () })
         .register_task_type::<tasks::TestTask>()
-        .configure_queue("default".into())
+        .configure_queue(tasks::QueueConfig::new("default"))
         .start(async move { let _ = rx.changed().await; });
 
     let pool_run_handle = tokio::spawn(async move {

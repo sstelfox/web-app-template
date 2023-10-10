@@ -31,14 +31,14 @@ pub type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct QueueConfig {
-    name: String,
+    name: &'static str,
     num_workers: usize,
 }
 
 impl QueueConfig {
-    pub fn new(name: impl ToString) -> Self {
+    pub fn new(name: &'static str) -> Self {
         Self {
-            name: name.to_string(),
+            name,
             num_workers: 1,
         }
     }
@@ -46,15 +46,6 @@ impl QueueConfig {
     pub fn num_workers(mut self, num_workers: usize) -> Self {
         self.num_workers = num_workers;
         self
-    }
-}
-
-impl<S> From<S> for QueueConfig
-where
-    S: ToString,
-{
-    fn from(name: S) -> Self {
-        Self::new(name.to_string())
     }
 }
 
@@ -467,7 +458,7 @@ where
 
     queue_tasks: BTreeMap<&'static str, Vec<&'static str>>,
 
-    worker_queues: BTreeMap<String, QueueConfig>,
+    worker_queues: BTreeMap<&'static str, QueueConfig>,
 }
 
 impl<Context, S> WorkerPool<Context, S>
@@ -476,7 +467,7 @@ where
     S: TaskStore + Clone,
 {
     pub fn configure_queue(mut self, config: QueueConfig) -> Self {
-        self.worker_queues.insert(config.name.clone(), config);
+        self.worker_queues.insert(config.name, config);
         self
     }
 
@@ -512,12 +503,20 @@ where
     where
         F: Future<Output = ()> + Send + 'static,
     {
+        for (queue_name, queue_tracked_tasks) in self.queue_tasks.iter() {
+            if !self.worker_queues.contains_key(queue_name) {
+                return Err(WorkerPoolError::QueueNotConfigured(queue_name, queue_tracked_tasks.clone()));
+            }
+        }
+
         todo!()
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerPoolError {
+    #[error("found named queue '{0}' defined by task(s) {1:?} that doesn't have a matching queue config")]
+    QueueNotConfigured(&'static str, Vec<&'static str>),
 }
 
 fn deserialize_and_run_task<TL>(
