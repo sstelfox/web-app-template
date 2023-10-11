@@ -922,8 +922,12 @@ impl TaskLike for TestTask {
     type Error = TestTaskError;
     type Context = ();
 
-    async fn run(&self, _task: CurrentTask, _ctx: Self::Context) -> Result<(), Self::Error> {
-        tracing::info!("the test task value is {}", self.number);
+    async fn run(&self, task: CurrentTask, _ctx: Self::Context) -> Result<(), Self::Error> {
+        if task.current_attempt != 0 {
+            tracing::info!("the test task value is {}", self.number);
+            return Ok(());
+        }
+
         Err(TestTaskError::Unknown)
     }
 }
