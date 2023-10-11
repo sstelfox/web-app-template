@@ -60,8 +60,6 @@ impl CreateSession {
         tracing::debug!("accessing OAuth access token secret to save it to the database");
         let access_token_secret = self.access_token.secret();
 
-        tracing::warn!("{:?}", self);
-
         let session_id_str = sqlx::query_scalar!(
             r#"INSERT INTO sessions
                 (user_id, provider, access_token_secret, access_expires_at, refresh_token, client_ip, user_agent, expires_at)
@@ -132,7 +130,22 @@ impl Session {
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
         let id_str = id.to_string();
 
-        let query_result = sqlx::query_as!(Self, "SELECT * FROM sessions WHERE id = $1;", id_str)
+        // todo, fix id types with decoding using "user_id: UserId",
+        let query_result = sqlx::query_as!(
+            Self,
+            r#"SELECT
+                   id,
+                   user_id,
+                   provider as "provider: LoginProvider",
+                   access_token_secret,
+                   access_expires_at,
+                   refresh_token,
+                   client_ip,
+                   user_agent,
+                   created_at,
+                   expires_at
+                 FROM sessions
+                 WHERE id = $1;"#, id_str)
             .fetch_one(database.deref())
             .await;
 

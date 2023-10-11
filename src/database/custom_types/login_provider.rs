@@ -80,9 +80,3 @@ impl Display for LoginProvider {
         f.write_str(msg)
     }
 }
-
-impl From<String> for LoginProvider {
-    fn from(val: String) -> Self {
-        Self::parse_str(val.as_str()).expect("valid login provider type")
-    }
-}
