@@ -24,7 +24,7 @@ impl OAuthClient {
         secrets: &Secrets,
     ) -> Result<Self, OAuthClientError> {
         let provider_credentials = secrets.provider_credential(login_provider).ok_or(
-            OAuthClientError::CredentialsMissing(login_provider.as_str()),
+            OAuthClientError::CredentialsMissing(login_provider.to_string()),
         )?;
 
         let provider_config = login_provider.config();
@@ -32,7 +32,7 @@ impl OAuthClient {
         let auth_url = provider_config.auth_url();
         let token_url = provider_config.token_url();
 
-        redirect_url.set_path(&CALLBACK_PATH_TEMPLATE.replace("{}", login_provider.as_str()));
+        redirect_url.set_path(&CALLBACK_PATH_TEMPLATE.replace("{}", &login_provider.to_string()));
         let redirect_url = RedirectUrl::from_url(redirect_url);
 
         let mut client = BasicClient::new(
@@ -90,7 +90,7 @@ impl OAuthClient {
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthClientError {
     #[error("unable to location credentials for '{0}' login provider")]
-    CredentialsMissing(&'static str),
+    CredentialsMissing(String),
 
     #[error("failed to verify exchange code: {0}")]
     ExchangeCodeFailure(String),

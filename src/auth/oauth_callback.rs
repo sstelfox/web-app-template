@@ -33,7 +33,8 @@ pub async fn handler(
     Path(provider): Path<String>,
     Query(params): Query<CallbackParameters>,
 ) -> Result<Response, OAuthCallbackError> {
-    let provider = LoginProvider::from(provider);
+    // todo: need error
+    let provider = LoginProvider::parse_str(provider.as_str()).expect("valid provider");
 
     let verify_oauth_state =
         VerifyOAuthState::locate_and_delete(&database, provider, params.csrf_token)

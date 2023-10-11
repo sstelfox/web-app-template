@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.70"
 
 [dependencies]
+async-trait = "^0.1"
 dotenvy = "^0.15"
 futures = "^0.3"
 itertools = "^0.11"
@@ -33,7 +34,7 @@ hyper = "^0.14"
 lettre = { version = "^0.10", features = ["tokio1-rustls-tls", "base64", "pool", "smtp-transport", "tracing", "email-encoding", "hostname", "mime", "builder", "dkim"], default-features = false }
 oauth2 = "^4"
 reqwest = { version = "^0.11", default-features = false, features = ["json"] }
-sqlx = { version = "^0.7", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite", "tls-rustls", "uuid", "time"] }
+sqlx = { version = "^0.7", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite", "tls-rustls", "time"], git = "https://github.com/sstelfox/sqlx.git", branch = "sstelfox/sqlite-datatype-visibility" }
 tower-http = { version = "^0.4", features = ["auth", "cors", "limit", "fs", "propagate-header", "request-id", "sensitive-headers", "set-header", "util", "trace", "validate-request"] }
 tower = { version = "^0.4", features = ["timeout", "load-shed", "limit", "util"] }
 url = "^2"

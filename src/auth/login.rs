@@ -26,7 +26,8 @@ pub async fn handler(
         return Ok(Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response());
     }
 
-    let provider = LoginProvider::from(provider);
+    // todo: need error
+    let provider = LoginProvider::parse_str(provider.as_str()).expect("valid provider");
 
     let oauth_client = OAuthClient::configure(provider, hostname, &state.secrets())
         .map_err(LoginError::UnableToConfigureOAuth)?;

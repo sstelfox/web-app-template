@@ -2349,8 +2349,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e50c216e3624ec8e7ecd14c6a6a6370aad6ee5d8cfc3ab30b5162eeeef2ed33"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -2362,8 +2361,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6753e460c998bbd4cd8c6f0ed9a64346fcca0723d6e75e52fdc351c5d2169d"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "ahash",
  "atoi",
@@ -2400,15 +2398,13 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
- "uuid",
  "webpki-roots 0.24.0",
 ]
 
 [[package]]
 name = "sqlx-macros"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a793bb3ba331ec8359c1853bd39eed32cdd7baaf22c35ccf5c92a7e8d1189ec"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2420,8 +2416,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros-core"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a4ee1e104e00dedb6aa5ffdd1343107b0a4702e862a84320ee7cc74782d96fc"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "dotenvy",
  "either",
@@ -2446,8 +2441,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "864b869fdf56263f4c95c45483191ea0af340f9f3e3e7b4d57a61c7c87a970db"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "atoi",
  "base64 0.21.4",
@@ -2483,15 +2477,13 @@ dependencies = [
  "thiserror",
  "time",
  "tracing",
- "uuid",
  "whoami",
 ]
 
 [[package]]
 name = "sqlx-postgres"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb7ae0e6a97fb3ba33b23ac2671a5ce6e3cabe003f451abd5a56e7951d975624"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "atoi",
  "base64 0.21.4",
@@ -2524,15 +2516,13 @@ dependencies = [
  "thiserror",
  "time",
  "tracing",
- "uuid",
  "whoami",
 ]
 
 [[package]]
 name = "sqlx-sqlite"
 version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59dc83cf45d89c555a577694534fcd1b55c545a816c816ce51f20bbe56a4f3f"
+source = "git+https://github.com/sstelfox/sqlx.git?branch=sstelfox/sqlite-datatype-visibility#e90d65d775d86fb207b9825cf24d40fb12b4513b"
 dependencies = [
  "atoi",
  "flume",
@@ -2549,7 +2539,6 @@ dependencies = [
  "time",
  "tracing",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -3083,6 +3072,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 name = "web-app-template"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "axum-extra",
  "base64 0.21.4",
