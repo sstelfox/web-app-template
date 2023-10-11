@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -608,15 +609,19 @@ impl<T: TaskStore> WorkScheduler<T> {
     pub fn new(store: T) -> Self {
         Self(store)
     }
+}
 
-    pub async fn enqueue(&mut self, _task: impl TaskLike) -> Result<(), WorkSchedulerError> {
+impl<T: TaskStore> Deref for WorkScheduler<T> {
+    type Target = T;
 
-        // todo: get this working...
-        //task.enqueue::<T>(&mut (self.0 as T::Connection))
-        //    .await
-        //    .map_err(WorkSchedulerError::EnqueueFailed)?;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
-        Ok(())
+impl<T: TaskStore> DerefMut for WorkScheduler<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

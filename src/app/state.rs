@@ -9,6 +9,7 @@ use sha2::Digest;
 use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey};
 use crate::database::custom_types::LoginProvider;
 use crate::database::{self, Database, DatabaseSetupError};
+use crate::tasks::{MemoryTaskStore, WorkScheduler};
 
 #[derive(Clone)]
 pub struct State {
@@ -16,6 +17,7 @@ pub struct State {
     secrets: Secrets,
     service_verifier: ServiceVerificationKey,
     upload_directory: PathBuf,
+    work_scheduler: WorkScheduler<MemoryTaskStore>,
 }
 
 impl State {
@@ -23,7 +25,7 @@ impl State {
         self.database.clone()
     }
 
-    pub async fn from_config(config: &Config) -> Result<Self, StateSetupError> {
+    pub async fn from_config(config: &Config, work_scheduler: WorkScheduler<MemoryTaskStore>) -> Result<Self, StateSetupError> {
         // Do a test setup to make sure the upload directory exists and is writable as an early
         // sanity check
         //LocalFileSystem::new_with_prefix(&config.upload_directory())
@@ -46,6 +48,7 @@ impl State {
             secrets,
             service_verifier,
             upload_directory: config.upload_directory(),
+            work_scheduler,
         })
     }
 
@@ -59,6 +62,10 @@ impl State {
 
     pub fn upload_directory(&self) -> PathBuf {
         self.upload_directory.clone()
+    }
+
+    pub fn work_scheduler(&self) -> WorkScheduler<MemoryTaskStore> {
+        self.work_scheduler.clone()
     }
 }
 
@@ -77,6 +84,12 @@ impl FromRef<State> for Secrets {
 impl FromRef<State> for ServiceVerificationKey {
     fn from_ref(state: &State) -> Self {
         state.service_verifier()
+    }
+}
+
+impl FromRef<State> for WorkScheduler<MemoryTaskStore> {
+    fn from_ref(state: &State) -> Self {
+        state.work_scheduler()
     }
 }
 

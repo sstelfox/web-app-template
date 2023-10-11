@@ -6,6 +6,8 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
+use crate::tasks::WorkScheduler;
+
 pub mod app;
 mod auth;
 mod database;
@@ -15,7 +17,7 @@ pub mod http_server;
 pub mod tasks;
 pub mod utils;
 
-use tasks::{MemoryTaskStore, TaskStore};
+use tasks::MemoryTaskStore;
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
@@ -92,9 +94,9 @@ pub fn graceful_shutdown_blocker() -> (JoinHandle<()>, watch::Receiver<()>) {
     (handle, rx)
 }
 
-pub async fn http_server(config: app::Config, shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
+pub async fn http_server(config: app::Config, work_scheduler: WorkScheduler<MemoryTaskStore>, shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
     tokio::spawn(async move {
-        match http_server::run(config, shutdown_rx).await {
+        match http_server::run(config, work_scheduler, shutdown_rx).await {
             Ok(_) => tracing::info!("shutting down normally"),
             Err(err) => tracing::error!("http server exited with an error: {err}"),
         }
