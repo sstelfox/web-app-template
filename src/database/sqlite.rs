@@ -32,7 +32,7 @@ pub async fn connect_sqlite(url: &Url) -> Result<SqlitePool, DatabaseSetupError>
         .map_err(DatabaseSetupError::Unavailable)
 }
 
-pub async fn mitrate_sqlite(pool: &SqlitePool) -> Result<(), DatabaseSetupError> {
+pub async fn migrate_sqlite(pool: &SqlitePool) -> Result<(), DatabaseSetupError> {
     MIGRATOR
         .run(pool)
         .await
