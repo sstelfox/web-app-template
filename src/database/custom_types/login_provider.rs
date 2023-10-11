@@ -25,7 +25,7 @@ pub enum LoginProvider {
 impl LoginProvider {
     pub const fn as_str(&self) -> &'static str {
         match &self {
-            LoginProvider::Google => "Google",
+            LoginProvider::Google => "google",
         }
     }
 
@@ -45,6 +45,9 @@ impl LoginProvider {
 impl From<String> for LoginProvider {
     fn from(val: String) -> Self {
         match val.as_str() {
+            // I have no idea why but it seems to switch back and forth between these two
+            // encodings...
+            "google" => LoginProvider::Google,
             "Google" => LoginProvider::Google,
             _ => panic!("attempted to access unknown provider"),
         }
