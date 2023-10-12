@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Encode, Sqlite, Type};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
-use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteType, SqliteValueRef};
+use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
 
 use crate::database::custom_types::LoginProviderConfig;
 
@@ -57,17 +57,18 @@ impl Encode<'_, Sqlite> for LoginProvider {
 
 impl Decode<'_, Sqlite> for LoginProvider {
     fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
-        Self::parse_str(&value.text()?).map_err(Into::into)
+        let inner_val = <String as Decode<Sqlite>>::decode(value)?;
+        Self::parse_str(&inner_val).map_err(Into::into)
     }
 }
 
 impl Type<Sqlite> for LoginProvider {
     fn compatible(ty: &SqliteTypeInfo) -> bool {
-        matches!(ty.0, SqliteType::Text)
+        <String as Type<Sqlite>>::compatible(ty)
     }
 
     fn type_info() -> SqliteTypeInfo {
-        SqliteTypeInfo(SqliteType::Text)
+        <String as Type<Sqlite>>::type_info()
     }
 }
 
