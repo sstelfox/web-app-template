@@ -77,12 +77,11 @@ CREATE TABLE api_keys (
 );
 
 CREATE TABLE background_tasks (
-  id TEXT NOT NULL PRIMARY KEY DEFAULT (
-    lower(hex(randomblob(4))) || '-' ||
-    lower(hex(randomblob(2))) || '-4' ||
-    substr(lower(hex(randomblob(2))), 2) || '-a' ||
-    substr(lower(hex(randomblob(2))), 2) || '-6' ||
-    substr(lower(hex(randomblob(6))), 2)
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (
+    randomblob(6) ||
+    (randomblob(1) | X'40') ||
+    (randomblob(1) & X'0F' | X'80') ||
+    randomblob(4)
   ),
 
   next_id TEXT NULL
