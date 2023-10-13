@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as 'id: UserId' FROM users WHERE email = LOWER($1);",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: UserId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9260284e21ebcf934d310f9c569c76b3a076acd74dfc01e817cb7e7154bce179"
+}

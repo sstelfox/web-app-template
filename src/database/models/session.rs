@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+//use std::net::IpAddr;
 use std::ops::Deref;
 use std::time::Duration;
 
@@ -18,7 +18,7 @@ pub struct CreateSession {
     access_expires_at: Option<OffsetDateTime>,
     refresh_token: Option<String>,
 
-    client_ip: Option<IpAddr>,
+    client_ip: Option<Vec<u8>>,
     user_agent: Option<String>,
 }
 
@@ -28,10 +28,10 @@ impl CreateSession {
         self
     }
 
-    pub fn client_ip(&mut self, client_ip: IpAddr) -> &mut Self {
-        self.client_ip = Some(client_ip);
-        self
-    }
+    //pub fn client_ip(&mut self, client_ip: IpAddr) -> &mut Self {
+    //    self.client_ip = Some(client_ip);
+    //    self
+    //}
 
     pub fn new(user_id: UserId, provider: LoginProvider, access_token: AccessToken) -> Self {
         Self {
@@ -53,32 +53,28 @@ impl CreateSession {
     }
 
     pub async fn save(self, database: &Database) -> Result<SessionId, SessionError> {
-        let user_id_str = self.user_id.to_string();
-        let client_ip_str = self.client_ip.map(|cip| cip.to_string());
         let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
 
         tracing::debug!("accessing OAuth access token secret to save it to the database");
         let access_token_secret = self.access_token.secret();
 
-        let session_id_str = sqlx::query_scalar!(
+        sqlx::query_scalar!(
             r#"INSERT INTO sessions
                 (user_id, provider, access_token_secret, access_expires_at, refresh_token, client_ip, user_agent, expires_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING id;"#,
-            user_id_str,
+                RETURNING id as 'id: SessionId';"#,
+            self.user_id,
             self.provider,
             access_token_secret,
             self.access_expires_at,
             self.refresh_token,
-            client_ip_str,
+            self.client_ip,
             self.user_agent,
             expires_at,
         )
         .fetch_one(database.deref())
         .await
-        .map_err(SessionError::SaveFailed)?;
-
-        Ok(SessionId::from(session_id_str))
+        .map_err(SessionError::SaveFailed)
     }
 
     pub fn user_agent(&mut self, user_agent: String) -> &mut Self {
@@ -97,7 +93,7 @@ pub struct Session {
     access_expires_at: Option<OffsetDateTime>,
     refresh_token: Option<String>,
 
-    client_ip: Option<String>,
+    client_ip: Option<Vec<u8>>,
     user_agent: Option<String>,
 
     created_at: OffsetDateTime,
@@ -128,15 +124,12 @@ impl Session {
     }
 
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
-        let id_str = id.to_string();
-
-        // todo, fix id types with decoding using "user_id: UserId",
         let query_result = sqlx::query_as!(
             Self,
             r#"SELECT
-                   id,
-                   user_id,
-                   provider as "provider: LoginProvider",
+                   id as 'id: SessionId',
+                   user_id as 'user_id: UserId',
+                   provider as 'provider: LoginProvider',
                    access_token_secret,
                    access_expires_at,
                    refresh_token,
@@ -145,7 +138,7 @@ impl Session {
                    created_at,
                    expires_at
                  FROM sessions
-                 WHERE id = $1;"#, id_str)
+                 WHERE id = $1;"#, id)
             .fetch_one(database.deref())
             .await;
 

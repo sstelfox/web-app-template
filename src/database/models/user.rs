@@ -36,10 +36,10 @@ impl CreateUser {
     pub async fn save(self, database: &Database) -> Result<UserId, UserError> {
         let profile_image_str = self.profile_image.map(|i| i.to_string());
 
-        let user_id_str = sqlx::query_scalar!(
+        sqlx::query_scalar!(
             r#"INSERT INTO users (email, display_name, locale, profile_image)
                 VALUES (LOWER($1), $2, $3, $4)
-                RETURNING id;"#,
+                RETURNING id as 'id: UserId';"#,
             self.email,
             self.display_name,
             self.locale,
@@ -47,9 +47,7 @@ impl CreateUser {
         )
         .fetch_one(database.deref())
         .await
-        .map_err(UserError::SaveFailed)?;
-
-        Ok(UserId::from(user_id_str))
+        .map_err(UserError::SaveFailed)
     }
 }
 
