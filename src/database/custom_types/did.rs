@@ -37,15 +37,6 @@ impl From<Uuid> for Did {
     }
 }
 
-// todo: I probably want to get rid of this...
-impl TryFrom<String> for Did {
-    type Error = DidError;
-
-    fn try_from(val: String) -> Result<Self, Self::Error> {
-        Uuid::parse_str(&val).map(Self).map_err(DidError::InvalidUuid)
-    }
-}
-
 impl Encode<'_, Sqlite> for Did {
     fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
         let encoded_bytes = self.0.to_bytes_le();
@@ -166,5 +157,34 @@ mod test {
         assert!(matches!(did_error, DidError::CorruptSize));
 
         transact.rollback().await.expect("rollback")
+    }
+
+    #[tokio::test]
+    async fn test_sqlx_encoding() {
+        let db_pool = test_database().await;
+        let mut transact = db_pool.begin().await.expect("transaction");
+
+        sqlx::query("CREATE TABLE did_encoding_test (did BLOB NOT NULL);")
+            .execute(&mut *transact)
+            .await
+            .expect("setup to succeed");
+
+        let sample_did = Did::from(Uuid::parse_str("c97dc8dd-244f-4465-aab2-9562ba2a128b").expect("uuid"));
+        let returned_did: Did = sqlx::query_scalar(
+            "INSERT INTO did_encoding_test (did) VALUES ($1) RETURNING did as 'did: Did';",
+        )
+        .bind(sample_did)
+        .fetch_one(&mut *transact)
+        .await
+        .expect("insert to succeed");
+
+        assert_eq!(sample_did, returned_did);
+
+        let raw_did: Vec<u8> = sqlx::query_scalar("SELECT did FROM did_encoding_test;")
+            .fetch_one(&mut *transact)
+            .await
+            .expect("return to succeed");
+
+        assert_eq!(&raw_did, &[0xdd, 0xc8, 0x7d, 0xc9, 0x4f, 0x24, 0x65, 0x44, 0xaa, 0xb2, 0x95, 0x62, 0xba, 0x2a, 0x12, 0x8b]);
     }
 }
