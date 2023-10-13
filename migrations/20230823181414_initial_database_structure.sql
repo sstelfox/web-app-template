@@ -1,10 +1,5 @@
 CREATE TABLE users (
-  id BLOB NOT NULL PRIMARY KEY DEFAULT (
-    randomblob(6) ||
-    (randomblob(1) | X'40') ||
-    (randomblob(1) & X'0F' | X'80') ||
-    randomblob(4)
-  ),
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   email TEXT NOT NULL,
   display_name TEXT NOT NULL,
@@ -34,12 +29,7 @@ CREATE UNIQUE INDEX idx_unique_oauth_state_on_provider_csrf_token_secret
   ON oauth_state(provider, csrf_token_secret);
 
 CREATE TABLE sessions (
-  id BLOB NOT NULL PRIMARY KEY DEFAULT (
-    randomblob(6) ||
-    (randomblob(1) | X'40') ||
-    (randomblob(1) & X'0F' | X'80') ||
-    randomblob(4)
-  ),
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   user_id BLOB NOT NULL
     REFERENCES users(id)
@@ -58,12 +48,7 @@ CREATE TABLE sessions (
 );
 
 CREATE TABLE api_keys (
-  id BLOB NOT NULL PRIMARY KEY DEFAULT (
-    randomblob(6) ||
-    (randomblob(1) | X'40') ||
-    (randomblob(1) & X'0F' | X'80') ||
-    randomblob(4)
-  ),
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   user_id BLOB NOT NULL
     REFERENCES users(id)
@@ -76,12 +61,7 @@ CREATE TABLE api_keys (
 );
 
 CREATE TABLE background_jobs (
-  id BLOB NOT NULL PRIMARY KEY DEFAULT (
-    randomblob(6) ||
-    (randomblob(1) | X'40') ||
-    (randomblob(1) & X'0F' | X'80') ||
-    randomblob(4)
-  ),
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   name TEXT NOT NULL,
   queue_name TEXT NOT NULL DEFAULT 'default',
@@ -111,12 +91,7 @@ CREATE UNIQUE INDEX idx_background_jobs_on_name_unique_key
   WHERE unique_key != NULL AND state IN (1, 2, 3);
 
 CREATE TABLE job_run (
-  id BLOB NOT NULL PRIMARY KEY DEFAULT (
-    randomblob(6) ||
-    (randomblob(1) | X'40') ||
-    (randomblob(1) & X'0F' | X'80') ||
-    randomblob(4)
-  ),
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   background_job_id BLOB NOT NULL
     REFERENCES background_jobs(id)
