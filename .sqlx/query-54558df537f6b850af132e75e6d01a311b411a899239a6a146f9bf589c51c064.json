@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 'bing' as 'login_provider: LoginProvider';",
+  "describe": {
+    "columns": [
+      {
+        "name": "login_provider: LoginProvider",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "54558df537f6b850af132e75e6d01a311b411a899239a6a146f9bf589c51c064"
+}

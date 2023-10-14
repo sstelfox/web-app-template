@@ -9,7 +9,7 @@ SQLITE_URL="sqlite://$(pwd)/data/service.db"
 
 function sqlite_setup() {
   mkdir -p data
-  rm -f data/server.db* &>/dev/null
+  rm -f data/service.db* &>/dev/null
 
   sqlx database setup --database-url ${SQLITE_URL} --source ./migrations \
     --sqlite-create-db-wal true

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 'google' as 'login_provider: LoginProvider';",
+  "describe": {
+    "columns": [
+      {
+        "name": "login_provider: LoginProvider",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "19d8328470ee73e8a3f2c47fd7f536c2c0e08618264392bf9981df0c44738a4e"
+}
