@@ -67,7 +67,7 @@ CREATE TABLE background_jobs (
   queue_name TEXT NOT NULL DEFAULT 'default',
 
   unique_key BLOB,
-  state INTEGER NOT NULL,
+  state TEXT NOT NULL,
 
   current_attempt INTEGER NOT NULL DEFAULT 1,
   maximum_attempts INTEGER NOT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE job_run (
     REFERENCES background_jobs(id)
     ON DELETE CASCADE,
 
-  result NUMERIC NOT NULL,
+  result TEXT NOT NULL,
   output BLOB,
 
   run_started_at TIMESTAMP,

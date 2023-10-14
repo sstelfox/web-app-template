@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 use sqlx::{Decode, Encode, Sqlite, Type};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
@@ -15,52 +17,54 @@ pub enum BackgroundJobState {
 
 impl Encode<'_, Sqlite> for BackgroundJobState {
     fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
-        args.push(SqliteArgumentValue::Int((*self).into()));
+        args.push(SqliteArgumentValue::Text(self.to_string().into()));
         IsNull::No
     }
 }
 
 impl Decode<'_, Sqlite> for BackgroundJobState {
     fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
-        let inner_val = <i32 as Decode<Sqlite>>::decode(value)?;
+        let inner_val = <&str as Decode<Sqlite>>::decode(value)?;
         Self::try_from(inner_val).map_err(Into::into)
     }
 }
 
 impl Type<Sqlite> for BackgroundJobState {
     fn compatible(ty: &SqliteTypeInfo) -> bool {
-        <i32 as Type<Sqlite>>::compatible(ty)
+        <&str as Type<Sqlite>>::compatible(ty)
     }
 
     fn type_info() -> SqliteTypeInfo {
-        <i32 as Type<Sqlite>>::type_info()
+        <&str as Type<Sqlite>>::type_info()
     }
 }
 
-impl From<BackgroundJobState> for i32 {
-    fn from(val: BackgroundJobState) -> Self {
-        match val {
-            BackgroundJobState::New => 0,
-            BackgroundJobState::Started => 1,
-            BackgroundJobState::Retrying => 2,
-            BackgroundJobState::Cancelled => 3,
-            BackgroundJobState::Failed => 4,
-            BackgroundJobState::Complete => 5,
-        }
+impl Display for BackgroundJobState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            BackgroundJobState::New => "new",
+            BackgroundJobState::Started => "started",
+            BackgroundJobState::Retrying => "retrying",
+            BackgroundJobState::Cancelled => "cancelled",
+            BackgroundJobState::Failed => "failed",
+            BackgroundJobState::Complete => "complete",
+        };
+
+        f.write_str(msg)
     }
 }
 
-impl TryFrom<i32> for BackgroundJobState {
+impl TryFrom<&str> for BackgroundJobState {
     type Error = BackgroundJobStateError;
 
-    fn try_from(val: i32) -> Result<Self, Self::Error> {
+    fn try_from(val: &str) -> Result<Self, BackgroundJobStateError> {
         let variant = match val {
-            0 => BackgroundJobState::New,
-            1 => BackgroundJobState::Started,
-            2 => BackgroundJobState::Retrying,
-            3 => BackgroundJobState::Cancelled,
-            4 => BackgroundJobState::Failed,
-            5 => BackgroundJobState::Complete,
+            "new" => BackgroundJobState::New,
+            "started" => BackgroundJobState::Started,
+            "retrying" => BackgroundJobState::Retrying,
+            "cancelled" => BackgroundJobState::Cancelled,
+            "failed" => BackgroundJobState::Failed,
+            "complete" => BackgroundJobState::Complete,
             _ => return Err(BackgroundJobStateError::InvalidStateValue),
         };
 
@@ -70,6 +74,6 @@ impl TryFrom<i32> for BackgroundJobState {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BackgroundJobStateError {
-    #[error("attempted to decode unknown state number")]
+    #[error("attempted to decode unknown state value")]
     InvalidStateValue,
 }
