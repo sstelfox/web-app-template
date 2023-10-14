@@ -4,15 +4,30 @@ CREATE TABLE users (
   email TEXT NOT NULL,
   display_name TEXT NOT NULL,
 
-  -- todo: probably want to normalize locale and check it
-  locale TEXT,
-  profile_image TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
 
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+CREATE UNIQUE INDEX idx_unique_users_on_email
+  ON users(email);
 
-CREATE UNIQUE INDEX idx_unique_users_on_email ON
-  users(email);
+CREATE TABLE oauth_provider_accounts (
+  id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
+
+  user_id BLOB NOT NULL
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  provider TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  provider_email TEXT NOT NULL,
+
+  associated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE UNIQUE INDEX idx_unique_oauth_provider_accounts_on_provider_provider_id
+  ON oauth_provider_accounts(provider, provider_id)
+CREATE UNIQUE INDEX idx_unique_oauth_provider_accounts_on_provider_provider_email
+  ON oauth_provider_accounts(provider, provider_email)
 
 CREATE TABLE oauth_state (
   provider TEXT NOT NULL,
@@ -35,11 +50,6 @@ CREATE TABLE sessions (
     REFERENCES users(id)
     ON DELETE CASCADE,
 
-  provider TEXT NOT NULL,
-  access_token_secret TEXT NOT NULL,
-  access_expires_at TIMESTAMP,
-  refresh_token TEXT,
-
   client_ip BLOB,
   user_agent TEXT,
 
@@ -54,11 +64,17 @@ CREATE TABLE api_keys (
     REFERENCES users(id)
     ON DELETE CASCADE,
 
+  name TEXT,
   fingerprint BLOB NOT NULL,
   public_key BLOB NOT NULL,
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_api_keys_on_user_id
+  ON api_keys(user_id);
+CREATE UNIQUE INDEX idx_unqiue_api_keys_on_fingerprint
+  ON api_keys(fingerprint);
 
 CREATE TABLE background_jobs (
   id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),

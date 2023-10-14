@@ -100,17 +100,6 @@ pub async fn handler(
 
             let mut create_user = CreateUser::new(user_info.email, user_info.name);
 
-            create_user.locale(user_info.locale);
-
-            match Url::parse(&user_info.picture) {
-                Ok(url) => {
-                    create_user.profile_image(url);
-                }
-                Err(err) => {
-                    tracing::warn!("got invalid profile image, not storing corrupted URL: {err}");
-                }
-            }
-
             let new_user_id = create_user
                 .save(&database)
                 .await
@@ -161,7 +150,6 @@ pub async fn handler(
         .sign_digest_with_rng(&mut rng, digest);
 
     let auth_tag = B64.encode(signature.to_vec());
-    tracing::info!(auth_tag = ?auth_tag, auth_tag_len = ?auth_tag.len(), "auth tag length");
     let session_value = [session_enc, auth_tag].join("");
 
     cookie_jar = cookie_jar.add(
@@ -191,14 +179,16 @@ pub struct CallbackParameters {
     csrf_token: CsrfToken,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct GoogleUserProfile {
+    // This is an all numeric ID (sample one was 21 digits) that comes in as a string, probably
+    // could be stored as a number but I'd rather treat it as a unique identifier.
+    #[serde(rename = "id")]
+    google_id: String,
+
     name: String,
     email: String,
     verified_email: bool,
-
-    picture: String,
-    locale: String,
 }
 
 #[derive(Debug, thiserror::Error)]
