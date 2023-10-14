@@ -83,13 +83,9 @@ pub enum DidError {
 mod test {
     use std::error::Error;
 
-    use sqlx::SqlitePool;
+    use crate::tests::prelude::*;
 
     use super::*;
-
-    async fn test_database() -> SqlitePool {
-        SqlitePool::connect("sqlite::memory:").await.expect("db setup")
-    }
 
     // SQLx has turned out to be a largely untrustworthy and inconsistent library when it comes to
     // encoding and decoding, as well as mixed support of the actual underlying database. This
