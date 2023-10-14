@@ -15,8 +15,6 @@ pub static CALLBACK_PATH_TEMPLATE: &str = "/auth/callback/{}";
 
 pub static LOGIN_PATH: &str = "/auth/login";
 
-pub const NEW_USER_COOKIE_NAME: &str = "_is_new_user";
-
 pub static SESSION_COOKIE_NAME: &str = "_session_id";
 
 pub const SESSION_TTL: u64 = 28 * 24 * 60 * 60;
