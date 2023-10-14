@@ -15,8 +15,6 @@ pub async fn handler(
     if let Some(sid) = session {
         let session_id = sid.session_id();
 
-        // todo: revoke token?
-
         if let Err(err) = Session::delete(&database, session_id).await {
             tracing::error!("failed to remove session from the db: {err}");
         }

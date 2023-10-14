@@ -14,7 +14,7 @@ pub async fn handler(
     session: Option<SessionIdentity>,
     State(state): State<AppState>,
     ServerBase(hostname): ServerBase,
-    Path(provider): Path<String>,
+    Path(provider): Path<LoginProvider>,
     Query(params): Query<LoginParams>,
 ) -> Result<Response, LoginError> {
     // already logged in, go wherever the user was originally intended or back to the root
@@ -25,9 +25,6 @@ pub async fn handler(
         tracing::warn!("already logged in user go directed to login handler");
         return Ok(Redirect::to(&params.next_url.unwrap_or("/".to_string())).into_response());
     }
-
-    // todo: need error
-    let provider = LoginProvider::parse_str(provider.as_str()).expect("valid provider");
 
     let oauth_client = OAuthClient::configure(provider, hostname, &state.secrets())
         .map_err(LoginError::UnableToConfigureOAuth)?;

@@ -48,17 +48,17 @@ impl LoginProvider {
     }
 }
 
-impl Encode<'_, Sqlite> for LoginProvider {
-    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
-        args.push(SqliteArgumentValue::Text(Cow::Owned(self.to_string())));
-        IsNull::No
-    }
-}
-
 impl Decode<'_, Sqlite> for LoginProvider {
     fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
         let inner_val = <String as Decode<Sqlite>>::decode(value)?;
         Self::parse_str(&inner_val).map_err(Into::into)
+    }
+}
+
+impl Encode<'_, Sqlite> for LoginProvider {
+    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
+        args.push(SqliteArgumentValue::Text(Cow::Owned(self.to_string())));
+        IsNull::No
     }
 }
 

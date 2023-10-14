@@ -13,17 +13,17 @@ pub enum JobRunResult {
     Success,
 }
 
-impl Encode<'_, Sqlite> for JobRunResult {
-    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
-        args.push(SqliteArgumentValue::Text(self.to_string().into()));
-        IsNull::No
-    }
-}
-
 impl Decode<'_, Sqlite> for JobRunResult {
     fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
         let inner_val = <&str as Decode<Sqlite>>::decode(value)?;
         Self::try_from(inner_val).map_err(Into::into)
+    }
+}
+
+impl Encode<'_, Sqlite> for JobRunResult {
+    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
+        args.push(SqliteArgumentValue::Text(self.to_string().into()));
+        IsNull::No
     }
 }
 

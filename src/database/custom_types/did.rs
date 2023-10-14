@@ -11,6 +11,39 @@ use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
 #[derive(Clone, Copy, PartialEq)]
 pub struct Did(Uuid);
 
+impl Decode<'_, Sqlite> for Did {
+    fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
+        let inner_val = <Vec<u8> as Decode<Sqlite>>::decode(value)?;
+
+        if inner_val.len() != 16 {
+            return Err(DidError::CorruptSize.into());
+        }
+
+        let mut fixed_bytes = [0u8; 16];
+        fixed_bytes.copy_from_slice(&inner_val);
+
+        Ok(Self(Uuid::from_bytes_le(fixed_bytes)))
+    }
+}
+
+impl Encode<'_, Sqlite> for Did {
+    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
+        let encoded_bytes = self.0.to_bytes_le();
+        args.push(SqliteArgumentValue::Blob(Cow::Owned(encoded_bytes.to_vec())));
+        IsNull::No
+    }
+}
+
+impl Type<Sqlite> for Did {
+    fn compatible(ty: &SqliteTypeInfo) -> bool {
+        <Vec<u8> as Type<Sqlite>>::compatible(ty)
+    }
+
+    fn type_info() -> SqliteTypeInfo {
+        <Vec<u8> as Type<Sqlite>>::type_info()
+    }
+}
+
 impl Debug for Did {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Debug::fmt(&self.0, f)
@@ -34,39 +67,6 @@ impl Display for Did {
 impl From<Uuid> for Did {
     fn from(val: Uuid) -> Self {
         Self(val)
-    }
-}
-
-impl Encode<'_, Sqlite> for Did {
-    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
-        let encoded_bytes = self.0.to_bytes_le();
-        args.push(SqliteArgumentValue::Blob(Cow::Owned(encoded_bytes.to_vec())));
-        IsNull::No
-    }
-}
-
-impl Decode<'_, Sqlite> for Did {
-    fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
-        let inner_val = <Vec<u8> as Decode<Sqlite>>::decode(value)?;
-
-        if inner_val.len() != 16 {
-            return Err(DidError::CorruptSize.into());
-        }
-
-        let mut fixed_bytes = [0u8; 16];
-        fixed_bytes.copy_from_slice(&inner_val);
-
-        Ok(Self(Uuid::from_bytes_le(fixed_bytes)))
-    }
-}
-
-impl Type<Sqlite> for Did {
-    fn compatible(ty: &SqliteTypeInfo) -> bool {
-        <Vec<u8> as Type<Sqlite>>::compatible(ty)
-    }
-
-    fn type_info() -> SqliteTypeInfo {
-        <Vec<u8> as Type<Sqlite>>::type_info()
     }
 }
 
