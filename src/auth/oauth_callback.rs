@@ -91,6 +91,13 @@ pub async fn handler(
                 return Err(OAuthCallbackError::UnverifiedEmail);
             }
 
+            // todo: I really should add a provider table here, its not going to matter until I
+            // support multiple login providers, but then additional OIDC servers need to be opted
+            // in by the user from an existing login session to perform the connection. When doing
+            // this I'll want to ensure the user is prompted and intentionally acts to add
+            // themselves. Adding the same email from multiple providers MUST require this explicit
+            // authorization by an already authenticated user.
+
             let mut create_user = CreateUser::new(user_info.email, user_info.name);
 
             create_user.locale(user_info.locale);
