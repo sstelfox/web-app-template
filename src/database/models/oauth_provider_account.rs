@@ -6,6 +6,44 @@ use url::Url;
 use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, ProviderId, UserId};
 use crate::database::Database;
 
+pub struct CreateOAuthProviderAccount {
+    user_id: UserId,
+    provider: LoginProvider,
+    provider_id: ProviderId,
+    provider_email: String,
+}
+
+impl CreateOAuthProviderAccount {
+    pub fn new(
+        user_id: UserId,
+        provider: LoginProvider,
+        provider_id: ProviderId,
+        provider_email: String,
+    ) -> Self {
+        Self {
+            user_id,
+            provider,
+            provider_id,
+            provider_email,
+        }
+    }
+
+    pub async fn save(self, database: &Database) -> Result<OAuthProviderAccountId, OAuthProviderAccountError> {
+        sqlx::query_scalar!(
+            r#"INSERT INTO oauth_provider_accounts (user_id, provider, provider_id, provider_email)
+                VALUES ($1, $2, $3, LOWER($4))
+                RETURNING id as 'id: OAuthProviderAccountId';"#,
+            self.user_id,
+            self.provider,
+            self.provider_id,
+            self.provider_email,
+        )
+        .fetch_one(database.deref())
+        .await
+        .map_err(OAuthProviderAccountError::SaveFailed)
+    }
+}
+
 #[derive(sqlx::FromRow)]
 pub struct OAuthProviderAccount {
     id: OAuthProviderAccountId,

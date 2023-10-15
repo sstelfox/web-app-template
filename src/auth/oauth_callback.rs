@@ -17,7 +17,7 @@ use url::Url;
 use crate::app::State as AppState;
 use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::models::{
-    CreateSession, CreateUser, OAuthStateError, SessionError, UserError, VerifyOAuthState,
+    CreateOAuthProviderAccount, CreateSession, CreateUser, OAuthStateError, SessionError, UserError, VerifyOAuthState,
 };
 
 use crate::auth::{SESSION_COOKIE_NAME, SESSION_TTL};
@@ -77,34 +77,54 @@ pub async fn handler(
 
     // out of provider specific land for the most part
 
-    // Our session is allowed to be up to SESSION_TLL long, but if the provider wants to impose
-    // shorter validity period on session we need to honor those expirations first.
-    let mut expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
-    if let Some(access_lifetime) = token_response.expires_in() {
-        let token_validity = OffsetDateTime::now_utc() + access_lifetime;
-        if token_validity < expires_at {
-            expires_at = token_validity;
-        }
-    }
-
-    // todo: need to try and find the user_info.id and provider in the intermediate accounts table,
-    // and get the user ID associated with that instead...
-
-    let maybe_provider_account = OAuthProviderAccount::from_provider_id(&database, provider, user_info.google_id)
+    let maybe_provider_account = OAuthProviderAccount::from_provider_id(&database, provider, user_info.google_id.clone())
         .await
         .map_err(OAuthCallbackError::FailedAccountLookup)?;
 
+    let provider_account = match maybe_provider_account {
+        Some(pa) => pa,
+        None => {
+            if !user_info.verified_email {
+                return Err(OAuthCallbackError::UnverifiedEmail);
+            }
+
+            let existing_user = UserId::from_email(&database, &user_info.email)
+                .await
+                .map_err(OAuthCallbackError::UserCheckFailed)?;
+
+            if let Some(user_id) = existing_user {
+                tracing::warn!(user_id = ?user_id, "attempt to access account from unauthorized provider");
+                return Err(OAuthCallbackError::AlternateProvider);
+            }
+
+            // create a new user, handle case where email already exists associated with another
+            // provider
+            let new_user_id = CreateUser::new(user_info.email.clone(), user_info.name)
+                .save(&database)
+                .await
+                .map_err(OAuthCallbackError::UserCreationFailed)?;
+
+            let new_oauth_provider_account_id = CreateOAuthProviderAccount::new(
+                    new_user_id,
+                    provider,
+                    user_info.google_id,
+                    user_info.email.to_string(),
+                )
+                .save(&database)
+                .await
+                .map_err(OAuthCallbackError::ProviderAccountCreationFailed)?;
+
+            todo!()
+        }
+    };
+
+    if let Some(access_lifetime) = token_response.expires_in() {
+        todo!()
+    }
 
     //let maybe_user_id = UserId::from_email(&database, &user_info.email)
     //    .await
     //    .map_err(OAuthCallbackError::FailedUserLookup)?;
-
-    //let user_id = match maybe_user_id {
-    //    Some(uid) => uid,
-    //    None => {
-    //        if !user_info.verified_email {
-    //            return Err(OAuthCallbackError::UnverifiedEmail);
-    //        }
 
     //        // todo: I really should add a provider table here, its not going to matter until I
     //        // support multiple login providers, but then additional OIDC servers need to be opted
@@ -113,7 +133,6 @@ pub async fn handler(
     //        // themselves. Adding the same email from multiple providers MUST require this explicit
     //        // authorization by an already authenticated user.
 
-    //        let mut create_user = CreateUser::new(user_info.email, user_info.name);
 
     //        let new_user_id = create_user
     //            .save(&database)
@@ -196,11 +215,17 @@ pub struct GoogleUserProfile {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthCallbackError {
+    #[error("successful login from an unauthorized provider for existing account")]
+    AlternateProvider,
+
     #[error("failed to query the databse for a provider account: {0}")]
     FailedAccountLookup(OAuthProviderAccountError),
 
     #[error("unable to query OAuth states for callback parameter")]
     LookupFailed(OAuthStateError),
+
+    #[error("failed to check whether a new user's email was present for creation: {0}")]
+    UserCheckFailed(UserIdError),
 
     #[error("received OAuth callback query but no matching session parameters were present")]
     NoMatchingState,
@@ -222,6 +247,9 @@ pub enum OAuthCallbackError {
 
     #[error("failed to create new user after successful login: {0}")]
     UserCreationFailed(UserError),
+
+    #[error("failed to create provider account after successful login: {0}")]
+    ProviderAccountCreationFailed(OAuthProviderAccountError),
 
     #[error("failed to validate authorization code: {0}")]
     ValidationFailed(OAuthClientError),

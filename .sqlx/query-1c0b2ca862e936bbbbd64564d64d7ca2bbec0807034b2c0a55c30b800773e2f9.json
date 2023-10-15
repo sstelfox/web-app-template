@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO oauth_provider_accounts (user_id, provider, provider_id, provider_email)\n                VALUES ($1, $2, $3, LOWER($4))\n                RETURNING id as 'id: OAuthProviderAccountId';",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: OAuthProviderAccountId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1c0b2ca862e936bbbbd64564d64d7ca2bbec0807034b2c0a55c30b800773e2f9"
+}
