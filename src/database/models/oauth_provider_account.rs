@@ -57,11 +57,10 @@ pub struct OAuthProviderAccount {
     associated_at: OffsetDateTime,
 }
 
-impl OAuthProviderAccount{
-    pub async fn from_provider_id(
+impl OAuthProviderAccount {
+    pub async fn lookup_by_id(
         database: &Database,
-        provider: LoginProvider,
-        provider_id: ProviderId,
+        id: OAuthProviderAccountId,
     ) -> Result<Option<Self>, OAuthProviderAccountError> {
         sqlx::query_as!(
             Self,
@@ -73,9 +72,8 @@ impl OAuthProviderAccount{
                         provider_email,
                         associated_at
                     FROM oauth_provider_accounts
-                    WHERE provider = $1 AND provider_id = $2;"#,
-            provider,
-            provider_id,
+                    WHERE id = $1;"#,
+            id,
         )
         .fetch_optional(database.deref())
         .await

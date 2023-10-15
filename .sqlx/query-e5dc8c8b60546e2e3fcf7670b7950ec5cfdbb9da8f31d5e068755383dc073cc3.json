@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                        id as 'id: OAuthProviderAccountId',\n                        user_id as 'user_id: UserId',\n                        provider as 'provider: LoginProvider',\n                        provider_id as 'provider_id: ProviderId',\n                        provider_email,\n                        associated_at\n                    FROM oauth_provider_accounts\n                    WHERE provider = $1 AND provider_id = $2;",
+  "query": "SELECT\n                        id as 'id: OAuthProviderAccountId',\n                        user_id as 'user_id: UserId',\n                        provider as 'provider: LoginProvider',\n                        provider_id as 'provider_id: ProviderId',\n                        provider_email,\n                        associated_at\n                    FROM oauth_provider_accounts\n                    WHERE id = $1;",
   "describe": {
     "columns": [
       {
@@ -35,7 +35,7 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
       false,
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "82e999094dfa480dd7641d72dba717c614dadf8c681e0a19f2f94a26b83195a4"
+  "hash": "e5dc8c8b60546e2e3fcf7670b7950ec5cfdbb9da8f31d5e068755383dc073cc3"
 }

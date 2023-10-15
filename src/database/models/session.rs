@@ -26,11 +26,6 @@ impl CreateSession {
     //    self
     //}
 
-    pub fn expires_at(&mut self, expires_at: OffsetDateTime) -> &mut Self {
-        self.expires_at = expires_at;
-        self
-    }
-
     pub fn new(
         user_id: UserId,
         oauth_provider_account_id: OAuthProviderAccountId,

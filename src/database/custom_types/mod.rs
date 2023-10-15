@@ -13,7 +13,7 @@ pub use job_run_result::{JobRunResult, JobRunResultError};
 pub use did::{Did, DidError};
 pub use login_provider::LoginProvider;
 pub use login_provider_config::LoginProviderConfig;
-pub use oauth_provider_account_id::OAuthProviderAccountId;
+pub use oauth_provider_account_id::{OAuthProviderAccountId, OAuthProviderAccountIdError};
 pub use provider_id::ProviderId;
 pub use session_id::SessionId;
 pub use user_id::{UserId, UserIdError};

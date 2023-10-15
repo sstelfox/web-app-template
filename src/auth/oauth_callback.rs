@@ -19,9 +19,8 @@ use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::models::{
     CreateOAuthProviderAccount, CreateSession, CreateUser, OAuthStateError, SessionError, UserError, VerifyOAuthState,
 };
-
 use crate::auth::{SESSION_COOKIE_NAME, SESSION_TTL};
-use crate::database::custom_types::{LoginProvider, ProviderId, UserId, UserIdError};
+use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, OAuthProviderAccountIdError, ProviderId, UserId, UserIdError};
 use crate::database::models::{OAuthProviderAccount, OAuthProviderAccountError};
 use crate::database::Database;
 use crate::extractors::ServerBase;
@@ -77,12 +76,15 @@ pub async fn handler(
 
     // out of provider specific land for the most part
 
-    let maybe_provider_account = OAuthProviderAccount::from_provider_id(&database, provider, user_info.google_id.clone())
+    let maybe_provider_account_id = OAuthProviderAccountId::from_provider_account_id(&database, provider, user_info.google_id.clone())
         .await
         .map_err(OAuthCallbackError::FailedAccountLookup)?;
 
-    let provider_account = match maybe_provider_account {
-        Some(pa) => pa,
+    let session_id = match maybe_provider_account_id {
+        Some(pa) => {
+            //CreateSession::new(pa.user_id, pa.id
+            todo!()
+        }
         None => {
             if !user_info.verified_email {
                 return Err(OAuthCallbackError::UnverifiedEmail);
@@ -219,7 +221,7 @@ pub enum OAuthCallbackError {
     AlternateProvider,
 
     #[error("failed to query the databse for a provider account: {0}")]
-    FailedAccountLookup(OAuthProviderAccountError),
+    FailedAccountLookup(OAuthProviderAccountIdError),
 
     #[error("unable to query OAuth states for callback parameter")]
     LookupFailed(OAuthStateError),

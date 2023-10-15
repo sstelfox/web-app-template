@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as 'id: OAuthProviderAccountId'\n                   FROM oauth_provider_accounts\n                   WHERE provider = $1 AND provider_id = $2;",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: OAuthProviderAccountId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d20f3a1c90ef89723dadd9aeab9882cf8725ab73d7150f9b2aad3c7f2afcf36e"
+}
