@@ -76,84 +76,95 @@ pub async fn handler(
 
     // out of provider specific land for the most part
 
-    let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
-    let maybe_user_id = UserId::from_email(&database, &user_info.email)
-        .await
-        .map_err(OAuthCallbackError::FailedUserLookup)?;
-
-    let user_id = match maybe_user_id {
-        Some(uid) => uid,
-        None => {
-            if !user_info.verified_email {
-                return Err(OAuthCallbackError::UnverifiedEmail);
-            }
-
-            // todo: I really should add a provider table here, its not going to matter until I
-            // support multiple login providers, but then additional OIDC servers need to be opted
-            // in by the user from an existing login session to perform the connection. When doing
-            // this I'll want to ensure the user is prompted and intentionally acts to add
-            // themselves. Adding the same email from multiple providers MUST require this explicit
-            // authorization by an already authenticated user.
-
-            let mut create_user = CreateUser::new(user_info.email, user_info.name);
-
-            let new_user_id = create_user
-                .save(&database)
-                .await
-                .map_err(OAuthCallbackError::UserCreationFailed)?;
-
-            new_user_id
-        }
-    };
-
-    let mut create_session = CreateSession::new(user_id, provider, access_token.clone());
-
+    // Our session is allowed to be up to SESSION_TLL long, but if the provider wants to impose
+    // shorter validity period on session we need to honor those expirations first.
+    let mut expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
     if let Some(access_lifetime) = token_response.expires_in() {
-        create_session.access_expires_at(OffsetDateTime::now_utc() + access_lifetime);
+        let token_validity = OffsetDateTime::now_utc() + access_lifetime;
+        if token_validity < expires_at {
+            expires_at = token_validity;
+        }
     }
 
-    if let Some(refresh_token) = token_response.refresh_token() {
-        create_session.refresh_token(refresh_token.secret().to_string());
-    }
+    // todo: need to try and find the user_info.id and provider in the intermediate accounts table,
+    // and get the user ID associated with that instead...
 
-    // todo: store client IP and user_agent in the session if they're available as well
+    //let maybe_user_id = UserId::from_email(&database, &user_info.email)
+    //    .await
+    //    .map_err(OAuthCallbackError::FailedUserLookup)?;
 
-    let session_id = create_session
-        .save(&database)
-        .await
-        .map_err(OAuthCallbackError::SessionCreationFailed)?;
+    //let user_id = match maybe_user_id {
+    //    Some(uid) => uid,
+    //    None => {
+    //        if !user_info.verified_email {
+    //            return Err(OAuthCallbackError::UnverifiedEmail);
+    //        }
 
-    let session_enc = B64.encode(session_id.to_bytes_le());
+    //        // todo: I really should add a provider table here, its not going to matter until I
+    //        // support multiple login providers, but then additional OIDC servers need to be opted
+    //        // in by the user from an existing login session to perform the connection. When doing
+    //        // this I'll want to ensure the user is prompted and intentionally acts to add
+    //        // themselves. Adding the same email from multiple providers MUST require this explicit
+    //        // authorization by an already authenticated user.
 
-    let mut digest = hmac_sha512::sha384::Hash::new();
-    digest.update(session_enc.as_bytes());
-    let mut rng = rand::thread_rng();
+    //        let mut create_user = CreateUser::new(user_info.email, user_info.name);
 
-    let service_signing_key = state.secrets().service_signing_key();
-    let signature: ecdsa::Signature<p384::NistP384> = service_signing_key
-        .key_pair()
-        .as_ref()
-        .sign_digest_with_rng(&mut rng, digest);
+    //        let new_user_id = create_user
+    //            .save(&database)
+    //            .await
+    //            .map_err(OAuthCallbackError::UserCreationFailed)?;
 
-    let auth_tag = B64.encode(signature.to_vec());
-    let session_value = [session_enc, auth_tag].join("");
+    //        new_user_id
+    //    }
+    //};
 
-    cookie_jar = cookie_jar.add(
-        Cookie::build(SESSION_COOKIE_NAME, session_value)
-            .http_only(true)
-            .expires(expires_at)
-            .same_site(SameSite::Lax)
-            .path("/")
-            .domain(cookie_domain)
-            .secure(cookie_secure)
-            .finish(),
-    );
+    //let mut create_session = CreateSession::new(user_id, provider, access_token.clone());
 
-    let redirect_url = verify_oauth_state
-        .post_login_redirect_url()
-        .unwrap_or("/".to_string());
 
-    Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
+    //if let Some(refresh_token) = token_response.refresh_token() {
+    //    create_session.refresh_token(refresh_token.secret().to_string());
+    //}
+
+    //// todo: store client IP and user_agent in the session if they're available as well
+
+    //let session_id = create_session
+    //    .save(&database)
+    //    .await
+    //    .map_err(OAuthCallbackError::SessionCreationFailed)?;
+
+    //let session_enc = B64.encode(session_id.to_bytes_le());
+
+    //let mut digest = hmac_sha512::sha384::Hash::new();
+    //digest.update(session_enc.as_bytes());
+    //let mut rng = rand::thread_rng();
+
+    //let service_signing_key = state.secrets().service_signing_key();
+    //let signature: ecdsa::Signature<p384::NistP384> = service_signing_key
+    //    .key_pair()
+    //    .as_ref()
+    //    .sign_digest_with_rng(&mut rng, digest);
+
+    //let auth_tag = B64.encode(signature.to_vec());
+    //let session_value = [session_enc, auth_tag].join("");
+
+    //cookie_jar = cookie_jar.add(
+    //    Cookie::build(SESSION_COOKIE_NAME, session_value)
+    //        .http_only(true)
+    //        .expires(expires_at)
+    //        .same_site(SameSite::Lax)
+    //        .path("/")
+    //        .domain(cookie_domain)
+    //        .secure(cookie_secure)
+    //        .finish(),
+    //);
+
+    //let redirect_url = verify_oauth_state
+    //    .post_login_redirect_url()
+    //    .unwrap_or("/".to_string());
+
+    //Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
+
+    todo!()
 }
 
 #[derive(Deserialize)]

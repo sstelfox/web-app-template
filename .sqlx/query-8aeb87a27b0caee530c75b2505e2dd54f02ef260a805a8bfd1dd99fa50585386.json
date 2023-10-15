@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (email, display_name)\n                VALUES (LOWER($1), $2)\n                RETURNING id as 'id: UserId';",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: UserId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8aeb87a27b0caee530c75b2505e2dd54f02ef260a805a8bfd1dd99fa50585386"
+}

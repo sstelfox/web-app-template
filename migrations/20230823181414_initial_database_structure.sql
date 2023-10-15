@@ -4,8 +4,8 @@ CREATE TABLE users (
   email TEXT NOT NULL,
   display_name TEXT NOT NULL,
 
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-) STRICT;
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE UNIQUE INDEX idx_unique_users_on_email
   ON users(email);
@@ -21,8 +21,8 @@ CREATE TABLE oauth_provider_accounts (
   provider_id TEXT NOT NULL,
   provider_email TEXT NOT NULL,
 
-  associated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-) STRICT;
+  associated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE UNIQUE INDEX idx_unique_oauth_provider_accounts_on_provider_provider_id
   ON oauth_provider_accounts(provider, provider_id);
@@ -37,8 +37,8 @@ CREATE TABLE oauth_state (
 
   post_login_redirect_url TEXT,
 
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-) STRICT;
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE UNIQUE INDEX idx_unique_oauth_state_on_provider_csrf_token_secret
   ON oauth_state(provider, csrf_token_secret);
@@ -49,7 +49,6 @@ CREATE TABLE sessions (
   user_id BLOB NOT NULL
     REFERENCES users(id)
     ON DELETE CASCADE,
-
   oauth_provider_account_id BLOB NOT NULL
     REFERENCES oauth_provider_accounts(id)
     ON DELETE CASCADE,
@@ -57,9 +56,9 @@ CREATE TABLE sessions (
   client_ip TEXT,
   user_agent TEXT,
 
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at TEXT NOT NULL
-) STRICT;
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL
+);
 
 CREATE TABLE api_keys (
   id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
@@ -72,8 +71,8 @@ CREATE TABLE api_keys (
   fingerprint BLOB NOT NULL,
   public_key BLOB NOT NULL,
 
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-) STRICT;
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE INDEX idx_api_keys_on_user_id
   ON api_keys(user_id);
@@ -94,9 +93,9 @@ CREATE TABLE background_jobs (
 
   payload BLOB NOT NULL,
 
-  job_scheduled_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  attempt_run_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-) STRICT;
+  job_scheduled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  attempt_run_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE INDEX idx_background_jobs_on_attempt_run_at ON background_jobs(attempt_run_at);
 CREATE INDEX idx_background_jobs_on_scheduled_at ON background_jobs(job_scheduled_at);
@@ -120,8 +119,8 @@ CREATE TABLE job_run (
   result TEXT NOT NULL,
   output BLOB,
 
-  run_started_at TEXT,
-  run_finished_at TEXT
-) STRICT;
+  run_started_at TIMESTAMP,
+  run_finished_at TIMESTAMP
+);
 
 CREATE INDEX idx_job_run_on_background_job_id ON job_run(background_job_id);

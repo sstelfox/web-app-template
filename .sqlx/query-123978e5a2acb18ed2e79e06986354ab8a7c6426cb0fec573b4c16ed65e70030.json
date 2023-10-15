@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                   id as 'id: SessionId',\n                   user_id as 'user_id: UserId',\n                   oauth_provider_account_id as 'oauth_provider_account_id: OAuthProviderAccountId',\n                   client_ip,\n                   user_agent,\n                   created_at,\n                   expires_at\n                 FROM sessions\n                 WHERE id = $1;",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: SessionId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_id: UserId",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "oauth_provider_account_id: OAuthProviderAccountId",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "client_ip",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_agent",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "123978e5a2acb18ed2e79e06986354ab8a7c6426cb0fec573b4c16ed65e70030"
+}

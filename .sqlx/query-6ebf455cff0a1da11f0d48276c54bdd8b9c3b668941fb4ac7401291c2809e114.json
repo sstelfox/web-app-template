@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sessions\n                (user_id, oauth_provider_account_id, client_ip, user_agent, expires_at)\n                VALUES ($1, $2, $3, $4, $5)\n                RETURNING id as 'id: SessionId';",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: SessionId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6ebf455cff0a1da11f0d48276c54bdd8b9c3b668941fb4ac7401291c2809e114"
+}

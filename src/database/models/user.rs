@@ -9,41 +9,23 @@ use crate::database::Database;
 pub struct CreateUser {
     email: String,
     display_name: String,
-    locale: Option<String>,
-    profile_image: Option<Url>,
 }
 
 impl CreateUser {
-    pub fn locale(&mut self, locale: String) -> &mut Self {
-        self.locale = Some(locale);
-        self
-    }
-
     pub fn new(email: String, display_name: String) -> Self {
         Self {
             email,
             display_name,
-            locale: None,
-            profile_image: None,
         }
     }
 
-    pub fn profile_image(&mut self, profile_image: Url) -> &mut Self {
-        self.profile_image = Some(profile_image);
-        self
-    }
-
     pub async fn save(self, database: &Database) -> Result<UserId, UserError> {
-        let profile_image_str = self.profile_image.map(|i| i.to_string());
-
         sqlx::query_scalar!(
-            r#"INSERT INTO users (email, display_name, locale, profile_image)
-                VALUES (LOWER($1), $2, $3, $4)
+            r#"INSERT INTO users (email, display_name)
+                VALUES (LOWER($1), $2)
                 RETURNING id as 'id: UserId';"#,
             self.email,
             self.display_name,
-            self.locale,
-            profile_image_str,
         )
         .fetch_one(database.deref())
         .await
@@ -57,9 +39,6 @@ pub struct User {
 
     email: String,
     display_name: String,
-
-    locale: Option<String>,
-    profile_image: Option<String>,
 
     created_at: OffsetDateTime,
 }

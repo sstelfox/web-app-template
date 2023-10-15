@@ -6,71 +6,69 @@ use oauth2::AccessToken;
 use time::OffsetDateTime;
 
 use crate::auth::SESSION_TTL;
-use crate::database::custom_types::{LoginProvider, SessionId, UserId};
+use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, SessionId, UserId};
 use crate::database::Database;
 
 #[derive(Debug)]
 pub struct CreateSession {
     user_id: UserId,
-    provider: LoginProvider,
-    access_token: AccessToken,
+    oauth_provider_account_id: OAuthProviderAccountId,
 
-    access_expires_at: Option<OffsetDateTime>,
-    refresh_token: Option<String>,
-
-    client_ip: Option<Vec<u8>>,
+    client_ip: Option<String>,
     user_agent: Option<String>,
+
+    expires_at: OffsetDateTime,
 }
 
 impl CreateSession {
-    pub fn access_expires_at(&mut self, access_expires_at: OffsetDateTime) -> &mut Self {
-        self.access_expires_at = Some(access_expires_at);
-        self
-    }
-
     //pub fn client_ip(&mut self, client_ip: IpAddr) -> &mut Self {
     //    self.client_ip = Some(client_ip);
     //    self
     //}
 
-    pub fn new(user_id: UserId, provider: LoginProvider, access_token: AccessToken) -> Self {
+    pub fn expires_at(&mut self, expires_at: OffsetDateTime) -> &mut Self {
+        self.expires_at = expires_at;
+        self
+    }
+
+    pub fn new(
+        user_id: UserId,
+        oauth_provider_account_id: OAuthProviderAccountId,
+    ) -> Self {
+        let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
+
         Self {
             user_id,
-            provider,
-            access_token,
-
-            access_expires_at: None,
-            refresh_token: None,
+            oauth_provider_account_id,
 
             client_ip: None,
             user_agent: None,
+
+            expires_at,
         }
     }
 
-    pub fn refresh_token(&mut self, refresh_token: String) -> &mut Self {
-        self.refresh_token = Some(refresh_token);
+    pub fn limit_duration_to(&mut self, duration: Duration) -> &mut Self {
+        let upper_bound = OffsetDateTime::now_utc() + duration;
+
+        if upper_bound < self.expires_at {
+            self.expires_at = upper_bound;
+        }
+
         self
     }
 
     pub async fn save(self, database: &Database) -> Result<SessionId, SessionError> {
-        let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
-
-        tracing::debug!("accessing OAuth access token secret to save it to the database");
-        let access_token_secret = self.access_token.secret();
-
         sqlx::query_scalar!(
             r#"INSERT INTO sessions
-                (user_id, provider, access_token_secret, access_expires_at, refresh_token, client_ip, user_agent, expires_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                (user_id, oauth_provider_account_id, client_ip, user_agent, expires_at)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING id as 'id: SessionId';"#,
             self.user_id,
-            self.provider,
-            access_token_secret,
-            self.access_expires_at,
-            self.refresh_token,
+            self.oauth_provider_account_id,
             self.client_ip,
             self.user_agent,
-            expires_at,
+            self.expires_at,
         )
         .fetch_one(database.deref())
         .await
@@ -86,14 +84,11 @@ impl CreateSession {
 #[derive(sqlx::FromRow)]
 pub struct Session {
     id: SessionId,
+
     user_id: UserId,
+    oauth_provider_account_id: OAuthProviderAccountId,
 
-    provider: LoginProvider,
-    access_token_secret: String,
-    access_expires_at: Option<OffsetDateTime>,
-    refresh_token: Option<String>,
-
-    client_ip: Option<Vec<u8>>,
+    client_ip: Option<String>,
     user_agent: Option<String>,
 
     created_at: OffsetDateTime,
@@ -124,29 +119,20 @@ impl Session {
     }
 
     pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
-        let query_result = sqlx::query_as!(
+        sqlx::query_as!(
             Self,
             r#"SELECT
                    id as 'id: SessionId',
                    user_id as 'user_id: UserId',
-                   provider as 'provider: LoginProvider',
-                   access_token_secret,
-                   access_expires_at,
-                   refresh_token,
+                   oauth_provider_account_id as 'oauth_provider_account_id: OAuthProviderAccountId',
                    client_ip,
                    user_agent,
                    created_at,
                    expires_at
                  FROM sessions
                  WHERE id = $1;"#, id)
-            .fetch_one(database.deref())
-            .await;
-
-        match query_result {
-            Ok(sess) => Ok(Some(sess)),
-            Err(sqlx::Error::RowNotFound) => Ok(None),
-            Err(err) => Err(err),
-        }
+            .fetch_optional(database.deref())
+            .await
     }
 
     pub fn user_id(&self) -> UserId {

@@ -21,7 +21,7 @@ impl UserId {
 
 impl Display for UserId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        self.0.fmt(f)
     }
 }
 
