@@ -26,23 +26,6 @@ impl CreateSession {
     //    self
     //}
 
-    pub fn new(
-        user_id: UserId,
-        oauth_provider_account_id: OAuthProviderAccountId,
-    ) -> Self {
-        let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
-
-        Self {
-            user_id,
-            oauth_provider_account_id,
-
-            client_ip: None,
-            user_agent: None,
-
-            expires_at,
-        }
-    }
-
     pub fn limit_duration_to(&mut self, duration: Duration) -> &mut Self {
         let upper_bound = OffsetDateTime::now_utc() + duration;
 
@@ -68,6 +51,23 @@ impl CreateSession {
         .fetch_one(database.deref())
         .await
         .map_err(SessionError::SaveFailed)
+    }
+
+    pub fn new(
+        user_id: UserId,
+        oauth_provider_account_id: OAuthProviderAccountId,
+    ) -> Self {
+        let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
+
+        Self {
+            user_id,
+            oauth_provider_account_id,
+
+            client_ip: None,
+            user_agent: None,
+
+            expires_at,
+        }
     }
 
     pub fn user_agent(&mut self, user_agent: String) -> &mut Self {

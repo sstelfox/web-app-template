@@ -58,6 +58,10 @@ pub struct OAuthProviderAccount {
 }
 
 impl OAuthProviderAccount {
+    pub fn id(&self) -> OAuthProviderAccountId {
+        self.id
+    }
+
     pub async fn lookup_by_id(
         database: &Database,
         id: OAuthProviderAccountId,
@@ -78,6 +82,22 @@ impl OAuthProviderAccount {
         .fetch_optional(database.deref())
         .await
         .map_err(OAuthProviderAccountError::LookupFailed)
+    }
+
+    pub fn provider(&self) -> LoginProvider {
+        self.provider
+    }
+
+    pub fn provider_email(&self) -> String {
+        self.provider_email.clone()
+    }
+
+    pub fn provider_id(&self) -> ProviderId {
+        self.provider_id.clone()
+    }
+
+    pub fn user_id(&self) -> UserId {
+        self.user_id
     }
 }
 

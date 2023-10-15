@@ -80,11 +80,8 @@ pub async fn handler(
         .await
         .map_err(OAuthCallbackError::FailedAccountLookup)?;
 
-    let session_id = match maybe_provider_account_id {
-        Some(pa) => {
-            //CreateSession::new(pa.user_id, pa.id
-            todo!()
-        }
+    let provider_account_id = match maybe_provider_account_id {
+        Some(pa) => pa,
         None => {
             if !user_info.verified_email {
                 return Err(OAuthCallbackError::UnverifiedEmail);
@@ -94,19 +91,19 @@ pub async fn handler(
                 .await
                 .map_err(OAuthCallbackError::UserCheckFailed)?;
 
+            // we need to make sure someone isn't trying to access an existing account from an
+            // unknown provider claiming the same email address
             if let Some(user_id) = existing_user {
                 tracing::warn!(user_id = ?user_id, "attempt to access account from unauthorized provider");
                 return Err(OAuthCallbackError::AlternateProvider);
             }
 
-            // create a new user, handle case where email already exists associated with another
-            // provider
             let new_user_id = CreateUser::new(user_info.email.clone(), user_info.name)
                 .save(&database)
                 .await
                 .map_err(OAuthCallbackError::UserCreationFailed)?;
 
-            let new_oauth_provider_account_id = CreateOAuthProviderAccount::new(
+            CreateOAuthProviderAccount::new(
                     new_user_id,
                     provider,
                     user_info.google_id,
@@ -114,50 +111,27 @@ pub async fn handler(
                 )
                 .save(&database)
                 .await
-                .map_err(OAuthCallbackError::ProviderAccountCreationFailed)?;
-
-            todo!()
+                .map_err(OAuthCallbackError::ProviderAccountCreationFailed)?
         }
     };
 
+    let provider_account = OAuthProviderAccount::lookup_by_id(&database, provider_account_id)
+        .await
+        .map_err(OAuthCallbackError::AccountDetailLookupFailed)?
+        .ok_or(OAuthCallbackError::AccountIntegrityViolation)?;
+
+    let mut new_session = CreateSession::new(provider_account.user_id(), provider_account.id());
+
     if let Some(access_lifetime) = token_response.expires_in() {
-        todo!()
+        new_session.limit_duration_to(access_lifetime);
     }
 
-    //let maybe_user_id = UserId::from_email(&database, &user_info.email)
-    //    .await
-    //    .map_err(OAuthCallbackError::FailedUserLookup)?;
+    // todo: store client IP and user_agent in the session if they're available as well
 
-    //        // todo: I really should add a provider table here, its not going to matter until I
-    //        // support multiple login providers, but then additional OIDC servers need to be opted
-    //        // in by the user from an existing login session to perform the connection. When doing
-    //        // this I'll want to ensure the user is prompted and intentionally acts to add
-    //        // themselves. Adding the same email from multiple providers MUST require this explicit
-    //        // authorization by an already authenticated user.
-
-
-    //        let new_user_id = create_user
-    //            .save(&database)
-    //            .await
-    //            .map_err(OAuthCallbackError::UserCreationFailed)?;
-
-    //        new_user_id
-    //    }
-    //};
-
-    //let mut create_session = CreateSession::new(user_id, provider, access_token.clone());
-
-
-    //if let Some(refresh_token) = token_response.refresh_token() {
-    //    create_session.refresh_token(refresh_token.secret().to_string());
-    //}
-
-    //// todo: store client IP and user_agent in the session if they're available as well
-
-    //let session_id = create_session
-    //    .save(&database)
-    //    .await
-    //    .map_err(OAuthCallbackError::SessionCreationFailed)?;
+    let session_id = new_session
+        .save(&database)
+        .await
+        .map_err(OAuthCallbackError::SessionCreationFailed)?;
 
     //let session_enc = B64.encode(session_id.to_bytes_le());
 
@@ -217,10 +191,16 @@ pub struct GoogleUserProfile {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthCallbackError {
+    #[error("account disappeared in path that guarantees its presence")]
+    AccountIntegrityViolation,
+
+    #[error("failed to load details of provider account for session creation: {0}")]
+    AccountDetailLookupFailed(OAuthProviderAccountError),
+
     #[error("successful login from an unauthorized provider for existing account")]
     AlternateProvider,
 
-    #[error("failed to query the databse for a provider account: {0}")]
+    #[error("failed to query the database for a provider account: {0}")]
     FailedAccountLookup(OAuthProviderAccountIdError),
 
     #[error("unable to query OAuth states for callback parameter")]
