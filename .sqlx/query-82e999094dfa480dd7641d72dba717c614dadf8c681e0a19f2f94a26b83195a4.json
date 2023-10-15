@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                        id as 'id: OAuthProviderAccountId',\n                        user_id as 'user_id: UserId',\n                        provider as 'provider: LoginProvider',\n                        provider_id as 'provider_id: ProviderId',\n                        provider_email,\n                        associated_at\n                    FROM oauth_provider_accounts\n                    WHERE provider = $1 AND provider_id = $2;",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: OAuthProviderAccountId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_id: UserId",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "provider: LoginProvider",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "provider_id: ProviderId",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "provider_email",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "associated_at",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "82e999094dfa480dd7641d72dba717c614dadf8c681e0a19f2f94a26b83195a4"
+}

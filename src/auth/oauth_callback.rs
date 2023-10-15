@@ -21,7 +21,8 @@ use crate::database::models::{
 };
 
 use crate::auth::{SESSION_COOKIE_NAME, SESSION_TTL};
-use crate::database::custom_types::{LoginProvider, UserId, UserIdError};
+use crate::database::custom_types::{LoginProvider, ProviderId, UserId, UserIdError};
+use crate::database::models::{OAuthProviderAccount, OAuthProviderAccountError};
 use crate::database::Database;
 use crate::extractors::ServerBase;
 
@@ -88,6 +89,11 @@ pub async fn handler(
 
     // todo: need to try and find the user_info.id and provider in the intermediate accounts table,
     // and get the user ID associated with that instead...
+
+    let maybe_provider_account = OAuthProviderAccount::from_provider_id(&database, provider, user_info.google_id)
+        .await
+        .map_err(OAuthCallbackError::FailedAccountLookup)?;
+
 
     //let maybe_user_id = UserId::from_email(&database, &user_info.email)
     //    .await
@@ -176,12 +182,12 @@ pub struct CallbackParameters {
     csrf_token: CsrfToken,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct GoogleUserProfile {
     // This is an all numeric ID (sample one was 21 digits) that comes in as a string, probably
     // could be stored as a number but I'd rather treat it as a unique identifier.
     #[serde(rename = "id")]
-    google_id: String,
+    google_id: ProviderId,
 
     name: String,
     email: String,
@@ -190,8 +196,8 @@ pub struct GoogleUserProfile {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthCallbackError {
-    #[error("failed to query the databse for a user: {0}")]
-    FailedUserLookup(UserIdError),
+    #[error("failed to query the databse for a provider account: {0}")]
+    FailedAccountLookup(OAuthProviderAccountError),
 
     #[error("unable to query OAuth states for callback parameter")]
     LookupFailed(OAuthStateError),
