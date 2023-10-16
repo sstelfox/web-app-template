@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use time::OffsetDateTime;
-use url::Url;
+
 
 use crate::database::custom_types::UserId;
 use crate::database::Database;

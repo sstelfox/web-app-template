@@ -2,11 +2,11 @@
 use std::ops::Deref;
 use std::time::Duration;
 
-use oauth2::AccessToken;
+
 use time::OffsetDateTime;
 
 use crate::auth::SESSION_TTL;
-use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, SessionId, UserId};
+use crate::database::custom_types::{OAuthProviderAccountId, SessionId, UserId};
 use crate::database::Database;
 
 #[derive(Debug)]

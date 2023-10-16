@@ -10,8 +10,8 @@ use http::StatusCode;
 use jwt_simple::algorithms::ECDSAP384KeyPairLike;
 use oauth2::{AuthorizationCode, CsrfToken, TokenResponse};
 use serde::Deserialize;
-use std::time::Duration;
-use time::OffsetDateTime;
+
+
 use url::Url;
 
 use crate::app::State as AppState;
@@ -19,7 +19,7 @@ use crate::auth::{OAuthClient, OAuthClientError};
 use crate::database::models::{
     CreateOAuthProviderAccount, CreateSession, CreateUser, OAuthStateError, SessionError, UserError, VerifyOAuthState,
 };
-use crate::auth::{SESSION_COOKIE_NAME, SESSION_TTL};
+use crate::auth::{SESSION_COOKIE_NAME};
 use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, OAuthProviderAccountIdError, ProviderId, UserId, UserIdError};
 use crate::database::models::{OAuthProviderAccount, OAuthProviderAccountError};
 use crate::database::Database;
