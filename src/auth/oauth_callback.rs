@@ -125,6 +125,7 @@ pub async fn handler(
     if let Some(access_lifetime) = token_response.expires_in() {
         new_session.limit_duration_to(access_lifetime);
     }
+    let session_expires_at = new_session.expires_at();
 
     // todo: store client IP and user_agent in the session if they're available as well
 
@@ -133,39 +134,37 @@ pub async fn handler(
         .await
         .map_err(OAuthCallbackError::SessionCreationFailed)?;
 
-    //let session_enc = B64.encode(session_id.to_bytes_le());
+    let session_enc = B64.encode(session_id.to_bytes_le());
 
-    //let mut digest = hmac_sha512::sha384::Hash::new();
-    //digest.update(session_enc.as_bytes());
-    //let mut rng = rand::thread_rng();
+    let mut digest = hmac_sha512::sha384::Hash::new();
+    digest.update(session_enc.as_bytes());
+    let mut rng = rand::thread_rng();
 
-    //let service_signing_key = state.secrets().service_signing_key();
-    //let signature: ecdsa::Signature<p384::NistP384> = service_signing_key
-    //    .key_pair()
-    //    .as_ref()
-    //    .sign_digest_with_rng(&mut rng, digest);
+    let service_signing_key = state.secrets().service_signing_key();
+    let signature: ecdsa::Signature<p384::NistP384> = service_signing_key
+        .key_pair()
+        .as_ref()
+        .sign_digest_with_rng(&mut rng, digest);
 
-    //let auth_tag = B64.encode(signature.to_vec());
-    //let session_value = [session_enc, auth_tag].join("");
+    let auth_tag = B64.encode(signature.to_vec());
+    let session_value = [session_enc, auth_tag].join("");
 
-    //cookie_jar = cookie_jar.add(
-    //    Cookie::build(SESSION_COOKIE_NAME, session_value)
-    //        .http_only(true)
-    //        .expires(expires_at)
-    //        .same_site(SameSite::Lax)
-    //        .path("/")
-    //        .domain(cookie_domain)
-    //        .secure(cookie_secure)
-    //        .finish(),
-    //);
+    cookie_jar = cookie_jar.add(
+        Cookie::build(SESSION_COOKIE_NAME, session_value)
+            .http_only(true)
+            .expires(session_expires_at)
+            .same_site(SameSite::Lax)
+            .path("/")
+            .domain(cookie_domain)
+            .secure(cookie_secure)
+            .finish(),
+    );
 
-    //let redirect_url = verify_oauth_state
-    //    .post_login_redirect_url()
-    //    .unwrap_or("/".to_string());
+    let redirect_url = verify_oauth_state
+        .post_login_redirect_url()
+        .unwrap_or("/".to_string());
 
-    //Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
-
-    todo!()
+    Ok((cookie_jar, Redirect::to(&redirect_url)).into_response())
 }
 
 #[derive(Deserialize)]

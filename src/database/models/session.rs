@@ -21,10 +21,9 @@ pub struct CreateSession {
 }
 
 impl CreateSession {
-    //pub fn client_ip(&mut self, client_ip: IpAddr) -> &mut Self {
-    //    self.client_ip = Some(client_ip);
-    //    self
-    //}
+    pub fn expires_at(&self) -> OffsetDateTime {
+        self.expires_at.clone()
+    }
 
     pub fn limit_duration_to(&mut self, duration: Duration) -> &mut Self {
         let upper_bound = OffsetDateTime::now_utc() + duration;
@@ -70,7 +69,12 @@ impl CreateSession {
         }
     }
 
-    pub fn user_agent(&mut self, user_agent: String) -> &mut Self {
+    //pub fn set_client_ip(&mut self, client_ip: IpAddr) -> &mut Self {
+    //    self.client_ip = Some(client_ip);
+    //    self
+    //}
+
+    pub fn set_user_agent(&mut self, user_agent: String) -> &mut Self {
         self.user_agent = Some(user_agent);
         self
     }
@@ -128,6 +132,10 @@ impl Session {
                  WHERE id = $1;"#, id)
             .fetch_optional(database.deref())
             .await
+    }
+
+    pub fn oauth_provider_account_id(&self) -> OAuthProviderAccountId {
+        self.oauth_provider_account_id
     }
 
     pub fn user_id(&self) -> UserId {

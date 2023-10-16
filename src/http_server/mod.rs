@@ -190,10 +190,11 @@ pub async fn home_handler(session_id: SessionIdentity, mut scheduler: Scheduler)
                <title>Home</title>
              </head>
              <body style="background: #131313; color: #9f9f9f;">
-                <p>User ID: {}, Session ID: {}</p>
+                <p>User ID: {}, OAuthProviderAccountId: {}, Session ID: {}</p>
              </body>
            </html>"#,
         session_id.user_id(),
+        session_id.oauth_provider_account_id(),
         session_id.session_id(),
     ))
     .into_response()

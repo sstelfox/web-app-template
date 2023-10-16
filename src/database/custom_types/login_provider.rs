@@ -22,7 +22,7 @@ static LOGIN_PROVIDER_CONFIGS: phf::Map<u8, LoginProviderConfig> = phf::phf_map!
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(rename = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum LoginProvider {
     Google,
 }

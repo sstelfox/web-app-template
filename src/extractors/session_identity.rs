@@ -12,13 +12,14 @@ use uuid::Uuid;
 
 use crate::app::ServiceVerificationKey;
 use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
-use crate::database::custom_types::{SessionId, UserId};
+use crate::database::custom_types::{OAuthProviderAccountId, SessionId, UserId};
 use crate::database::models::Session;
 use crate::database::Database;
 use crate::utils::remove_cookie;
 
 pub struct SessionIdentity {
     session_id: SessionId,
+    oauth_provider_account_id: OAuthProviderAccountId,
     user_id: UserId,
 
     created_at: OffsetDateTime,
@@ -26,6 +27,10 @@ pub struct SessionIdentity {
 }
 
 impl SessionIdentity {
+    pub fn oauth_provider_account_id(&self) -> OAuthProviderAccountId {
+        self.oauth_provider_account_id
+    }
+
     pub fn session_id(&self) -> SessionId {
         self.session_id
     }
@@ -118,21 +123,13 @@ where
 
         Ok(SessionIdentity {
             session_id: db_session.id(),
+            oauth_provider_account_id: db_session.oauth_provider_account_id(),
             user_id: db_session.user_id(),
 
             created_at: db_session.created_at(),
             expires_at: db_session.expires_at(),
         })
     }
-}
-
-#[derive(sqlx::FromRow)]
-struct DatabaseSession {
-    id: SessionId,
-    user_id: UserId,
-
-    created_at: OffsetDateTime,
-    expires_at: OffsetDateTime,
 }
 
 #[derive(Debug, thiserror::Error)]
