@@ -92,9 +92,13 @@ pub enum LoginProviderError {
 mod test {
     use std::error::Error;
 
-    use crate::tests::prelude::*;
+    use axum::extract::Path;
+    use axum::response::IntoResponse;
+    use axum::http::StatusCode;
+    use tower::ServiceExt;
 
-    use super::*;
+    use crate::tests::prelude::*;
+    use crate::database::custom_types::{LoginProvider, LoginProviderError};
 
     // SQLx has turned out to be a largely untrustworthy and inconsistent library when it comes to
     // encoding and decoding, as well as mixed support of the actual underlying database. This
@@ -105,7 +109,6 @@ mod test {
     async fn test_sqlx_decoding() {
         let db_pool = test_database().await;
         let mut transact = db_pool.begin().await.expect("transaction");
-
 
         // note: UUIDs are stored little-endian in the database, this fixture represents the little
         // endian encoding of the expected_did string above.
@@ -179,5 +182,38 @@ mod test {
             .expect("return to succeed");
 
         assert_eq!(&raw_login_provider, &"google");
+    }
+
+    #[tokio::test]
+    async fn test_axum_roundtripping() {
+        let app = axum::Router::new()
+            .route("/:provider", axum::routing::get(|Path(provider): Path<LoginProvider>| async move {
+                (StatusCode::OK, serde_json::to_value(&provider).expect("valid").to_string()).into_response()
+            }));
+
+        let successful_request = axum::http::Request::get("/google")
+            .body(axum::body::Body::empty())
+            .unwrap();
+
+        let successful_response = app
+            .clone()
+            .oneshot(successful_request)
+            .await
+            .unwrap();
+
+        assert_eq!(successful_response.status(), StatusCode::OK);
+        let body = hyper::body::to_bytes(successful_response.into_body()).await.unwrap();
+        assert_eq!(&body[..], b"\"google\"");
+
+        let bad_request = axum::http::Request::get("/not-a-provider")
+            .body(axum::body::Body::empty())
+            .unwrap();
+
+        let bad_response = app
+            .oneshot(bad_request)
+            .await
+            .unwrap();
+
+        assert_eq!(bad_response.status(), StatusCode::BAD_REQUEST);
     }
 }
