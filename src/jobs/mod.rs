@@ -19,6 +19,11 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
 
+mod interface;
+mod stores;
+
+use stores::{ExecuteTaskFn, StateFn, TaskStore};
+
 // constants
 
 const MAXIMUM_CHECK_DELAY: Duration = Duration::from_millis(250);
@@ -28,18 +33,6 @@ const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 // types
-
-pub type ExecuteTaskFn<Context> = Arc<
-    dyn Fn(
-        CurrentTask,
-        serde_json::Value,
-        Context,
-    ) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
-    + Send
-    + Sync,
->;
-
-pub type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
 
 // traits
 
@@ -81,47 +74,6 @@ where
     ) -> Result<Option<TaskId>, TaskQueueError> {
         S::enqueue(connection, self).await
     }
-}
-
-#[async_trait]
-pub trait TaskStore: Send + Sync + 'static {
-    type Connection: Send;
-
-    async fn cancel(&self, id: TaskId) -> Result<(), TaskQueueError> {
-        self.update_state(id, TaskState::Cancelled).await
-    }
-
-    async fn completed(&self, id: TaskId) -> Result<(), TaskQueueError> {
-        self.update_state(id, TaskState::Complete).await
-    }
-
-    async fn enqueue<T: TaskLike>(
-        conn: &mut Self::Connection,
-        task: T,
-    ) -> Result<Option<TaskId>, TaskQueueError>
-    where
-        Self: Sized;
-
-    async fn errored(&self, id: TaskId, error: TaskExecError) -> Result<Option<TaskId>, TaskQueueError> {
-        use TaskExecError as TEE;
-
-        match error {
-            TEE::DeserializationFailed(_) | TEE::Panicked(_) => {
-                self.update_state(id, TaskState::Dead).await?;
-                Ok(None)
-            }
-            TEE::ExecutionFailed(_) => {
-                self.update_state(id, TaskState::Error).await?;
-                self.retry(id).await
-            }
-        }
-    }
-
-    async fn next(&self, queue_name: &str, task_names: &[&str]) -> Result<Option<Task>, TaskQueueError>;
-
-    async fn retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
-
-    async fn update_state(&self, id: TaskId, state: TaskState) -> Result<(), TaskQueueError>;
 }
 
 // structs
