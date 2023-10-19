@@ -21,8 +21,7 @@ use tracing::{Level, Span};
 
 use crate::{auth, health_check};
 use crate::app::{Config, State, StateSetupError};
-use crate::extractors::{Scheduler, SessionIdentity};
-use crate::tasks::{MemoryTaskStore, TestTask, WorkScheduler};
+use crate::extractors::{SessionIdentity};
 
 mod error_handlers;
 
@@ -99,7 +98,7 @@ fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
     format!("{}?{}", path_and_query.path(), filtered_query_pairs.join("&"))
 }
 
-pub async fn run(config: Config, work_scheduler: WorkScheduler<MemoryTaskStore>, mut shutdown_rx: watch::Receiver<()>) -> Result<(), HttpServerError> {
+pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result<(), HttpServerError> {
     let trace_layer = TraceLayer::new_for_http()
         .make_span_with(SensitiveRequestMakeSpan)
         .on_response(
@@ -149,7 +148,7 @@ pub async fn run(config: Config, work_scheduler: WorkScheduler<MemoryTaskStore>,
             SENSITIVE_HEADERS.into(),
         ));
 
-    let state = State::from_config(&config, work_scheduler).await?;
+    let state = State::from_config(&config).await?;
     let root_router = Router::new()
         .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
@@ -178,11 +177,7 @@ pub enum HttpServerError {
     StateInitializationFailed(#[from] StateSetupError),
 }
 
-pub async fn home_handler(session_id: SessionIdentity, mut scheduler: Scheduler) -> Response {
-    if let Err(err) = scheduler.enqueue(TestTask::new(50)).await {
-        tracing::error!("failed to enqueue test task: {err}");
-    }
-
+pub async fn home_handler(session_id: SessionIdentity) -> Response {
     axum::response::Html(format!(
         r#"<!DOCTYPE html>
            <html>

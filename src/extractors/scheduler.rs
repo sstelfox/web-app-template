@@ -5,7 +5,7 @@ use axum::async_trait;
 use axum::extract::{FromRef, FromRequestParts};
 use http::request::Parts;
 
-use crate::tasks::{MemoryTaskStore, TaskId, TaskLike, TaskLikeExt, TaskQueueError, WorkScheduler};
+use crate::jobs::{MemoryTaskStore, TaskId, TaskLike, TaskLikeExt, TaskQueueError, WorkScheduler};
 
 pub struct Scheduler(WorkScheduler<MemoryTaskStore>);
 

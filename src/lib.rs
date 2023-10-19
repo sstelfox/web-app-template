@@ -6,34 +6,26 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::tasks::WorkScheduler;
-
 pub mod app;
 mod auth;
 mod database;
 mod extractors;
 mod health_check;
 pub mod http_server;
-pub mod tasks;
+pub mod jobs;
 pub mod utils;
-
-use tasks::MemoryTaskStore;
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
-pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> (JoinHandle<()>, tasks::WorkScheduler<MemoryTaskStore>) {
-    let mts = MemoryTaskStore::default();
+pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
+    let mts = jobs::MemoryTaskStore::default();
 
-    let worker_handle = tasks::WorkerPool::new(mts.clone(), move || { () })
-        .register_task_type::<tasks::TestTask>()
-        .configure_queue(tasks::QueueConfig::new("default"))
+    jobs::WorkerPool::new(mts, move || { () })
+        .register_task_type::<jobs::TestTask>()
+        .configure_queue(jobs::QueueConfig::new("default"))
         .start(async move { let _ = shutdown_rx.changed().await; })
         .await
-        .expect("worker start up to succeed");
-
-    let scheduler = tasks::WorkScheduler::new(mts);
-
-    (worker_handle, scheduler)
+        .expect("worker start up to succeed")
 }
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:
@@ -94,9 +86,9 @@ pub fn graceful_shutdown_blocker() -> (JoinHandle<()>, watch::Receiver<()>) {
     (handle, rx)
 }
 
-pub async fn http_server(config: app::Config, work_scheduler: WorkScheduler<MemoryTaskStore>, shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
+pub async fn http_server(config: app::Config, shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
     tokio::spawn(async move {
-        match http_server::run(config, work_scheduler, shutdown_rx).await {
+        match http_server::run(config, shutdown_rx).await {
             Ok(_) => tracing::info!("shutting down normally"),
             Err(err) => tracing::error!("http server exited with an error: {err}"),
         }
