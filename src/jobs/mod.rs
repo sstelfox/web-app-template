@@ -4,12 +4,11 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use axum::async_trait;
-use futures::{Future, FutureExt};
-use futures::future::{BoxFuture, join_all};
+use futures::Future;
+use futures::future::join_all;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -19,22 +18,18 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
 
+mod catch_panic_future;
 mod interface;
 mod stores;
 
+use catch_panic_future::{CatchPanicFuture, CaughtPanic};
 use stores::{ExecuteTaskFn, StateFn, TaskStore};
-
-// constants
 
 const MAXIMUM_CHECK_DELAY: Duration = Duration::from_millis(250);
 
 const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
-
-// types
-
-// traits
 
 #[async_trait]
 pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
@@ -77,41 +72,6 @@ where
 }
 
 // structs
-
-struct CatchPanicFuture<F: Future + Send + 'static> {
-    inner: BoxFuture<'static, F::Output>,
-}
-
-impl<F: Future + Send + 'static> CatchPanicFuture<F> {
-    pub fn wrap(f: F) -> Self {
-        Self { inner: f.boxed() }
-    }
-}
-
-impl<F: Future + Send + 'static> Future for CatchPanicFuture<F> {
-    type Output = Result<F::Output, CaughtPanic>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner = &mut self.inner;
-
-        match catch_unwind(move || inner.poll_unpin(cx)) {
-            Ok(Poll::Pending) => Poll::Pending,
-            Ok(Poll::Ready(value)) => Poll::Ready(Ok(value)),
-            Err(err) => Poll::Ready(Err(err)),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct CaughtPanic(String);
-
-impl Display for CaughtPanic {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "panicked message: {}", self.0)
-    }
-}
-
-impl std::error::Error for CaughtPanic {}
 
 #[derive(Deserialize, Serialize)]
 pub struct CreateTask {
@@ -590,23 +550,6 @@ pub enum WorkerPoolError {
 }
 
 // local helper functions
-
-fn catch_unwind<F: FnOnce() -> R, R>(f: F) -> Result<R, CaughtPanic> {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
-        Ok(res) => Ok(res),
-        Err(panic_err) => {
-            if let Some(msg) = panic_err.downcast_ref::<&'static str>() {
-                return Err(CaughtPanic(msg.to_string()));
-            }
-
-            if let Some(msg) = panic_err.downcast_ref::<String>() {
-                return Err(CaughtPanic(msg.to_string()));
-            }
-
-            Err(CaughtPanic("unknown panic message format".to_string()))
-        },
-    }
-}
 
 fn deserialize_and_run_task<TL>(
     current_task: CurrentTask,
