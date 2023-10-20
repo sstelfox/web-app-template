@@ -18,6 +18,8 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
 
+use crate::database::custom_types::Did;
+
 mod catch_panic_future;
 mod interface;
 mod stores;
@@ -109,15 +111,9 @@ impl QueueConfig {
     }
 }
 
-#[derive(Clone, Copy, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
+#[derive(Clone, Copy, Debug, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct TaskId(Uuid);
-
-impl Debug for TaskId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("TaskId").field(&self.0).finish()
-    }
-}
+pub struct TaskId(Did);
 
 impl Display for TaskId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -127,13 +123,7 @@ impl Display for TaskId {
 
 impl From<Uuid> for TaskId {
     fn from(value: Uuid) -> Self {
-        Self(value)
-    }
-}
-
-impl From<TaskId> for Uuid {
-    fn from(value: TaskId) -> Self {
-        value.0
+        Self(Did::from(value))
     }
 }
 

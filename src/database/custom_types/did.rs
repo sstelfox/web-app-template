@@ -2,13 +2,14 @@ use std::borrow::Cow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::Deref;
 
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Encode, Sqlite, Type};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
 use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
+use uuid::Uuid;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Did(Uuid);
 
 impl Decode<'_, Sqlite> for Did {
