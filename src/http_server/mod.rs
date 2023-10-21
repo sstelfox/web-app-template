@@ -161,6 +161,7 @@ pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result
         .nest("/_status", health_check::router(state.clone()))
         .route("/", get(home_handler))
         .route("/events", get(event_bus_handler))
+        .route("/events/test", get(test_event_handler))
         .with_state(state)
         .fallback_service(static_assets);
 
@@ -193,6 +194,18 @@ pub async fn home_handler(session: SessionIdentity) -> Response {
     }.into_response()
 }
 
+use axum::http::StatusCode;
+use crate::event_bus::{SystemEvent, TestEvent};
+
+async fn test_event_handler(
+    session: SessionIdentity,
+    axum::extract::State(state): axum::extract::State<State>,
+) -> Response {
+    let _ = state.event_bus()
+        .send(SystemEvent::TestEvent, &TestEvent { session_id: session.id() });
+    (StatusCode::NO_CONTENT, ()).into_response()
+}
+
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use futures::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -205,6 +218,8 @@ async fn event_bus_handler(
     upgrade_request.on_upgrade(|sock| event_bus_stream_handler(sock, state))
 }
 
+use crate::event_bus::UserRegistration;
+
 async fn event_bus_stream_handler(stream: WebSocket, state: State) {
     let (mut client_tx, mut client_rx) = stream.split();
 
@@ -215,8 +230,6 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
     // todo: need to force disconnect is a session expires
 
     let mut bus_to_client_task = tokio::spawn(async move {
-        use crate::event_bus::{UserRegistration, SystemEvent};
-
         loop {
             let (event_type, payload) = match bus_rx.recv().await {
                 Ok(msg) => msg,
@@ -238,6 +251,7 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                         }
                     }
                 }
+                _ => None,
             };
 
             let response = BusToClientMessage {
@@ -281,7 +295,7 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
 
 #[derive(Serialize)]
 struct BusToClientMessage {
-    event_type: crate::event_bus::SystemEvent,
+    event_type: SystemEvent,
     payload: Vec<u8>,
 
     #[serde(skip_serializing_if = "Option::is_none")]

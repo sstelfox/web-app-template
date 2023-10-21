@@ -41,7 +41,15 @@ pub enum EventBusError {
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SystemEvent {
+    TestEvent,
     UserRegistration,
+}
+
+use crate::database::custom_types::SessionId;
+
+#[derive(Deserialize, Serialize)]
+pub struct TestEvent {
+    pub session_id: SessionId,
 }
 
 use crate::database::custom_types::UserId;
