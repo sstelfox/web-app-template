@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use axum::{Server, ServiceExt};
+use bincode::Options;
 use http::{header, Request};
 use http::uri::PathAndQuery;
 use tokio::sync::watch;
@@ -227,7 +228,9 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
 
             let decoded = match &event_type {
                 SystemEvent::UserRegistration => {
-                    match bincode::deserialize::<UserRegistration>(&payload) {
+                    let bin_code_config = bincode::DefaultOptions::new();
+
+                    match bin_code_config.deserialize::<UserRegistration>(&payload) {
                         Ok(user_reg) => serde_json::to_value(&user_reg).ok(),
                         Err(err) => {
                             tracing::warn!("failed to decode user registration on event bus: {err}");

@@ -1,3 +1,4 @@
+use bincode::Options;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
@@ -13,7 +14,9 @@ impl EventBus {
     }
 
     pub fn send(&self, event: SystemEvent, payload: &impl Serialize) -> Result<usize, EventBusError> {
-        let bytes = bincode::serialize(payload)
+        let bin_code_config = bincode::DefaultOptions::new();
+
+        let bytes = bin_code_config.serialize(payload)
             .map_err(EventBusError::Serialization)?;
 
         self.bus.send((event, bytes))
