@@ -1,8 +1,6 @@
 use serde::Serialize;
 use tokio::sync::broadcast;
 
-use crate::database::custom_types::UserId;
-
 #[derive(Clone)]
 pub struct EventBus {
     bus: broadcast::Sender<(SystemEvent, Vec<u8>)>,

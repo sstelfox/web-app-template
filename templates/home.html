@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<table>
+  <tr>
+    <th>User ID</th>
+    <td>{{ user_id }}</td>
+  </tr>
+    <th>Provider Account ID</th>
+    <td>{{ provider_account_id }}</td>
+  </tr>
+  <tr>
+    <th>Session ID</th>
+    <td>{{ session_id }}</td>
+  </tr>
+</table>
+{% endblock %}

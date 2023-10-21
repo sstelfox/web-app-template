@@ -177,20 +177,12 @@ pub enum HttpServerError {
     StateInitializationFailed(#[from] StateSetupError),
 }
 
+use crate::pages::HomeTemplate;
+
 pub async fn home_handler(session_id: SessionIdentity) -> Response {
-    axum::response::Html(format!(
-        r#"<!DOCTYPE html>
-           <html>
-             <head>
-               <title>Home</title>
-             </head>
-             <body style="background: #131313; color: #9f9f9f;">
-                <p>User ID: {}, OAuthProviderAccountId: {}, Session ID: {}</p>
-             </body>
-           </html>"#,
-        session_id.user_id(),
-        session_id.oauth_provider_account_id(),
-        session_id.session_id(),
-    ))
-    .into_response()
+    HomeTemplate {
+        provider_account_id: session_id.oauth_provider_account_id(),
+        session_id: session_id.session_id(),
+        user_id: session_id.user_id(),
+    }.into_response()
 }

@@ -12,6 +12,7 @@ mod extractors;
 mod health_check;
 pub mod http_server;
 pub mod jobs;
+mod pages;
 pub mod utils;
 
 const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
