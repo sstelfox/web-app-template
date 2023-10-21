@@ -27,7 +27,7 @@ sha2 = "^0.10"
 time = { version = "^0.3", features = ["serde"] }
 uuid = { version = "^1", features = ["fast-rng", "serde", "v4"] }
 
-axum = { version = "^0.6", features = ["headers", "http2", "macros", "multipart", "tracing"] }
+axum = { version = "^0.6", features = ["headers", "http2", "macros", "multipart", "tracing", "ws"] }
 axum-extra = { version = "^0.8", features = ["cookie", "form"] }
 http = "^0.2"
 hyper = "^0.14"

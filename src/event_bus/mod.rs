@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 #[derive(Clone)]
@@ -34,7 +34,16 @@ pub enum EventBusError {
     Serialization(bincode::Error),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum SystemEvent {
     UserRegistration,
+}
+
+use crate::database::custom_types::UserId;
+
+#[derive(Deserialize, Serialize)]
+pub struct UserRegistration {
+    id: UserId,
 }

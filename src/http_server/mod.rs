@@ -159,6 +159,7 @@ pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result
         //.nest("/api/v1", api::router(app_state.clone()))
         .nest("/_status", health_check::router(state.clone()))
         .route("/", get(home_handler))
+        .route("/events", get(event_bus_handler))
         .with_state(state)
         .fallback_service(static_assets);
 
@@ -189,4 +190,93 @@ pub async fn home_handler(session: SessionIdentity) -> Response {
     HomeTemplate {
         session,
     }.into_response()
+}
+
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use futures::{SinkExt, StreamExt};
+use serde::Serialize;
+
+async fn event_bus_handler(
+    upgrade_request: WebSocketUpgrade,
+    axum::extract::State(state): axum::extract::State<State>,
+) -> Response {
+    upgrade_request.on_upgrade(|sock| event_bus_stream_handler(sock, state))
+}
+
+async fn event_bus_stream_handler(stream: WebSocket, state: State) {
+    let (mut client_tx, mut client_rx) = stream.split();
+
+    let event_bus = state.event_bus();
+    let mut bus_rx = event_bus.subscribe();
+
+    let mut bus_to_client_task = tokio::spawn(async move {
+        use crate::event_bus::{UserRegistration, SystemEvent};
+
+        loop {
+            let (event_type, payload) = match bus_rx.recv().await {
+                Ok(msg) => msg,
+                Err(err) => {
+                    tracing::error!("encountered bus error in websocket handling: {err}");
+                    break;
+                }
+            };
+
+            let decoded = match &event_type {
+                SystemEvent::UserRegistration => {
+                    match bincode::deserialize::<UserRegistration>(&payload) {
+                        Ok(user_reg) => serde_json::to_value(&user_reg).ok(),
+                        Err(err) => {
+                            tracing::warn!("failed to decode user registration on event bus: {err}");
+                            None
+                        }
+                    }
+                }
+            };
+
+            let response = BusToClientMessage {
+                event_type,
+                payload,
+                decoded,
+            };
+
+            let response_msg = match serde_json::to_string(&response) {
+                Ok(rm) => rm,
+                Err(err) => {
+                    tracing::error!("failed to serialize message to websocket client: {err}");
+                    break;
+                }
+            };
+
+            if let Err(err) = client_tx.send(Message::Text(response_msg)).await {
+                tracing::error!("failed to send message to websocket client: {err}");
+                break;
+            }
+        }
+    });
+
+    let mut client_to_bus_task = tokio::spawn(async move {
+        while let Some(maybe_client_msg) = client_rx.next().await {
+            match maybe_client_msg {
+                Ok(msg) => tracing::warn!("received unexpected client message: {msg:?}"),
+                Err(err) => {
+                    tracing::error!("failed to receive message from client: {err}");
+                    break;
+                }
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = (&mut bus_to_client_task) => client_to_bus_task.abort(),
+        _ = (&mut client_to_bus_task) => bus_to_client_task.abort(),
+    };
+}
+
+#[derive(Serialize)]
+struct BusToClientMessage {
+    event_type: crate::event_bus::SystemEvent,
+    payload: Vec<u8>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decoded: Option<serde_json::Value>,
 }
