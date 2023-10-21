@@ -27,6 +27,11 @@ websocket.onmessage = function(event) {
   event_type_col.appendChild(event_type_content);
   base_row_node.appendChild(event_type_col);
 
+  const size_col = document.createElement("td");
+  const size_content = document.createTextNode(data.payload.length);
+  size_col.appendChild(size_content);
+  base_row_node.appendChild(size_col);
+
   const payload_col = document.createElement("td");
   const payload_content = document.createTextNode(data.payload);
   payload_col.appendChild(payload_content);
@@ -35,7 +40,7 @@ websocket.onmessage = function(event) {
   const decoded_col = document.createElement("td");
 
   if (data.decoded) {
-    const decoded_content = document.createTextNode(data.decoded);
+    const decoded_content = document.createTextNode(JSON.stringify(data.decoded));
     decoded_col.appendChild(decoded_content);
   }
 
@@ -43,4 +48,23 @@ websocket.onmessage = function(event) {
 
   const event_list = document.getElementById("event-list");
   event_list.appendChild(base_row_node);
+}
+
+const test_event_btn = document.getElementById("test-event");
+if (test_event_btn) {
+  test_event_btn.addEventListener('click', function(event) {
+    event.preventDefault();
+
+    fetch('/events/test')
+    .then(function(response) {
+      if (!response.ok) {
+        return response.json().then(function(responseJson) {
+          throw new Error(responseJson);
+        });
+      }
+    })
+    .catch(function(error) {
+      console.log('creating test event failed: ', error);
+    });
+  });
 }

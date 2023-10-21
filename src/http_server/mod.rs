@@ -239,19 +239,27 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                 }
             };
 
+            let bin_code_config = bincode::DefaultOptions::new();
+
             let decoded = match &event_type {
                 SystemEvent::UserRegistration => {
-                    let bin_code_config = bincode::DefaultOptions::new();
-
                     match bin_code_config.deserialize::<UserRegistration>(&payload) {
-                        Ok(user_reg) => serde_json::to_value(&user_reg).ok(),
+                        Ok(event) => serde_json::to_value(&event).ok(),
                         Err(err) => {
                             tracing::warn!("failed to decode user registration on event bus: {err}");
                             None
                         }
                     }
                 }
-                _ => None,
+                SystemEvent::TestEvent => {
+                    match bin_code_config.deserialize::<TestEvent>(&payload) {
+                        Ok(event) => serde_json::to_value(&event).ok(),
+                        Err(err) => {
+                            tracing::warn!("failed to decode user registration on event bus: {err}");
+                            None
+                        }
+                    }
+                }
             };
 
             let response = BusToClientMessage {
