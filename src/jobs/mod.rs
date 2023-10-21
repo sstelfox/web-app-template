@@ -146,6 +146,8 @@ pub struct Task {
     // will need a live-cancel signal and likely a custom Future impl to ensure its used for proper
     // timeout handling
 
+    // todo: maybe this should be an Option so I can clear it once the task is completed
+    // successfully...
     payload: serde_json::Value,
     error: Option<String>,
 
