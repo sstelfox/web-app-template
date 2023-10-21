@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::time::Duration;
 
 use tokio::signal::unix::{signal, SignalKind};
@@ -9,6 +7,7 @@ use tokio::task::JoinHandle;
 pub mod app;
 mod auth;
 mod database;
+mod event_bus;
 mod extractors;
 mod health_check;
 pub mod http_server;

@@ -7,12 +7,14 @@ use jwt_simple::prelude::*;
 use sha2::Digest;
 
 use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey};
+use crate::event_bus::EventBus;
 use crate::database::custom_types::LoginProvider;
 use crate::database::{self, Database, DatabaseSetupError};
 
 #[derive(Clone)]
 pub struct State {
     database: Database,
+    event_bus: EventBus,
     secrets: Secrets,
     service_verifier: ServiceVerificationKey,
     upload_directory: PathBuf,
@@ -23,6 +25,10 @@ impl State {
         self.database.clone()
     }
 
+    pub fn event_bus(&self) -> EventBus {
+        self.event_bus.clone()
+    }
+
     pub async fn from_config(config: &Config) -> Result<Self, StateSetupError> {
         // Do a test setup to make sure the upload directory exists and is writable as an early
         // sanity check
@@ -30,6 +36,7 @@ impl State {
         //    .map_err(StateSetupError::InaccessibleUploadDirectory)?;
 
         let database = database::connect(&config.database_url()).await?;
+        let event_bus = EventBus::new();
 
         let service_key = load_or_create_service_key(&config.service_key_path())?;
         let service_verifier = service_key.verifier();
@@ -43,6 +50,7 @@ impl State {
 
         Ok(Self {
             database,
+            event_bus,
             secrets,
             service_verifier,
             upload_directory: config.upload_directory(),

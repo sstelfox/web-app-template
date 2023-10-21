@@ -1,12 +1,13 @@
 use std::fmt::{self, Display, Formatter};
 use std::ops::Deref;
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::database::Database;
 use crate::database::custom_types::Did;
 
-#[derive(Clone, Copy, Debug, sqlx::Type)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct UserId(Did);
 
