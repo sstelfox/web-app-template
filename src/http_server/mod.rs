@@ -286,7 +286,18 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
     let mut client_to_bus_task = tokio::spawn(async move {
         while let Some(maybe_client_msg) = client_rx.next().await {
             match maybe_client_msg {
-                Ok(msg) => tracing::warn!("received unexpected client message: {msg:?}"),
+                Ok(ws_msg) => {
+                    match ws_msg {
+                        // Clean shutdown, there is a reason field in here that might be useful in
+                        // the future though
+                        Message::Close(_close_frame) => {
+                            break;
+                        }
+                        _ => {
+                            tracing::warn!("received unexpected client message: {ws_msg:?}");
+                        }
+                    }
+                }
                 Err(err) => {
                     tracing::error!("failed to receive message from client: {err}");
                     break;
