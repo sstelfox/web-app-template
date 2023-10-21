@@ -197,6 +197,7 @@ use futures::{SinkExt, StreamExt};
 use serde::Serialize;
 
 async fn event_bus_handler(
+    _session: SessionIdentity,
     upgrade_request: WebSocketUpgrade,
     axum::extract::State(state): axum::extract::State<State>,
 ) -> Response {
@@ -208,6 +209,9 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
 
     let event_bus = state.event_bus();
     let mut bus_rx = event_bus.subscribe();
+
+    // todo: need to force disconnects if a session is invalidated
+    // todo: need to force disconnect is a session expires
 
     let mut bus_to_client_task = tokio::spawn(async move {
         use crate::event_bus::{UserRegistration, SystemEvent};

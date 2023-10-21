@@ -45,5 +45,5 @@ use crate::database::custom_types::UserId;
 
 #[derive(Deserialize, Serialize)]
 pub struct UserRegistration {
-    id: UserId,
+    pub id: UserId,
 }

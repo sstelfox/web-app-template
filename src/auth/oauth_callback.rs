@@ -22,6 +22,7 @@ use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, OAuth
 use crate::database::models::{OAuthProviderAccount, OAuthProviderAccountError};
 use crate::database::Database;
 use crate::extractors::ServerBase;
+use crate::event_bus::{UserRegistration, SystemEvent};
 
 pub async fn handler(
     database: Database,
@@ -100,6 +101,10 @@ pub async fn handler(
                 .save(&database)
                 .await
                 .map_err(OAuthCallbackError::UserCreationFailed)?;
+
+            // todo: at least log failures...
+            let _ = state.event_bus()
+                .send(SystemEvent::UserRegistration, &UserRegistration { id: new_user_id });
 
             CreateOAuthProviderAccount::new(
                     new_user_id,
