@@ -35,7 +35,7 @@ impl CreateSession {
         self
     }
 
-    pub async fn save(self, database: &Database) -> Result<SessionId, SessionError> {
+    pub async fn create(self, database: &Database) -> Result<SessionId, SessionError> {
         sqlx::query_scalar!(
             r#"INSERT INTO sessions
                 (user_id, oauth_provider_account_id, client_ip, user_agent, expires_at)

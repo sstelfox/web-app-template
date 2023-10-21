@@ -4,16 +4,43 @@
 
 {% block content %}
 <table>
-  <tr>
-    <th>User ID</th>
-    <td>{{ user_id }}</td>
-  </tr>
-    <th>Provider Account ID</th>
-    <td>{{ provider_account_id }}</td>
-  </tr>
-  <tr>
-    <th>Session ID</th>
-    <td>{{ session_id }}</td>
-  </tr>
+  <caption>Current session details</caption>
+  <colgroup>
+    <col style="text-align: right;" />
+  </colgroup>
+  <tbody>
+    <tr>
+      <th scope="row">User ID</th>
+      <td>{{ session.user_id() }}</td>
+    </tr>
+      <th scope="row">Provider Account ID</th>
+      <td>{{ session.provider_account_id() }}</td>
+    </tr>
+    <tr>
+      <th scope="row">Session ID</th>
+      <td>{{ session.id() }}</td>
+    </tr>
+    <tr>
+      <th scope="row">Created At</th>
+      <td>{{ session.created_at() }}</td>
+    </tr>
+    <tr>
+      <th scope="row">Expires At</th>
+      <td>{{ session.expires_at() }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<table>
+  <caption>Live Events</caption>
+  <thead>
+    <tr>
+      <th scope="col">Event Type</th>
+      <th scope="col">Raw Bytes</th>
+      <th scope="col">Deserialized</th>
+    </tr>
+  </thead>
+  <tbody id="event-list">
+  </tbody>
 </table>
 {% endblock %}

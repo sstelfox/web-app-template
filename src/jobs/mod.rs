@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::{self, Debug, Display, Formatter};

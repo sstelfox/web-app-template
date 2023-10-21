@@ -10,8 +10,6 @@ use http::StatusCode;
 use jwt_simple::algorithms::ECDSAP384KeyPairLike;
 use oauth2::{AuthorizationCode, CsrfToken, TokenResponse};
 use serde::Deserialize;
-
-
 use url::Url;
 
 use crate::app::State as AppState;
@@ -120,17 +118,13 @@ pub async fn handler(
         .map_err(OAuthCallbackError::AccountDetailLookupFailed)?
         .ok_or(OAuthCallbackError::AccountIntegrityViolation)?;
 
-    let mut new_session = CreateSession::new(provider_account.user_id(), provider_account.id());
-
-    if let Some(access_lifetime) = token_response.expires_in() {
-        new_session.limit_duration_to(access_lifetime);
-    }
-    let session_expires_at = new_session.expires_at();
+    let new_session = CreateSession::new(provider_account.user_id(), provider_account.id());
+    let expires_at = new_session.expires_at();
 
     // todo: store client IP and user_agent in the session if they're available as well
 
     let session_id = new_session
-        .save(&database)
+        .create(&database)
         .await
         .map_err(OAuthCallbackError::SessionCreationFailed)?;
 
@@ -152,7 +146,7 @@ pub async fn handler(
     cookie_jar = cookie_jar.add(
         Cookie::build(SESSION_COOKIE_NAME, session_value)
             .http_only(true)
-            .expires(session_expires_at)
+            .expires(expires_at)
             .same_site(SameSite::Lax)
             .path("/")
             .domain(cookie_domain)

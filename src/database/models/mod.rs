@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod oauth_provider_account;
 mod oauth_state;
 mod session;

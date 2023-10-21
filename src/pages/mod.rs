@@ -1,9 +1,13 @@
-use crate::database::custom_types::{OAuthProviderAccountId, SessionId, UserId};
+use askama::Template;
 
-#[derive(askama::Template)]
+use crate::extractors::SessionIdentity;
+
+#[derive(Template)]
 #[template(path = "home.html")]
 pub struct HomeTemplate {
-    pub provider_account_id: OAuthProviderAccountId,
-    pub session_id: SessionId,
-    pub user_id: UserId,
+    pub session: SessionIdentity,
 }
+
+#[derive(Template)]
+#[template(path = "not_found.html")]
+pub struct NotFoundTemplate;

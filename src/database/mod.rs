@@ -4,7 +4,7 @@ pub mod custom_types;
 pub mod models;
 pub mod sqlite;
 
-pub use database::{Database, DatabaseError};
+pub use database::Database;
 
 pub async fn connect(db_url: &url::Url) -> Result<Database, DatabaseSetupError> {
     // todo: I should figure out a way to delay the actual connection and running of migrations,

@@ -18,8 +18,8 @@ use crate::database::Database;
 use crate::utils::remove_cookie;
 
 pub struct SessionIdentity {
-    session_id: SessionId,
-    oauth_provider_account_id: OAuthProviderAccountId,
+    id: SessionId,
+    provider_account_id: OAuthProviderAccountId,
     user_id: UserId,
 
     created_at: OffsetDateTime,
@@ -27,12 +27,20 @@ pub struct SessionIdentity {
 }
 
 impl SessionIdentity {
-    pub fn oauth_provider_account_id(&self) -> OAuthProviderAccountId {
-        self.oauth_provider_account_id
+    pub fn created_at(&self) -> &OffsetDateTime {
+        &self.created_at
     }
 
-    pub fn session_id(&self) -> SessionId {
-        self.session_id
+    pub fn expires_at(&self) -> &OffsetDateTime {
+        &self.expires_at
+    }
+
+    pub fn id(&self) -> SessionId {
+        self.id
+    }
+
+    pub fn provider_account_id(&self) -> OAuthProviderAccountId {
+        self.provider_account_id
     }
 
     pub fn user_id(&self) -> UserId {
@@ -122,8 +130,8 @@ where
         }
 
         Ok(SessionIdentity {
-            session_id: db_session.id(),
-            oauth_provider_account_id: db_session.oauth_provider_account_id(),
+            id: db_session.id(),
+            provider_account_id: db_session.oauth_provider_account_id(),
             user_id: db_session.user_id(),
 
             created_at: db_session.created_at(),

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::DefaultBodyLimit;
+use axum::handler::HandlerWithoutStateExt;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
@@ -14,6 +15,7 @@ use tower_http::request_id::MakeRequestUuid;
 use tower_http::sensitive_headers::{
     SetSensitiveRequestHeadersLayer, SetSensitiveResponseHeadersLayer,
 };
+use tower_http::services::ServeDir;
 use tower_http::trace::{DefaultOnFailure, DefaultOnResponse, MakeSpan, TraceLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tower_http::{LatencyUnit, ServiceBuilderExt};
@@ -21,7 +23,7 @@ use tracing::{Level, Span};
 
 use crate::{auth, health_check};
 use crate::app::{Config, State, StateSetupError};
-use crate::extractors::{SessionIdentity};
+use crate::extractors::SessionIdentity;
 
 mod error_handlers;
 
@@ -148,6 +150,9 @@ pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result
             SENSITIVE_HEADERS.into(),
         ));
 
+    let static_assets = ServeDir::new("dist")
+        .not_found_service(error_handlers::not_found_handler.into_service());
+
     let state = State::from_config(&config).await?;
     let root_router = Router::new()
         .nest("/auth", auth::router(state.clone()))
@@ -155,7 +160,8 @@ pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result
         .nest("/_status", health_check::router(state.clone()))
         .route("/", get(home_handler))
         .with_state(state)
-        .fallback(error_handlers::not_found_handler);
+        .fallback_service(static_assets);
+
     let app = middleware_stack.service(root_router);
 
     tracing::info!(addr = ?config.listen_addr(), "server listening");
@@ -179,10 +185,8 @@ pub enum HttpServerError {
 
 use crate::pages::HomeTemplate;
 
-pub async fn home_handler(session_id: SessionIdentity) -> Response {
+pub async fn home_handler(session: SessionIdentity) -> Response {
     HomeTemplate {
-        provider_account_id: session_id.oauth_provider_account_id(),
-        session_id: session_id.session_id(),
-        user_id: session_id.user_id(),
+        session,
     }.into_response()
 }

@@ -13,14 +13,11 @@ pub async fn handler(
     mut cookie_jar: CookieJar,
 ) -> Response {
     if let Some(sid) = session {
-        let session_id = sid.session_id();
-
-        if let Err(err) = Session::delete(&database, session_id).await {
+        if let Err(err) = Session::delete(&database, sid.id()).await {
             tracing::error!("failed to remove session from the db: {err}");
         }
     }
 
     cookie_jar = remove_cookie(SESSION_COOKIE_NAME, cookie_jar);
-
     (cookie_jar, Redirect::to(LOGIN_PATH)).into_response()
 }

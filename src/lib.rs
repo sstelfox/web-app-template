@@ -1,4 +1,4 @@
-use std::time::Duration;
+//use std::time::Duration;
 
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
@@ -15,7 +15,7 @@ pub mod jobs;
 mod pages;
 pub mod utils;
 
-const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
+//const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
     let mts = jobs::MemoryTaskStore::default();
