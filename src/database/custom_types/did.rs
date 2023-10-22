@@ -75,10 +75,6 @@ impl From<Uuid> for Did {
 pub enum DidError {
     #[error("the UUID representation doesn't contain the correct number of bytes")]
     CorruptSize,
-
-    #[allow(dead_code)]
-    #[error("the provided UUID was not formatted correctly")]
-    InvalidUuid(uuid::Error),
 }
 
 #[cfg(test)]
