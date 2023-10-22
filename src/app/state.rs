@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 use axum::extract::FromRef;
 use jwt_simple::prelude::*;
-//use object_store::local::LocalFileSystem;
+use object_store::local::LocalFileSystem;
 use sha2::Digest;
 
-use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey};
+use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey, UploadStore};
 use crate::event_bus::EventBus;
 use crate::database::custom_types::LoginProvider;
 use crate::database::{self, Database, DatabaseSetupError};
@@ -30,11 +30,6 @@ impl State {
     }
 
     pub async fn from_config(config: &Config) -> Result<Self, StateSetupError> {
-        // Do a test setup to make sure the upload directory exists and is writable as an early
-        // sanity check
-        //LocalFileSystem::new_with_prefix(&config.upload_directory())
-        //    .map_err(StateSetupError::InaccessibleUploadDirectory)?;
-
         let database = database::connect(&config.database_url()).await?;
         let event_bus = EventBus::new();
 
@@ -65,8 +60,11 @@ impl State {
         self.service_verifier.clone()
     }
 
-    pub fn upload_directory(&self) -> PathBuf {
-        self.upload_directory.clone()
+    pub fn upload_store(&self) -> Result<UploadStore, StateError> {
+        let local_fs = LocalFileSystem::new_with_prefix(&self.upload_directory)
+            .map_err(StateError::UploadStoreUnavailable)?;
+
+        Ok(UploadStore::new(local_fs))
     }
 }
 
@@ -89,9 +87,13 @@ impl FromRef<State> for ServiceVerificationKey {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum StateError {
+    #[error("unable to get a handle on the upload store: {0}")]
+    UploadStoreUnavailable(object_store::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum StateSetupError {
-    //#[error("unable to access configured upload directory: {0}")]
-    //InaccessibleUploadDirectory(object_store::Error),
     #[error("private service key could not be loaded: {0}")]
     InvalidServiceKey(jwt_simple::Error),
 
