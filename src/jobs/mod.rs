@@ -27,9 +27,9 @@ mod queue_config;
 mod stores;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
-pub use queue_config::QueueConfig;
 use job_id::JobId;
-use stores::{ExecuteJobFn, StateFn, JobStore};
+pub use queue_config::QueueConfig;
+use stores::{ExecuteJobFn, JobStore, StateFn};
 
 const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -489,7 +489,9 @@ pub enum WorkSchedulerError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerPoolError {
-    #[error("found named queue '{0}' defined by job(s) {1:?} that doesn't have a matching queue config")]
+    #[error(
+        "found named queue '{0}' defined by job(s) {1:?} that doesn't have a matching queue config"
+    )]
     QueueNotConfigured(&'static str, Vec<&'static str>),
 }
 
@@ -620,8 +622,7 @@ impl JobStore for MemoryJobStore {
         for (id, job) in jobs
             .iter_mut()
             .filter(|(_, job)| {
-                job_names.contains(&job.name.as_str())
-                    && job.scheduled_to_run_at <= reference_time
+                job_names.contains(&job.name.as_str()) && job.scheduled_to_run_at <= reference_time
             })
             // only care about jobs that have a state to advance
             .filter(|(_, job)| {
@@ -712,8 +713,7 @@ impl JobStore for MemoryJobStore {
             ?new_id,
             "job will be retried {backoff_secs} secs in the future"
         );
-        new_job.scheduled_to_run_at =
-            OffsetDateTime::now_utc() + Duration::from_secs(backoff_secs);
+        new_job.scheduled_to_run_at = OffsetDateTime::now_utc() + Duration::from_secs(backoff_secs);
 
         jobs.insert(new_job.id, new_job);
 
@@ -741,9 +741,7 @@ impl JobStore for MemoryJobStore {
             }
             // this is an internal transition that happens automatically when the job is picked up
             JobState::InProgress => {
-                tracing::error!(
-                    "only the job store may transition a job to the InProgress state"
-                );
+                tracing::error!("only the job store may transition a job to the InProgress state");
                 return Err(JobQueueError::Unknown);
             }
             _ => (),

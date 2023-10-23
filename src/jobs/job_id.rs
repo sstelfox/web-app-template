@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 use crate::database::custom_types::Did;
 
-#[derive(Clone, Copy, Debug, Deserialize, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type)]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize, sqlx::Type,
+)]
 #[sqlx(transparent)]
 pub struct JobId(Did);
 

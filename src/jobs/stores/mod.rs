@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::Future;
 
-use crate::jobs::{JobLike, Job, JobExecError, JobId, JobQueueError, JobState};
+use crate::jobs::{Job, JobExecError, JobId, JobLike, JobQueueError, JobState};
 
 pub(crate) type ExecuteJobFn<Context> = Arc<
     dyn Fn(
