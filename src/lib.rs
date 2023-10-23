@@ -19,10 +19,10 @@ pub mod utils;
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
-    let mts = jobs::MemoryTaskStore::default();
+    let mts = jobs::MemoryJobStore::default();
 
     jobs::WorkerPool::new(mts, move || ())
-        .register_task_type::<jobs::impls::TestJob<()>>()
+        .register_job_type::<jobs::impls::TestJob<()>>()
         .configure_queue(jobs::QueueConfig::new("default"))
         .start(async move {
             let _ = shutdown_rx.changed().await;

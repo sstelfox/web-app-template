@@ -21,7 +21,7 @@ impl<C: Clone + Send + Sync + 'static> TestJob<C> {
 
 #[async_trait]
 impl<C: Clone + Send + Sync + 'static> JobLike for TestJob<C> {
-    const TASK_NAME: &'static str = "test_task";
+    const JOB_NAME: &'static str = "test_job";
 
     type Error = TestJobError;
     type Context = C;
