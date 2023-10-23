@@ -13,7 +13,7 @@ use futures::future::join_all;
 use futures::Future;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use time::OffsetDateTime;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
@@ -23,6 +23,7 @@ use uuid::Uuid;
 use crate::database::custom_types::Did;
 
 mod catch_panic_future;
+pub mod impls;
 mod interface;
 mod stores;
 
@@ -36,7 +37,7 @@ const TASK_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[async_trait]
-pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
+pub trait JobLike: Serialize + DeserializeOwned + Sync + Send + 'static {
     // todo: rename MAX_ATTEMPTS
     const MAX_RETRIES: usize = 3;
 
@@ -47,7 +48,7 @@ pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
     type Error: std::error::Error;
     type Context: Clone + Send + 'static;
 
-    async fn run(&self, task: CurrentTask, ctx: Self::Context) -> Result<(), Self::Error>;
+    async fn run(&self, ctx: Self::Context) -> Result<(), Self::Error>;
 
     async fn unique_key(&self) -> Option<String> {
         None
@@ -55,7 +56,7 @@ pub trait TaskLike: Serialize + DeserializeOwned + Sync + Send + 'static {
 }
 
 #[async_trait]
-pub trait TaskLikeExt {
+pub trait JobLikeExt {
     async fn enqueue<S: TaskStore>(
         self,
         connection: &mut S::Connection,
@@ -63,33 +64,15 @@ pub trait TaskLikeExt {
 }
 
 #[async_trait]
-impl<T> TaskLikeExt for T
+impl<T> JobLikeExt for T
 where
-    T: TaskLike,
+    T: JobLike,
 {
     async fn enqueue<S: TaskStore>(
         self,
         connection: &mut S::Connection,
     ) -> Result<Option<TaskId>, TaskQueueError> {
         S::enqueue(connection, self).await
-    }
-}
-
-pub struct CurrentTask {
-    id: TaskId,
-    current_attempt: usize,
-    scheduled_at: OffsetDateTime,
-    started_at: OffsetDateTime,
-}
-
-impl CurrentTask {
-    pub fn new(task: &Task) -> Self {
-        Self {
-            id: task.id,
-            current_attempt: task.current_attempt,
-            scheduled_at: task.scheduled_at,
-            started_at: task.started_at.expect("task to be started"),
-        }
     }
 }
 
@@ -233,8 +216,6 @@ where
     }
 
     async fn run(&self, task: Task) -> Result<(), WorkerError> {
-        let task_info = CurrentTask::new(&task);
-
         let deserialize_and_run_task_fn = self
             .task_registry
             .get(task.name.as_str())
@@ -245,7 +226,7 @@ where
             let context = (self.context_data_fn)();
             let payload = task.payload.clone();
 
-            async move { deserialize_and_run_task_fn(task_info, payload, context).await }
+            async move { deserialize_and_run_task_fn(payload, context).await }
         });
 
         // an error here occurs only when the task panicks, deserialization and regular task
@@ -406,7 +387,7 @@ where
 
     pub fn register_task_type<TL>(mut self) -> Self
     where
-        TL: TaskLike<Context = Context>,
+        TL: JobLike<Context = Context>,
     {
         self.queue_tasks
             .entry(TL::QUEUE_NAME)
@@ -545,17 +526,16 @@ pub enum WorkerPoolError {
 // local helper functions
 
 fn deserialize_and_run_task<TL>(
-    current_task: CurrentTask,
     payload: serde_json::Value,
     context: TL::Context,
 ) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
 where
-    TL: TaskLike,
+    TL: JobLike,
 {
     Box::pin(async move {
         let task: TL = serde_json::from_value(payload)?;
 
-        match task.run(current_task, context).await {
+        match task.run(context).await {
             Ok(_) => Ok(()),
             Err(err) => Err(TaskExecError::ExecutionFailed(err.to_string())),
         }
@@ -611,7 +591,7 @@ impl MemoryTaskStore {
 impl TaskStore for MemoryTaskStore {
     type Connection = Self;
 
-    async fn enqueue<T: TaskLike>(
+    async fn enqueue<T: JobLike>(
         conn: &mut Self::Connection,
         task: T,
     ) -> Result<Option<TaskId>, TaskQueueError> {
@@ -804,44 +784,4 @@ impl TaskStore for MemoryTaskStore {
 
         Ok(())
     }
-}
-
-// sample context implementation
-
-// todo
-
-// concrete task implementation
-
-#[derive(Deserialize, Serialize)]
-pub struct TestTask {
-    number: usize,
-}
-
-impl TestTask {
-    pub fn new(number: usize) -> Self {
-        Self { number }
-    }
-}
-
-#[async_trait]
-impl TaskLike for TestTask {
-    const TASK_NAME: &'static str = "test_task";
-
-    type Error = TestTaskError;
-    type Context = ();
-
-    async fn run(&self, task: CurrentTask, _ctx: Self::Context) -> Result<(), Self::Error> {
-        if task.current_attempt != 0 {
-            tracing::info!("the test task value is {}", self.number);
-            return Ok(());
-        }
-
-        Err(TestTaskError::Unknown)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum TestTaskError {
-    #[error("unspecified error with the task")]
-    Unknown,
 }

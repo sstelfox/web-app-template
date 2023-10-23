@@ -11,6 +11,7 @@ pub mod hugging_face {
     const SAFE_TENSOR_REPO_FMT: &str = "https://huggingface.co/{}/resolve/main/model.safetensors";
 
     #[derive(Debug)]
+    #[allow(dead_code)]
     pub struct ModelVersion {
         commit: String,
         etag: String,

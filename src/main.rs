@@ -55,7 +55,8 @@ async fn main() {
         FINAL_SHUTDOWN_TIMEOUT,
         join_all(vec![worker_handle, http_handle]),
     )
-    .await).is_err()
+    .await)
+        .is_err()
     {
         tracing::error!("hit final shutdown timeout. exiting with remaining work in progress");
         std::process::exit(3);

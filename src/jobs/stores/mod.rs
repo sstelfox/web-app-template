@@ -4,11 +4,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::Future;
 
-use crate::jobs::{CurrentTask, Task, TaskExecError, TaskId, TaskLike, TaskQueueError, TaskState};
+use crate::jobs::{JobLike, Task, TaskExecError, TaskId, TaskQueueError, TaskState};
 
 pub(crate) type ExecuteTaskFn<Context> = Arc<
     dyn Fn(
-            CurrentTask,
             serde_json::Value,
             Context,
         ) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
@@ -30,7 +29,7 @@ pub trait TaskStore: Send + Sync + 'static {
         self.update_state(id, TaskState::Complete).await
     }
 
-    async fn enqueue<T: TaskLike>(
+    async fn enqueue<T: JobLike>(
         conn: &mut Self::Connection,
         task: T,
     ) -> Result<Option<TaskId>, TaskQueueError>

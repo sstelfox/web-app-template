@@ -124,12 +124,10 @@ fn fingerprint_key(keys: &ES384KeyPair) -> String {
     hasher.update(compressed_point);
     let hashed_bytes = hasher.finalize();
 
-    hashed_bytes
-        .iter()
-        .fold(String::new(), |mut output, b| {
-            let _ = write!(output, "{b:02x}");
-            output
-        })
+    hashed_bytes.iter().fold(String::new(), |mut output, b| {
+        let _ = write!(output, "{b:02x}");
+        output
+    })
 }
 
 fn load_or_create_service_key(

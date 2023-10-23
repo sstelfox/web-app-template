@@ -22,7 +22,7 @@ pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHan
     let mts = jobs::MemoryTaskStore::default();
 
     jobs::WorkerPool::new(mts, move || ())
-        .register_task_type::<jobs::TestTask>()
+        .register_task_type::<jobs::impls::TestJob<()>>()
         .configure_queue(jobs::QueueConfig::new("default"))
         .start(async move {
             let _ = shutdown_rx.changed().await;
