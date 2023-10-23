@@ -1,5 +1,7 @@
 pub mod hugging_face {
-    use reqwest::header::{CONTENT_RANGE, LOCATION, RANGE, HeaderMap, HeaderName, HeaderValue, ToStrError};
+    use reqwest::header::{
+        HeaderMap, HeaderName, HeaderValue, ToStrError, CONTENT_RANGE, LOCATION, RANGE,
+    };
     use reqwest::redirect::Policy;
 
     pub const EMBEDDING_MODEL: &str = "thenlper/gte-base";
@@ -8,6 +10,7 @@ pub mod hugging_face {
 
     const SAFE_TENSOR_REPO_FMT: &str = "https://huggingface.co/{}/resolve/main/model.safetensors";
 
+    #[derive(Debug)]
     pub struct ModelVersion {
         commit: String,
         etag: String,
@@ -21,7 +24,11 @@ pub mod hugging_face {
         let client = reqwest::Client::builder()
             .default_headers(default_headers)
             .redirect(Policy::none())
-            .user_agent(format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
+            .user_agent(format!(
+                "{}/{}",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ))
             .build()
             .map_err(HuggingFaceError::BuildError)?;
 
@@ -37,7 +44,9 @@ pub mod hugging_face {
             .map(|v| v.to_string())
     }
 
-    pub async fn check_safetensor_model_version(model: &str) -> Result<ModelVersion, HuggingFaceError> {
+    pub async fn check_safetensor_model_version(
+        model: &str,
+    ) -> Result<ModelVersion, HuggingFaceError> {
         let client = no_redirect_client()?;
 
         let model_url = SAFE_TENSOR_REPO_FMT.replace("{}", model);
@@ -52,24 +61,26 @@ pub mod hugging_face {
 
         // Try and use the custom X-Linked-Etag header to get the cache key for this model falling
         // back on the standard Etag header if its not present
-        let etag = match metadata_headers.get(HeaderName::from_static("X-Linked-Etag")) {
+        let etag = match metadata_headers.get(HeaderName::from_static("x-linked-etag")) {
             Some(e) => e,
-            None => {
-                metadata_headers
-                    .get(HeaderName::from_static("Etag"))
-                    .ok_or(HuggingFaceError::MissingHeader)?
-            }
+            None => metadata_headers
+                .get(HeaderName::from_static("etag"))
+                .ok_or(HuggingFaceError::MissingHeader)?,
         };
-        let etag = etag.to_str().map_err(HuggingFaceError::InvalidHeaderValue)?.to_string().replace('"', "");
+        let etag = etag
+            .to_str()
+            .map_err(HuggingFaceError::InvalidHeaderValue)?
+            .to_string()
+            .replace('"', "");
 
         // The commit level is also in a custom header
-        let current_commit = header(HeaderName::from_static("X-Repo-Commit"), &metadata_headers)?;
+        let current_commit = header(HeaderName::from_static("x-repo-commit"), &metadata_headers)?;
 
         if response.status().is_redirection() {
             let next_location = header(LOCATION, &metadata_headers)?;
 
             response = client
-                .get(&model_url)
+                .get(&next_location)
                 // We don't actually want the data, indicate as much
                 .header(RANGE, "bytes=0-0")
                 .send()
@@ -79,7 +90,12 @@ pub mod hugging_face {
 
         let content_range = header(CONTENT_RANGE, response.headers())?;
 
-        let size = content_range.split('/').last().ok_or(HuggingFaceError::BadContentRange)?.parse().map_err(HuggingFaceError::InvalidSize)?;
+        let size = content_range
+            .split('/')
+            .last()
+            .ok_or(HuggingFaceError::BadContentRange)?
+            .parse()
+            .map_err(HuggingFaceError::InvalidSize)?;
 
         Ok(ModelVersion {
             commit: current_commit,
