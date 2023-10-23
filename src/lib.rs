@@ -12,6 +12,7 @@ mod extractors;
 mod health_check;
 pub mod http_server;
 pub mod jobs;
+pub mod llm;
 mod pages;
 pub mod utils;
 
