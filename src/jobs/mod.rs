@@ -238,7 +238,7 @@ where
         let deserialize_and_run_task_fn = self
             .task_registry
             .get(task.name.as_str())
-            .ok_or_else(|| WorkerError::UnregisteredTaskName(task.name))?
+            .ok_or(WorkerError::UnregisteredTaskName(task.name))?
             .clone();
 
         let safe_runner = CatchPanicFuture::wrap({
@@ -410,7 +410,7 @@ where
     {
         self.queue_tasks
             .entry(TL::QUEUE_NAME)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(TL::TASK_NAME);
 
         self.task_registry

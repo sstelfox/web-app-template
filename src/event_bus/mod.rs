@@ -34,6 +34,12 @@ impl EventBus {
     }
 }
 
+impl Default for EventBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum EventBusError {
     #[error("failed to send message to the event bus: {0}")]

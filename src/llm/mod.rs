@@ -74,10 +74,10 @@ pub mod hugging_face {
             .replace('"', "");
 
         // The commit level is also in a custom header
-        let current_commit = header(HeaderName::from_static("x-repo-commit"), &metadata_headers)?;
+        let current_commit = header(HeaderName::from_static("x-repo-commit"), metadata_headers)?;
 
         if response.status().is_redirection() {
-            let next_location = header(LOCATION, &metadata_headers)?;
+            let next_location = header(LOCATION, metadata_headers)?;
 
             response = client
                 .get(&next_location)

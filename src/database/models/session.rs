@@ -21,7 +21,7 @@ pub struct CreateSession {
 
 impl CreateSession {
     pub fn expires_at(&self) -> OffsetDateTime {
-        self.expires_at.clone()
+        self.expires_at
     }
 
     pub fn limit_duration_to(&mut self, duration: Duration) -> &mut Self {

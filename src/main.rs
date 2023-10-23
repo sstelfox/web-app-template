@@ -51,11 +51,11 @@ async fn main() {
 
     let _ = graceful_waiter.await;
 
-    if let Err(_) = timeout(
+    if (timeout(
         FINAL_SHUTDOWN_TIMEOUT,
         join_all(vec![worker_handle, http_handle]),
     )
-    .await
+    .await).is_err()
     {
         tracing::error!("hit final shutdown timeout. exiting with remaining work in progress");
         std::process::exit(3);

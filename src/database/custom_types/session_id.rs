@@ -10,7 +10,7 @@ use crate::database::custom_types::Did;
 pub struct SessionId(Did);
 
 impl SessionId {
-    pub fn to_bytes_le(&self) -> [u8; 16] {
+    pub fn to_bytes_le(self) -> [u8; 16] {
         self.0.to_bytes_le()
     }
 }

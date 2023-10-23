@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::path::PathBuf;
 
 use axum::extract::FromRef;
@@ -10,7 +11,7 @@ use crate::app::{
     Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey, UploadStore,
 };
 use crate::database::custom_types::LoginProvider;
-use crate::database::{self, Database, DatabaseSetupError};
+use crate::database::{Database, DatabaseSetupError};
 use crate::event_bus::EventBus;
 
 #[derive(Clone)]
@@ -32,7 +33,7 @@ impl State {
     }
 
     pub async fn from_config(config: &Config) -> Result<Self, StateSetupError> {
-        let database = database::connect(&config.database_url()).await?;
+        let database = Database::connect(&config.database_url()).await?;
         let event_bus = EventBus::new();
 
         let service_key = load_or_create_service_key(&config.service_key_path())?;
@@ -125,8 +126,10 @@ fn fingerprint_key(keys: &ES384KeyPair) -> String {
 
     hashed_bytes
         .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+        .fold(String::new(), |mut output, b| {
+            let _ = write!(output, "{b:02x}");
+            output
+        })
 }
 
 fn load_or_create_service_key(
