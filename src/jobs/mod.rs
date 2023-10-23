@@ -12,7 +12,7 @@ use futures::future::join_all;
 use futures::Future;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
@@ -23,11 +23,13 @@ mod catch_panic_future;
 pub mod impls;
 mod interface;
 mod job_id;
+mod job_run_id;
 mod queue_config;
 mod stores;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
 use job_id::JobId;
+use job_run_id::JobRunId;
 pub use queue_config::QueueConfig;
 use stores::{ExecuteJobFn, JobStore, StateFn};
 
@@ -65,9 +67,9 @@ pub trait JobLikeExt {
 }
 
 #[async_trait]
-impl<T> JobLikeExt for T
+impl<J> JobLikeExt for J
 where
-    T: JobLike,
+    J: JobLike,
 {
     async fn enqueue<S: JobStore>(
         self,
@@ -77,7 +79,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, PartialEq, sqlx::FromRow)]
+#[derive(Clone, Debug, sqlx::FromRow)]
 pub struct Job {
     pub id: JobId,
 
@@ -109,14 +111,13 @@ pub struct JobRun {
     finished_at: Option<OffsetDateTime>,
 }
 
-use crate::database::custom_types::Did;
-
-#[derive(sqlx::Type)]
-#[sqlx(transparent)]
-pub struct JobRunId(Did);
-
 #[derive(Debug)]
 pub enum JobRunState {
+    Running,
+    Success,
+    Errored,
+    Panicked,
+    TimedOut,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -142,14 +143,9 @@ pub enum JobQueueError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JobState {
-    New,
-    InProgress,
-    Panicked,
-    Retry,
+    Scheduled,
     Cancelled,
-    Error,
     Complete,
-    TimedOut,
     Dead,
 }
 
@@ -198,10 +194,11 @@ where
             .ok_or(WorkerError::UnregisteredJobName(job.name))?
             .clone();
 
+        // create a new JobRun for the job
+
         let payload = job.payload.ok_or(WorkerError::PayloadMissing)?.clone();
         let safe_runner = CatchPanicFuture::wrap({
             let context = (self.context_data_fn)();
-
             async move { deserialize_and_run_job_fn(payload, context).await }
         });
 
@@ -219,10 +216,10 @@ where
 
                 // todo: save panic message into the job.error and save it back to the memory
                 // store somehow...
-                self.store
-                    .update_state(job.id, JobState::Panicked)
-                    .await
-                    .map_err(WorkerError::UpdateJobStatusFailed)?;
+                //self.store
+                //    .update_state(job.id, JobState::Panicked)
+                //    .await
+                //    .map_err(WorkerError::UpdateJobStatusFailed)?;
 
                 // we didn't complete successfully, but we do want to keep processing jobs for
                 // now. We may be corrupted due to the panic somehow if additional errors crop up.
@@ -231,27 +228,27 @@ where
             }
         };
 
-        match job_result {
-            Ok(_) => {
-                self.store
-                    .update_state(job.id, JobState::Complete)
-                    .await
-                    .map_err(WorkerError::UpdateJobStatusFailed)?;
-            }
-            Err(err) => {
-                tracing::error!("job failed with error: {err}");
+        //match job_result {
+        //    Ok(_) => {
+        //        self.store
+        //            .update_state(job.id, JobState::Complete)
+        //            .await
+        //            .map_err(WorkerError::UpdateJobStatusFailed)?;
+        //    }
+        //    Err(err) => {
+        //        tracing::error!("job failed with error: {err}");
 
-                self.store
-                    .update_state(job.id, JobState::Error)
-                    .await
-                    .map_err(WorkerError::UpdateJobStatusFailed)?;
+        //        self.store
+        //            .update_state(job.id, JobState::Error)
+        //            .await
+        //            .map_err(WorkerError::UpdateJobStatusFailed)?;
 
-                self.store
-                    .retry(job.id)
-                    .await
-                    .map_err(WorkerError::RetryJobFailed)?;
-            }
-        }
+        //        self.store
+        //            .retry(job.id)
+        //            .await
+        //            .map_err(WorkerError::RetryJobFailed)?;
+        //    }
+        //}
 
         Ok(())
     }
@@ -523,7 +520,8 @@ where
 
         match job.run(context).await {
             Ok(_) => Ok(()),
-            Err(err) => Err(JobExecError::ExecutionFailed(err.to_string())),
+            // todo: should try and serialize the error if possible
+            Err(run_err) => Err(JobExecError::ExecutionFailed(run_err.to_string())),
         }
     })
 }
