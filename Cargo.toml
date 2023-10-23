@@ -48,6 +48,8 @@ tracing-appender = "^0.2"
 tracing-futures = { version = "^0.2", default-features = false, features = ["std-future"] }
 tracing-subscriber = { version = "^0.3", default-features = false, features = ["env-filter", "fmt", "local-time", "time", "tracing"] }
 
+candle-core = { git = "https://github.com/huggingface/candle.git", version = "^0.3" }
+
 [dev-dependencies]
 bytes = "^1.4"
 lettre = { version = "^0.10", features = ["file-transport"], default-features = false }
@@ -62,3 +64,6 @@ path = "src/main.rs"
 
 [package.metadata.docs.rs]
 all-features = true
+
+[features]
+cuda = ["candle-core/cuda"]
