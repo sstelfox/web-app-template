@@ -6,10 +6,12 @@ use jwt_simple::prelude::*;
 use object_store::local::LocalFileSystem;
 use sha2::Digest;
 
-use crate::app::{Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey, UploadStore};
-use crate::event_bus::EventBus;
+use crate::app::{
+    Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey, UploadStore,
+};
 use crate::database::custom_types::LoginProvider;
 use crate::database::{self, Database, DatabaseSetupError};
+use crate::event_bus::EventBus;
 
 #[derive(Clone)]
 pub struct State {

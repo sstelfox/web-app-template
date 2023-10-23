@@ -2,7 +2,6 @@
 use std::ops::Deref;
 use std::time::Duration;
 
-
 use time::OffsetDateTime;
 
 use crate::auth::SESSION_TTL;
@@ -52,10 +51,7 @@ impl CreateSession {
         .map_err(SessionError::SaveFailed)
     }
 
-    pub fn new(
-        user_id: UserId,
-        oauth_provider_account_id: OAuthProviderAccountId,
-    ) -> Self {
+    pub fn new(user_id: UserId, oauth_provider_account_id: OAuthProviderAccountId) -> Self {
         let expires_at = OffsetDateTime::now_utc() + Duration::from_secs(SESSION_TTL);
 
         Self {
@@ -129,9 +125,11 @@ impl Session {
                    created_at,
                    expires_at
                  FROM sessions
-                 WHERE id = $1;"#, id)
-            .fetch_optional(database.deref())
-            .await
+                 WHERE id = $1;"#,
+            id
+        )
+        .fetch_optional(database.deref())
+        .await
     }
 
     pub fn oauth_provider_account_id(&self) -> OAuthProviderAccountId {

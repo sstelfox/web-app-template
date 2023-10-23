@@ -1,9 +1,9 @@
 use std::fmt::{self, Display, Formatter};
 
-use sqlx::{Decode, Encode, Sqlite, Type};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
 use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
+use sqlx::{Decode, Encode, Sqlite, Type};
 
 #[derive(Clone, Copy)]
 pub enum JobRunResult {
@@ -65,7 +65,6 @@ impl TryFrom<&str> for JobRunResult {
         Ok(variant)
     }
 }
-
 
 #[derive(Debug, thiserror::Error)]
 pub enum JobRunResultError {

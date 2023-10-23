@@ -14,7 +14,9 @@ const FINAL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 async fn main() {
     use web_app_template::llm::hugging_face;
 
-    let vers = hugging_face::check_safetensor_model_version(hugging_face::EMBEDDING_MODEL).await.expect("valid");
+    let vers = hugging_face::check_safetensor_model_version(hugging_face::EMBEDDING_MODEL)
+        .await
+        .expect("valid");
     println!("{:?}", vers);
 
     let config = match Config::from_env_and_args() {

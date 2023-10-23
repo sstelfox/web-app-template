@@ -2,7 +2,6 @@ use std::ops::Deref;
 
 use time::OffsetDateTime;
 
-
 use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, ProviderId, UserId};
 use crate::database::Database;
 
@@ -28,7 +27,10 @@ impl CreateOAuthProviderAccount {
         }
     }
 
-    pub async fn save(self, database: &Database) -> Result<OAuthProviderAccountId, OAuthProviderAccountError> {
+    pub async fn save(
+        self,
+        database: &Database,
+    ) -> Result<OAuthProviderAccountId, OAuthProviderAccountError> {
         sqlx::query_scalar!(
             r#"INSERT INTO oauth_provider_accounts (user_id, provider, provider_id, provider_email)
                 VALUES ($1, $2, $3, LOWER($4))

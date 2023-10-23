@@ -8,8 +8,8 @@ use axum::routing::get;
 use axum::Router;
 use axum::{Server, ServiceExt};
 use bincode::Options;
-use http::{header, Request};
 use http::uri::PathAndQuery;
+use http::{header, Request};
 use tokio::sync::watch;
 use tower::ServiceBuilder;
 use tower_http::request_id::MakeRequestUuid;
@@ -22,9 +22,9 @@ use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::{Level, Span};
 
-use crate::{auth, health_check};
 use crate::app::{Config, State, StateSetupError};
 use crate::extractors::SessionIdentity;
+use crate::{auth, health_check};
 
 mod error_handlers;
 
@@ -98,10 +98,17 @@ fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
         return path_and_query.path().to_string();
     }
 
-    format!("{}?{}", path_and_query.path(), filtered_query_pairs.join("&"))
+    format!(
+        "{}?{}",
+        path_and_query.path(),
+        filtered_query_pairs.join("&")
+    )
 }
 
-pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result<(), HttpServerError> {
+pub async fn run(
+    config: Config,
+    mut shutdown_rx: watch::Receiver<()>,
+) -> Result<(), HttpServerError> {
     let trace_layer = TraceLayer::new_for_http()
         .make_span_with(SensitiveRequestMakeSpan)
         .on_response(
@@ -151,8 +158,8 @@ pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result
             SENSITIVE_HEADERS.into(),
         ));
 
-    let static_assets = ServeDir::new("dist")
-        .not_found_service(error_handlers::not_found_handler.into_service());
+    let static_assets =
+        ServeDir::new("dist").not_found_service(error_handlers::not_found_handler.into_service());
 
     let state = State::from_config(&config).await?;
     let root_router = Router::new()
@@ -170,7 +177,9 @@ pub async fn run(config: Config, mut shutdown_rx: watch::Receiver<()>) -> Result
     tracing::info!(addr = ?config.listen_addr(), "server listening");
     Server::bind(config.listen_addr())
         .serve(app.into_make_service())
-        .with_graceful_shutdown(async move { let _ = shutdown_rx.changed().await; })
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.changed().await;
+        })
         .await
         .map_err(HttpServerError::ServingFailed)?;
 
@@ -189,20 +198,22 @@ pub enum HttpServerError {
 use crate::pages::HomeTemplate;
 
 pub async fn home_handler(session: SessionIdentity) -> Response {
-    HomeTemplate {
-        session,
-    }.into_response()
+    HomeTemplate { session }.into_response()
 }
 
-use axum::http::StatusCode;
 use crate::event_bus::{SystemEvent, TestEvent};
+use axum::http::StatusCode;
 
 async fn test_event_handler(
     session: SessionIdentity,
     axum::extract::State(state): axum::extract::State<State>,
 ) -> Response {
-    let _ = state.event_bus()
-        .send(SystemEvent::TestEvent, &TestEvent { session_id: session.id() });
+    let _ = state.event_bus().send(
+        SystemEvent::TestEvent,
+        &TestEvent {
+            session_id: session.id(),
+        },
+    );
     (StatusCode::NO_CONTENT, ()).into_response()
 }
 
@@ -246,7 +257,9 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                     match bin_code_config.deserialize::<UserRegistration>(&payload) {
                         Ok(event) => serde_json::to_value(&event).ok(),
                         Err(err) => {
-                            tracing::warn!("failed to decode user registration on event bus: {err}");
+                            tracing::warn!(
+                                "failed to decode user registration on event bus: {err}"
+                            );
                             None
                         }
                     }
@@ -255,7 +268,9 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                     match bin_code_config.deserialize::<TestEvent>(&payload) {
                         Ok(event) => serde_json::to_value(&event).ok(),
                         Err(err) => {
-                            tracing::warn!("failed to decode user registration on event bus: {err}");
+                            tracing::warn!(
+                                "failed to decode user registration on event bus: {err}"
+                            );
                             None
                         }
                     }

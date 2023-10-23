@@ -3,8 +3,8 @@ use std::ops::Deref;
 
 use uuid::Uuid;
 
-use crate::database::Database;
 use crate::database::custom_types::{Did, LoginProvider, ProviderId};
+use crate::database::Database;
 
 #[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(transparent)]

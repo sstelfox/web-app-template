@@ -8,12 +8,12 @@ use crate::jobs::{CurrentTask, Task, TaskExecError, TaskId, TaskLike, TaskQueueE
 
 pub(crate) type ExecuteTaskFn<Context> = Arc<
     dyn Fn(
-        CurrentTask,
-        serde_json::Value,
-        Context,
-    ) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
-    + Send
-    + Sync,
+            CurrentTask,
+            serde_json::Value,
+            Context,
+        ) -> Pin<Box<dyn Future<Output = Result<(), TaskExecError>> + Send>>
+        + Send
+        + Sync,
 >;
 
 pub(crate) type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
@@ -37,7 +37,11 @@ pub trait TaskStore: Send + Sync + 'static {
     where
         Self: Sized;
 
-    async fn errored(&self, id: TaskId, error: TaskExecError) -> Result<Option<TaskId>, TaskQueueError> {
+    async fn errored(
+        &self,
+        id: TaskId,
+        error: TaskExecError,
+    ) -> Result<Option<TaskId>, TaskQueueError> {
         use TaskExecError as TEE;
 
         match error {
@@ -52,7 +56,11 @@ pub trait TaskStore: Send + Sync + 'static {
         }
     }
 
-    async fn next(&self, queue_name: &str, task_names: &[&str]) -> Result<Option<Task>, TaskQueueError>;
+    async fn next(
+        &self,
+        queue_name: &str,
+        task_names: &[&str],
+    ) -> Result<Option<Task>, TaskQueueError>;
 
     async fn retry(&self, id: TaskId) -> Result<Option<TaskId>, TaskQueueError>;
 

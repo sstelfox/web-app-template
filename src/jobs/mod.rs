@@ -9,13 +9,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::async_trait;
-use futures::Future;
 use futures::future::join_all;
+use futures::Future;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
-use tokio::sync::{Mutex, watch};
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -235,7 +235,8 @@ where
     async fn run(&self, task: Task) -> Result<(), WorkerError> {
         let task_info = CurrentTask::new(&task);
 
-        let deserialize_and_run_task_fn = self.task_registry
+        let deserialize_and_run_task_fn = self
+            .task_registry
             .get(task.name.as_str())
             .ok_or_else(|| WorkerError::UnregisteredTaskName(task.name))?
             .clone();
@@ -261,7 +262,8 @@ where
 
                 // todo: save panic message into the task.error and save it back to the memory
                 // store somehow...
-                self.store.update_state(task.id, TaskState::Panicked)
+                self.store
+                    .update_state(task.id, TaskState::Panicked)
                     .await
                     .map_err(WorkerError::UpdateTaskStatusFailed)?;
 
@@ -274,14 +276,16 @@ where
 
         match task_result {
             Ok(_) => {
-                self.store.update_state(task.id, TaskState::Complete)
+                self.store
+                    .update_state(task.id, TaskState::Complete)
                     .await
                     .map_err(WorkerError::UpdateTaskStatusFailed)?;
             }
             Err(err) => {
                 tracing::error!("task failed with error: {err}");
 
-                self.store.errored(task.id, TaskExecError::ExecutionFailed(err.to_string()))
+                self.store
+                    .errored(task.id, TaskExecError::ExecutionFailed(err.to_string()))
                     .await
                     .map_err(WorkerError::RetryTaskFailed)?;
             }
@@ -306,7 +310,8 @@ where
                 }
             }
 
-            let next_task = self.store
+            let next_task = self
+                .store
                 .next(self.queue_config.name, &relevant_task_names)
                 .await
                 .map_err(WorkerError::StoreUnavailable)?;
@@ -323,7 +328,9 @@ where
             // future wakers instead of internal timeouts but some central scheduler
             match &mut self.shutdown_signal {
                 Some(ss) => {
-                    if let Ok(_signaled) = tokio::time::timeout(MAXIMUM_CHECK_DELAY, ss.changed()).await {
+                    if let Ok(_signaled) =
+                        tokio::time::timeout(MAXIMUM_CHECK_DELAY, ss.changed()).await
+                    {
                         // todo might want to handle graceful / non-graceful differently
                         tracing::info!("received worker shutdown signal while idle");
                         return Ok(());
@@ -418,7 +425,10 @@ where
     {
         for (queue_name, queue_tracked_tasks) in self.queue_tasks.iter() {
             if !self.worker_queues.contains_key(queue_name) {
-                return Err(WorkerPoolError::QueueNotConfigured(queue_name, queue_tracked_tasks.clone()));
+                return Err(WorkerPoolError::QueueNotConfigured(
+                    queue_name,
+                    queue_tracked_tasks.clone(),
+                ));
             }
         }
 
@@ -443,8 +453,12 @@ where
 
                 let worker_handle = tokio::spawn(async move {
                     match worker.run_tasks().await {
-                        Ok(()) => tracing::info!(name = ?worker_name, "worker stopped successfully"),
-                        Err(err) => tracing::error!(name = ?worker_name, "worker stopped due to error: {err}"),
+                        Ok(()) => {
+                            tracing::info!(name = ?worker_name, "worker stopped successfully")
+                        }
+                        Err(err) => {
+                            tracing::error!(name = ?worker_name, "worker stopped due to error: {err}")
+                        }
                     }
                 });
 
@@ -462,8 +476,17 @@ where
             let _ = inner_shutdown_tx.send(());
 
             // try and collect error from workers but if it takes too long abandon them
-            let worker_errors: Vec<_> = match timeout(WORKER_SHUTDOWN_TIMEOUT, join_all(worker_handles)).await {
-                Ok(res) => res.into_iter().filter(Result::is_err).map(Result::unwrap_err).collect(),
+            let worker_errors: Vec<_> = match timeout(
+                WORKER_SHUTDOWN_TIMEOUT,
+                join_all(worker_handles),
+            )
+            .await
+            {
+                Ok(res) => res
+                    .into_iter()
+                    .filter(Result::is_err)
+                    .map(Result::unwrap_err)
+                    .collect(),
                 Err(_) => {
                     tracing::warn!("timed out waiting for workers to shutdown, not reporting outstanding errors");
                     Vec::new()
@@ -473,7 +496,10 @@ where
             if worker_errors.is_empty() {
                 tracing::info!("worker pool shutdown gracefully");
             } else {
-                tracing::error!("workers reported the following errors during shutdown:\n{:?}", worker_errors);
+                tracing::error!(
+                    "workers reported the following errors during shutdown:\n{:?}",
+                    worker_errors
+                );
             }
         });
 
@@ -564,7 +590,10 @@ impl MemoryTaskStore {
             };
 
             // any task that has already ended isn't considered for uniqueness checks
-            if !matches!(task.state, TaskState::New | TaskState::InProgress | TaskState::Retry) {
+            if !matches!(
+                task.state,
+                TaskState::New | TaskState::InProgress | TaskState::Retry
+            ) {
                 continue;
             }
 
@@ -627,7 +656,11 @@ impl TaskStore for MemoryTaskStore {
         Ok(Some(id))
     }
 
-    async fn next(&self, queue_name: &str, task_names: &[&str]) -> Result<Option<Task>, TaskQueueError> {
+    async fn next(
+        &self,
+        queue_name: &str,
+        task_names: &[&str],
+    ) -> Result<Option<Task>, TaskQueueError> {
         let mut tasks = self.tasks.lock().await;
         let mut next_task = None;
 
@@ -636,9 +669,17 @@ impl TaskStore for MemoryTaskStore {
 
         for (id, task) in tasks
             .iter_mut()
-            .filter(|(_, task)| task_names.contains(&task.name.as_str()) && task.scheduled_to_run_at <= reference_time)
+            .filter(|(_, task)| {
+                task_names.contains(&task.name.as_str())
+                    && task.scheduled_to_run_at <= reference_time
+            })
             // only care about tasks that have a state to advance
-            .filter(|(_, task)| matches!(task.state, TaskState::New | TaskState::InProgress | TaskState::Retry))
+            .filter(|(_, task)| {
+                matches!(
+                    task.state,
+                    TaskState::New | TaskState::InProgress | TaskState::Retry
+                )
+            })
             .sorted_by(|a, b| sort_tasks(a.1, b.1))
         {
             match (task.state, task.started_at) {
@@ -716,8 +757,13 @@ impl TaskStore for MemoryTaskStore {
 
         // really rough exponential backoff, 4, 8, and 16 seconds by default
         let backoff_secs = 2u64.saturating_pow(new_task.current_attempt.saturating_add(1) as u32);
-        tracing::info!(?id, ?new_id, "task will be retried {backoff_secs} secs in the future");
-        new_task.scheduled_to_run_at = OffsetDateTime::now_utc() + Duration::from_secs(backoff_secs);
+        tracing::info!(
+            ?id,
+            ?new_id,
+            "task will be retried {backoff_secs} secs in the future"
+        );
+        new_task.scheduled_to_run_at =
+            OffsetDateTime::now_utc() + Duration::from_secs(backoff_secs);
 
         tasks.insert(new_task.id, new_task);
 

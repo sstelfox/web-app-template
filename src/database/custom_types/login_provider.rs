@@ -2,10 +2,10 @@ use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Decode, Encode, Sqlite, Type};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
 use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
+use sqlx::{Decode, Encode, Sqlite, Type};
 
 use crate::database::custom_types::LoginProviderConfig;
 
@@ -93,12 +93,12 @@ mod test {
     use std::error::Error;
 
     use axum::extract::Path;
-    use axum::response::IntoResponse;
     use axum::http::StatusCode;
+    use axum::response::IntoResponse;
     use tower::ServiceExt;
 
-    use crate::tests::prelude::*;
     use crate::database::custom_types::{LoginProvider, LoginProviderError};
+    use crate::tests::prelude::*;
 
     // SQLx has turned out to be a largely untrustworthy and inconsistent library when it comes to
     // encoding and decoding, as well as mixed support of the actual underlying database. This
@@ -112,10 +112,11 @@ mod test {
 
         // note: UUIDs are stored little-endian in the database, this fixture represents the little
         // endian encoding of the expected_did string above.
-        let decoded_login_provider: LoginProvider = sqlx::query_scalar!("SELECT 'google' as 'login_provider: LoginProvider';")
-            .fetch_one(&mut *transact)
-            .await
-            .expect("decode to succeed");
+        let decoded_login_provider: LoginProvider =
+            sqlx::query_scalar!("SELECT 'google' as 'login_provider: LoginProvider';")
+                .fetch_one(&mut *transact)
+                .await
+                .expect("decode to succeed");
         assert!(matches!(decoded_login_provider, LoginProvider::Google));
 
         #[derive(sqlx::FromRow)]
@@ -123,10 +124,13 @@ mod test {
             login_provider: LoginProvider,
         }
 
-        let decoded_obj = sqlx::query_as!(LoginProviderTest, "SELECT 'google' as 'login_provider: LoginProvider';")
-            .fetch_one(&mut *transact)
-            .await
-            .expect("decode to succeed");
+        let decoded_obj = sqlx::query_as!(
+            LoginProviderTest,
+            "SELECT 'google' as 'login_provider: LoginProvider';"
+        )
+        .fetch_one(&mut *transact)
+        .await
+        .expect("decode to succeed");
         assert!(matches!(decoded_obj.login_provider, LoginProvider::Google));
 
         transact.rollback().await.expect("rollback")
@@ -137,9 +141,10 @@ mod test {
         let db_pool = test_database().await;
         let mut transact = db_pool.begin().await.expect("transaction");
 
-        let invalid_result = sqlx::query_scalar!("SELECT 'bing' as 'login_provider: LoginProvider';")
-            .fetch_one(&mut *transact)
-            .await;
+        let invalid_result =
+            sqlx::query_scalar!("SELECT 'bing' as 'login_provider: LoginProvider';")
+                .fetch_one(&mut *transact)
+                .await;
 
         assert!(invalid_result.is_err());
 
@@ -147,8 +152,13 @@ mod test {
         assert!(matches!(err, sqlx::Error::ColumnDecode { .. }));
 
         let inner_err = err.source().expect("a source");
-        let login_provider_error = inner_err.downcast_ref::<LoginProviderError>().expect("error to be ours");
-        assert!(matches!(login_provider_error, LoginProviderError::UnknownProvider));
+        let login_provider_error = inner_err
+            .downcast_ref::<LoginProviderError>()
+            .expect("error to be ours");
+        assert!(matches!(
+            login_provider_error,
+            LoginProviderError::UnknownProvider
+        ));
 
         transact.rollback().await.expect("rollback")
     }
@@ -176,43 +186,45 @@ mod test {
 
         assert_eq!(sample_login_provider, returned_login_provider);
 
-        let raw_login_provider: String = sqlx::query_scalar("SELECT login_provider FROM login_provider_encoding_test;")
-            .fetch_one(&mut *transact)
-            .await
-            .expect("return to succeed");
+        let raw_login_provider: String =
+            sqlx::query_scalar("SELECT login_provider FROM login_provider_encoding_test;")
+                .fetch_one(&mut *transact)
+                .await
+                .expect("return to succeed");
 
         assert_eq!(&raw_login_provider, &"google");
     }
 
     #[tokio::test]
     async fn test_axum_roundtripping() {
-        let app = axum::Router::new()
-            .route("/:provider", axum::routing::get(|Path(provider): Path<LoginProvider>| async move {
-                (StatusCode::OK, serde_json::to_value(&provider).expect("valid").to_string()).into_response()
-            }));
+        let app = axum::Router::new().route(
+            "/:provider",
+            axum::routing::get(|Path(provider): Path<LoginProvider>| async move {
+                (
+                    StatusCode::OK,
+                    serde_json::to_value(&provider).expect("valid").to_string(),
+                )
+                    .into_response()
+            }),
+        );
 
         let successful_request = axum::http::Request::get("/google")
             .body(axum::body::Body::empty())
             .unwrap();
 
-        let successful_response = app
-            .clone()
-            .oneshot(successful_request)
-            .await
-            .unwrap();
+        let successful_response = app.clone().oneshot(successful_request).await.unwrap();
 
         assert_eq!(successful_response.status(), StatusCode::OK);
-        let body = hyper::body::to_bytes(successful_response.into_body()).await.unwrap();
+        let body = hyper::body::to_bytes(successful_response.into_body())
+            .await
+            .unwrap();
         assert_eq!(&body[..], b"\"google\"");
 
         let bad_request = axum::http::Request::get("/not-a-provider")
             .body(axum::body::Body::empty())
             .unwrap();
 
-        let bad_response = app
-            .oneshot(bad_request)
-            .await
-            .unwrap();
+        let bad_response = app.oneshot(bad_request).await.unwrap();
 
         assert_eq!(bad_response.status(), StatusCode::BAD_REQUEST);
     }

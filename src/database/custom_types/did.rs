@@ -3,10 +3,10 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Decode, Encode, Sqlite, Type};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
 use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
+use sqlx::{Decode, Encode, Sqlite, Type};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -30,7 +30,9 @@ impl Decode<'_, Sqlite> for Did {
 impl Encode<'_, Sqlite> for Did {
     fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
         let encoded_bytes = self.0.to_bytes_le();
-        args.push(SqliteArgumentValue::Blob(Cow::Owned(encoded_bytes.to_vec())));
+        args.push(SqliteArgumentValue::Blob(Cow::Owned(
+            encoded_bytes.to_vec(),
+        )));
         IsNull::No
     }
 }
@@ -95,14 +97,17 @@ mod test {
         let db_pool = test_database().await;
         let mut transact = db_pool.begin().await.expect("transaction");
 
-        let expected_did = Did::from(Uuid::parse_str("c97dc8dd-244f-4465-aab2-9562ba2a128b").expect("uuid"));
+        let expected_did =
+            Did::from(Uuid::parse_str("c97dc8dd-244f-4465-aab2-9562ba2a128b").expect("uuid"));
 
         // note: UUIDs are stored little-endian in the database, this fixture represents the little
         // endian encoding of the expected_did string above.
-        let decoded_did: Did = sqlx::query_scalar!("SELECT CAST(X'ddc87dc94f246544aab29562ba2a128b' AS BLOB) as 'did: Did';")
-            .fetch_one(&mut *transact)
-            .await
-            .expect("decode to succeed");
+        let decoded_did: Did = sqlx::query_scalar!(
+            "SELECT CAST(X'ddc87dc94f246544aab29562ba2a128b' AS BLOB) as 'did: Did';"
+        )
+        .fetch_one(&mut *transact)
+        .await
+        .expect("decode to succeed");
         assert_eq!(decoded_did, expected_did);
 
         #[derive(sqlx::FromRow)]
@@ -110,10 +115,13 @@ mod test {
             did: Did,
         }
 
-        let decoded_obj = sqlx::query_as!(DidTest, "SELECT CAST(X'ddc87dc94f246544aab29562ba2a128b' AS BLOB) as 'did: Did';")
-            .fetch_one(&mut *transact)
-            .await
-            .expect("decode to succeed");
+        let decoded_obj = sqlx::query_as!(
+            DidTest,
+            "SELECT CAST(X'ddc87dc94f246544aab29562ba2a128b' AS BLOB) as 'did: Did';"
+        )
+        .fetch_one(&mut *transact)
+        .await
+        .expect("decode to succeed");
         assert_eq!(decoded_obj.did, expected_did);
 
         transact.rollback().await.expect("rollback")
@@ -124,9 +132,11 @@ mod test {
         let db_pool = test_database().await;
         let mut transact = db_pool.begin().await.expect("transaction");
 
-        let short_result = sqlx::query_scalar!("SELECT CAST(X'001122334455668899aabbccddeeff' AS BLOB) as 'did: Did';")
-            .fetch_one(&mut *transact)
-            .await;
+        let short_result = sqlx::query_scalar!(
+            "SELECT CAST(X'001122334455668899aabbccddeeff' AS BLOB) as 'did: Did';"
+        )
+        .fetch_one(&mut *transact)
+        .await;
 
         assert!(short_result.is_err());
 
@@ -134,12 +144,16 @@ mod test {
         assert!(matches!(err, sqlx::Error::ColumnDecode { .. }));
 
         let inner_err = err.source().expect("a source");
-        let did_error = inner_err.downcast_ref::<DidError>().expect("error to be ours");
+        let did_error = inner_err
+            .downcast_ref::<DidError>()
+            .expect("error to be ours");
         assert!(matches!(did_error, DidError::CorruptSize));
 
-        let long_result = sqlx::query_scalar!("SELECT CAST(X'0011223344556670078899aabbccddeeff' AS BLOB) as 'did: Did';")
-            .fetch_one(&mut *transact)
-            .await;
+        let long_result = sqlx::query_scalar!(
+            "SELECT CAST(X'0011223344556670078899aabbccddeeff' AS BLOB) as 'did: Did';"
+        )
+        .fetch_one(&mut *transact)
+        .await;
 
         assert!(long_result.is_err());
 
@@ -147,7 +161,9 @@ mod test {
         assert!(matches!(err, sqlx::Error::ColumnDecode { .. }));
 
         let inner_err = err.source().expect("a source");
-        let did_error = inner_err.downcast_ref::<DidError>().expect("error to be ours");
+        let did_error = inner_err
+            .downcast_ref::<DidError>()
+            .expect("error to be ours");
         assert!(matches!(did_error, DidError::CorruptSize));
 
         transact.rollback().await.expect("rollback")
@@ -163,7 +179,8 @@ mod test {
             .await
             .expect("setup to succeed");
 
-        let sample_did = Did::from(Uuid::parse_str("c97dc8dd-244f-4465-aab2-9562ba2a128b").expect("uuid"));
+        let sample_did =
+            Did::from(Uuid::parse_str("c97dc8dd-244f-4465-aab2-9562ba2a128b").expect("uuid"));
         let returned_did: Did = sqlx::query_scalar(
             "INSERT INTO did_encoding_test (did) VALUES ($1) RETURNING did as 'did: Did';",
         )
@@ -179,6 +196,12 @@ mod test {
             .await
             .expect("return to succeed");
 
-        assert_eq!(&raw_did, &[0xdd, 0xc8, 0x7d, 0xc9, 0x4f, 0x24, 0x65, 0x44, 0xaa, 0xb2, 0x95, 0x62, 0xba, 0x2a, 0x12, 0x8b]);
+        assert_eq!(
+            &raw_did,
+            &[
+                0xdd, 0xc8, 0x7d, 0xc9, 0x4f, 0x24, 0x65, 0x44, 0xaa, 0xb2, 0x95, 0x62, 0xba, 0x2a,
+                0x12, 0x8b
+            ]
+        );
     }
 }

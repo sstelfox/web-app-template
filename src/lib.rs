@@ -21,10 +21,12 @@ pub mod utils;
 pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
     let mts = jobs::MemoryTaskStore::default();
 
-    jobs::WorkerPool::new(mts, move || { () })
+    jobs::WorkerPool::new(mts, move || ())
         .register_task_type::<jobs::TestTask>()
         .configure_queue(jobs::QueueConfig::new("default"))
-        .start(async move { let _ = shutdown_rx.changed().await; })
+        .start(async move {
+            let _ = shutdown_rx.changed().await;
+        })
         .await
         .expect("worker start up to succeed")
 }

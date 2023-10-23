@@ -13,16 +13,20 @@ use serde::Deserialize;
 use url::Url;
 
 use crate::app::State as AppState;
+use crate::auth::SESSION_COOKIE_NAME;
 use crate::auth::{OAuthClient, OAuthClientError};
-use crate::database::models::{
-    CreateOAuthProviderAccount, CreateSession, CreateUser, OAuthStateError, SessionError, UserError, VerifyOAuthState,
+use crate::database::custom_types::{
+    LoginProvider, OAuthProviderAccountId, OAuthProviderAccountIdError, ProviderId, UserId,
+    UserIdError,
 };
-use crate::auth::{SESSION_COOKIE_NAME};
-use crate::database::custom_types::{LoginProvider, OAuthProviderAccountId, OAuthProviderAccountIdError, ProviderId, UserId, UserIdError};
+use crate::database::models::{
+    CreateOAuthProviderAccount, CreateSession, CreateUser, OAuthStateError, SessionError,
+    UserError, VerifyOAuthState,
+};
 use crate::database::models::{OAuthProviderAccount, OAuthProviderAccountError};
 use crate::database::Database;
+use crate::event_bus::{SystemEvent, UserRegistration};
 use crate::extractors::ServerBase;
-use crate::event_bus::{UserRegistration, SystemEvent};
 
 pub async fn handler(
     database: Database,
@@ -75,9 +79,13 @@ pub async fn handler(
 
     // out of provider specific land for the most part
 
-    let maybe_provider_account_id = OAuthProviderAccountId::from_provider_account_id(&database, provider, user_info.google_id.clone())
-        .await
-        .map_err(OAuthCallbackError::FailedAccountLookup)?;
+    let maybe_provider_account_id = OAuthProviderAccountId::from_provider_account_id(
+        &database,
+        provider,
+        user_info.google_id.clone(),
+    )
+    .await
+    .map_err(OAuthCallbackError::FailedAccountLookup)?;
 
     let provider_account_id = match maybe_provider_account_id {
         Some(pa) => pa,
@@ -103,18 +111,20 @@ pub async fn handler(
                 .map_err(OAuthCallbackError::UserCreationFailed)?;
 
             // todo: at least log failures...
-            let _ = state.event_bus()
-                .send(SystemEvent::UserRegistration, &UserRegistration { id: new_user_id });
+            let _ = state.event_bus().send(
+                SystemEvent::UserRegistration,
+                &UserRegistration { id: new_user_id },
+            );
 
             CreateOAuthProviderAccount::new(
-                    new_user_id,
-                    provider,
-                    user_info.google_id,
-                    user_info.email.to_string(),
-                )
-                .save(&database)
-                .await
-                .map_err(OAuthCallbackError::ProviderAccountCreationFailed)?
+                new_user_id,
+                provider,
+                user_info.google_id,
+                user_info.email.to_string(),
+            )
+            .save(&database)
+            .await
+            .map_err(OAuthCallbackError::ProviderAccountCreationFailed)?
         }
     };
 

@@ -13,13 +13,19 @@ impl EventBus {
         Self { bus }
     }
 
-    pub fn send(&self, event: SystemEvent, payload: &impl Serialize) -> Result<usize, EventBusError> {
+    pub fn send(
+        &self,
+        event: SystemEvent,
+        payload: &impl Serialize,
+    ) -> Result<usize, EventBusError> {
         let bin_code_config = bincode::DefaultOptions::new();
 
-        let bytes = bin_code_config.serialize(payload)
+        let bytes = bin_code_config
+            .serialize(payload)
             .map_err(EventBusError::Serialization)?;
 
-        self.bus.send((event, bytes))
+        self.bus
+            .send((event, bytes))
             .map_err(EventBusError::SendFailed)
     }
 
