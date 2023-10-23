@@ -19,16 +19,17 @@ pub mod utils;
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
-    let mts = jobs::MemoryJobStore::default();
+    todo!()
+    //let mts = jobs::MemoryJobStore::default();
 
-    jobs::WorkerPool::new(mts, move || ())
-        .register_job_type::<jobs::impls::TestJob<()>>()
-        .configure_queue(jobs::QueueConfig::new("default"))
-        .start(async move {
-            let _ = shutdown_rx.changed().await;
-        })
-        .await
-        .expect("worker start up to succeed")
+    //jobs::WorkerPool::new(mts, move || ())
+    //    .register_job_type::<jobs::impls::TestJob<()>>()
+    //    .configure_queue(jobs::QueueConfig::new("default"))
+    //    .start(async move {
+    //        let _ = shutdown_rx.changed().await;
+    //    })
+    //    .await
+    //    .expect("worker start up to succeed")
 }
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:

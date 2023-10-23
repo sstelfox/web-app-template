@@ -91,9 +91,9 @@ CREATE TABLE background_jobs (
   current_attempt INTEGER NOT NULL DEFAULT 1,
   maximum_attempts INTEGER NOT NULL,
 
-  payload BLOB NOT NULL,
+  payload BLOB,
 
-  job_scheduled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  scheduled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   attempt_run_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -109,18 +109,20 @@ CREATE UNIQUE INDEX idx_background_jobs_on_name_unique_key
   ON background_jobs(name, unique_key)
   WHERE unique_key != NULL AND state IN (1, 2, 3);
 
-CREATE TABLE job_run (
+CREATE TABLE background_job_runs (
   id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   background_job_id BLOB NOT NULL
     REFERENCES background_jobs(id)
     ON DELETE CASCADE,
 
-  result TEXT NOT NULL,
+  state TEXT NOT NULL,
+
   output BLOB,
 
-  run_started_at TIMESTAMP,
-  run_finished_at TIMESTAMP
+  started_at NOT NULL TIMESTAMP,
+  finished_at TIMESTAMP
 );
 
-CREATE INDEX idx_job_run_on_background_job_id ON job_run(background_job_id);
+CREATE INDEX idx_background_job_runs_on_background_job_id ON background_job_runs(background_job_id);
+CREATE INDEX idx_background_job_runs_on_state ON background_job_runs(state);
