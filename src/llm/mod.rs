@@ -1,4 +1,7 @@
 pub mod hugging_face {
+    use reqwest::header::{CONTENT_RANGE, LOCATION, RANGE, HeaderMap, HeaderName, HeaderValue, ToStrError};
+    use reqwest::redirect::Policy;
+
     pub const EMBEDDING_MODEL: &str = "thenlper/gte-base";
 
     pub const RERANKING_MODEL: &str = "BAAI/bge-reranker-base";
@@ -10,9 +13,6 @@ pub mod hugging_face {
         etag: String,
         size: usize,
     }
-
-    use reqwest::header::{CONTENT_RANGE, LOCATION, RANGE, HeaderMap, HeaderName, HeaderValue, ToStrError};
-    use reqwest::redirect::Policy;
 
     fn no_redirect_client() -> Result<reqwest::Client, HuggingFaceError> {
         let mut default_headers = HeaderMap::new();
