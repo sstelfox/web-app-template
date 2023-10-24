@@ -98,18 +98,17 @@ CREATE TABLE background_jobs (
 );
 
 CREATE INDEX idx_background_jobs_on_attempt_run_at ON background_jobs(attempt_run_at);
-CREATE INDEX idx_background_jobs_on_scheduled_at ON background_jobs(job_scheduled_at);
+CREATE INDEX idx_background_jobs_on_scheduled_at ON background_jobs(scheduled_at);
 CREATE INDEX idx_background_jobs_on_state ON background_jobs(state);
 CREATE INDEX idx_background_jobs_on_name ON background_jobs(name);
 CREATE INDEX idx_background_jobs_on_queue_name ON background_jobs(queue_name);
 
--- Uniqueness is only required on active jobs, specifically this is requiring
--- the uniqueness on tasks that are new, started, or retrying.
+-- Uniqueness is only required on active jobs
 CREATE UNIQUE INDEX idx_background_jobs_on_name_unique_key
   ON background_jobs(name, unique_key)
-  WHERE unique_key != NULL AND state IN (1, 2, 3);
+  WHERE unique_key != NULL AND state = 'scheduled';
 
-CREATE TABLE background_job_runs (
+CREATE TABLE background_runs (
   id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)),
 
   background_job_id BLOB NOT NULL
@@ -120,9 +119,9 @@ CREATE TABLE background_job_runs (
 
   output BLOB,
 
-  started_at NOT NULL TIMESTAMP,
+  started_at TIMESTAMP NOT NULL,
   finished_at TIMESTAMP
 );
 
-CREATE INDEX idx_background_job_runs_on_background_job_id ON background_job_runs(background_job_id);
-CREATE INDEX idx_background_job_runs_on_state ON background_job_runs(state);
+CREATE INDEX idx_background_runs_on_background_job_id ON background_runs(background_job_id);
+CREATE INDEX idx_background_runs_on_state ON background_runs(state);

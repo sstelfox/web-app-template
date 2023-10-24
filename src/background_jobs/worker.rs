@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use tokio::sync::watch::Receiver;
 
-use crate::jobs::{MAXIMUM_CHECK_DELAY, CatchPanicFuture, ExecuteJobFn, Job, JobQueueError, JobStore, QueueConfig, StateFn};
+use crate::background_jobs::{MAXIMUM_CHECK_DELAY, CatchPanicFuture, ExecuteJobFn, BackgroundJob, JobQueueError, JobStore, QueueConfig, StateFn};
 
 pub struct Worker<Context, S>
 where
@@ -42,7 +42,7 @@ where
         }
     }
 
-    async fn run(&self, job: Job) -> Result<(), WorkerError> {
+    async fn run(&self, job: BackgroundJob) -> Result<(), WorkerError> {
         let deserialize_and_run_job_fn = self
             .job_registry
             .get(job.name.as_str())

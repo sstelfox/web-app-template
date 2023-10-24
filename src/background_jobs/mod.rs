@@ -3,16 +3,16 @@
 mod catch_panic_future;
 pub mod impls;
 mod interface;
-mod job_id;
-mod job_run_id;
+mod background_job_id;
+mod background_run_id;
 mod queue_config;
 mod stores;
 mod worker;
 mod worker_pool;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
-use job_id::JobId;
-use job_run_id::JobRunId;
+use background_job_id::BackgroundJobId;
+use background_run_id::BackgroundRunId;
 pub use queue_config::QueueConfig;
 use stores::{ExecuteJobFn, JobStore, StateFn};
 use worker::Worker;
@@ -21,8 +21,8 @@ use std::cmp::Ordering;
 use std::time::Duration;
 
 use axum::async_trait;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 
 const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -52,7 +52,7 @@ pub trait JobLikeExt {
     async fn enqueue<S: JobStore>(
         self,
         connection: &mut S::Connection,
-    ) -> Result<Option<JobId>, JobQueueError>;
+    ) -> Result<Option<BackgroundJobId>, JobQueueError>;
 }
 
 #[async_trait]
@@ -63,14 +63,14 @@ where
     async fn enqueue<S: JobStore>(
         self,
         connection: &mut S::Connection,
-    ) -> Result<Option<JobId>, JobQueueError> {
+    ) -> Result<Option<BackgroundJobId>, JobQueueError> {
         S::enqueue(connection, self).await
     }
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
-pub struct Job {
-    pub id: JobId,
+pub struct BackgroundJob {
+    pub id: BackgroundJobId,
 
     name: String,
     queue_name: String,
@@ -88,10 +88,10 @@ pub struct Job {
 }
 
 #[derive(sqlx::FromRow)]
-pub struct JobRun {
-    pub id: JobRunId,
+pub struct BackgroundRun {
+    pub id: BackgroundRunId,
 
-    background_job_id: JobId,
+    background_job_id: BackgroundJobId,
     state: JobRunState,
 
     output: Option<serde_json::Value>,
@@ -124,7 +124,7 @@ pub enum JobExecError {
 #[derive(Debug, thiserror::Error)]
 pub enum JobQueueError {
     #[error("unable to find job with ID {0}")]
-    UnknownJob(JobId),
+    UnknownJob(BackgroundJobId),
 
     #[error("I lazily hit one of the queue errors I haven't implemented yet")]
     Unknown,
@@ -138,20 +138,16 @@ pub enum JobState {
     Dead,
 }
 
-// local helper functions
-
-fn sort_jobs(a: &Job, b: &Job) -> Ordering {
+fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
     match a.attempt_run_at.cmp(&b.attempt_run_at) {
         Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
         ord => ord,
     }
 }
 
-// concrete work store implementation
-
 //#[derive(Clone, Default)]
 //pub struct MemoryJobStore {
-//    pub jobs: Arc<Mutex<BTreeMap<JobId, Job>>>,
+//    pub jobs: Arc<Mutex<BTreeMap<BackgroundJobId, Job>>>,
 //}
 //
 //impl MemoryJobStore {
@@ -192,7 +188,7 @@ fn sort_jobs(a: &Job, b: &Job) -> Ordering {
 //    async fn enqueue<T: JobLike>(
 //        conn: &mut Self::Connection,
 //        job: T,
-//    ) -> Result<Option<JobId>, JobQueueError> {
+//    ) -> Result<Option<BackgroundJobId>, JobQueueError> {
 //        let unique_key = job.unique_key().await;
 //
 //        if let Some(new_key) = &unique_key {
@@ -201,7 +197,7 @@ fn sort_jobs(a: &Job, b: &Job) -> Ordering {
 //            }
 //        }
 //
-//        let id = JobId::from(Uuid::new_v4());
+//        let id = BackgroundJobId::from(Uuid::new_v4());
 //        let payload = serde_json::to_value(job).map_err(|_| JobQueueError::Unknown)?;
 //
 //        let job = Job {
@@ -291,7 +287,7 @@ fn sort_jobs(a: &Job, b: &Job) -> Ordering {
 //        Ok(next_job)
 //    }
 //
-//    async fn retry(&self, id: JobId) -> Result<Option<JobId>, JobQueueError> {
+//    async fn retry(&self, id: BackgroundJobId) -> Result<Option<BackgroundJobId>, JobQueueError> {
 //        let mut jobs = self.jobs.lock().await;
 //
 //        let target_job = match jobs.get_mut(&id) {
@@ -314,7 +310,7 @@ fn sort_jobs(a: &Job, b: &Job) -> Ordering {
 //
 //        let mut new_job = target_job.clone();
 //
-//        let new_id = JobId::from(Uuid::new_v4());
+//        let new_id = BackgroundJobId::from(Uuid::new_v4());
 //        target_job.next_id = Some(new_job.id);
 //
 //        new_job.id = new_id;
@@ -338,7 +334,7 @@ fn sort_jobs(a: &Job, b: &Job) -> Ordering {
 //        Ok(Some(new_id))
 //    }
 //
-//    async fn update_state(&self, id: JobId, new_state: JobState) -> Result<(), JobQueueError> {
+//    async fn update_state(&self, id: BackgroundJobId, new_state: JobState) -> Result<(), JobQueueError> {
 //        let mut jobs = self.jobs.lock().await;
 //
 //        let job = match jobs.get_mut(&id) {

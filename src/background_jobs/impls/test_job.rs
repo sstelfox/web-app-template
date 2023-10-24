@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::jobs::JobLike;
+use crate::background_jobs::JobLike;
 
 #[derive(Deserialize, Serialize)]
 pub struct TestJob<C: Clone + Send + Sync + 'static> {

@@ -7,15 +7,15 @@ use crate::database::custom_types::Did;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct JobRunId(Did);
+pub struct BackgroundRunId(Did);
 
-impl Display for JobRunId {
+impl Display for BackgroundRunId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl From<Uuid> for JobRunId {
+impl From<Uuid> for BackgroundRunId {
     fn from(val: Uuid) -> Self {
         Self(Did::from(val))
     }

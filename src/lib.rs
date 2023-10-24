@@ -1,19 +1,18 @@
-//use std::time::Duration;
-
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-pub mod app;
 mod auth;
 mod database;
 mod event_bus;
 mod extractors;
 mod health_check;
-pub mod http_server;
-pub mod jobs;
-pub mod llm;
 mod pages;
+
+pub mod app;
+pub mod background_jobs;
+pub mod http_server;
+pub mod llm;
 pub mod utils;
 
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
@@ -22,9 +21,9 @@ pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHan
     todo!()
     //let mts = jobs::MemoryJobStore::default();
 
-    //jobs::WorkerPool::new(mts, move || ())
-    //    .register_job_type::<jobs::impls::TestJob<()>>()
-    //    .configure_queue(jobs::QueueConfig::new("default"))
+    //background_jobs::WorkerPool::new(mts, move || ())
+    //    .register_job_type::<background_jobs::impls::TestJob<()>>()
+    //    .configure_queue(background_jobs::QueueConfig::new("default"))
     //    .start(async move {
     //        let _ = shutdown_rx.changed().await;
     //    })

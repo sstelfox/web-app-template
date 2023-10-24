@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
-use crate::jobs::{ExecuteJobFn, JobExecError, JobLike, JobStore, QueueConfig, StateFn, Worker};
+use crate::background_jobs::{ExecuteJobFn, JobExecError, JobLike, JobStore, QueueConfig, StateFn, Worker};
 
 const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -43,6 +43,7 @@ where
     {
         Self {
             context_data_fn: Arc::new(context_data_fn),
+
             job_store,
             job_registry: BTreeMap::new(),
 
@@ -151,9 +152,7 @@ where
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerPoolError {
-    #[error(
-        "found named queue '{0}' defined by job(s) {1:?} that doesn't have a matching queue config"
-    )]
+    #[error("found queue '{0}' defined by job(s) {1:?} without a queue config")]
     QueueNotConfigured(&'static str, Vec<&'static str>),
 }
 
