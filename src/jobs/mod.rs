@@ -41,12 +41,11 @@ const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[async_trait]
 pub trait JobLike: Serialize + DeserializeOwned + Sync + Send + 'static {
-    // todo: rename MAX_ATTEMPTS
-    const MAX_RETRIES: usize = 3;
+    const JOB_NAME: &'static str;
+
+    const MAX_ATTEMPTS: usize = 3;
 
     const QUEUE_NAME: &'static str = "default";
-
-    const JOB_NAME: &'static str;
 
     type Error: std::error::Error;
     type Context: Clone + Send + 'static;
