@@ -3,16 +3,12 @@
 mod catch_panic_future;
 pub mod impls;
 mod interface;
-mod background_job_id;
-mod background_run_id;
 mod queue_config;
 mod stores;
 mod worker;
 mod worker_pool;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
-use background_job_id::BackgroundJobId;
-use background_run_id::BackgroundRunId;
 pub use queue_config::QueueConfig;
 use stores::{ExecuteJobFn, JobStore, StateFn};
 use worker::Worker;
@@ -24,6 +20,8 @@ use axum::async_trait;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
+
+use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, BackgroundRunId};
 
 const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -76,7 +74,7 @@ pub struct BackgroundJob {
     queue_name: String,
 
     unique_key: Option<String>,
-    state: JobState,
+    state: BackgroundJobState,
 
     current_attempt: usize,
     maximum_attempts: usize,
@@ -130,14 +128,6 @@ pub enum JobQueueError {
     Unknown,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum JobState {
-    Scheduled,
-    Cancelled,
-    Complete,
-    Dead,
-}
-
 fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
     match a.attempt_run_at.cmp(&b.attempt_run_at) {
         Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
@@ -166,7 +156,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //            // any job that has already ended isn't considered for uniqueness checks
 //            if !matches!(
 //                job.state,
-//                JobState::New | JobState::InProgress | JobState::Retry
+//                BackgroundJobState::New | BackgroundJobState::InProgress | BackgroundJobState::Retry
 //            ) {
 //                continue;
 //            }
@@ -207,7 +197,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //            queue_name: T::QUEUE_NAME.to_string(),
 //
 //            unique_key,
-//            state: JobState::New,
+//            state: BackgroundJobState::New,
 //            current_attempt: 0,
 //            maximum_attempts: T::MAX_RETRIES,
 //
@@ -243,27 +233,27 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //            .filter(|(_, job)| {
 //                matches!(
 //                    job.state,
-//                    JobState::New | JobState::InProgress | JobState::Retry
+//                    BackgroundJobState::New | BackgroundJobState::InProgress | BackgroundJobState::Retry
 //                )
 //            })
 //            .sorted_by(|a, b| sort_jobs(a.1, b.1))
 //        {
 //            match (job.state, job.started_at) {
-//                (JobState::New | JobState::Retry, None) => {
+//                (BackgroundJobState::New | BackgroundJobState::Retry, None) => {
 //                    if job.queue_name != queue_name {
 //                        continue;
 //                    }
 //
 //                    job.started_at = Some(OffsetDateTime::now_utc());
-//                    job.state = JobState::InProgress;
+//                    job.state = BackgroundJobState::InProgress;
 //
 //                    next_job = Some(job.clone());
 //                    break;
 //                }
-//                (JobState::InProgress, Some(started_at)) => {
+//                (BackgroundJobState::InProgress, Some(started_at)) => {
 //                    if (started_at + JOB_EXECUTION_TIMEOUT) >= OffsetDateTime::now_utc() {
 //                        // todo: need to send cancel signal to the job
-//                        job.state = JobState::TimedOut;
+//                        job.state = BackgroundJobState::TimedOut;
 //                        job.finished_at = Some(OffsetDateTime::now_utc());
 //
 //                        jobs_to_retry.push(id);
@@ -271,7 +261,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //                }
 //                (state, _) => {
 //                    tracing::error!(id = ?job.id, ?state, "encountered job in illegal state");
-//                    job.state = JobState::Dead;
+//                    job.state = BackgroundJobState::Dead;
 //                    job.finished_at = Some(OffsetDateTime::now_utc());
 //                }
 //            }
@@ -296,7 +286,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        };
 //
 //        // these states are the only retryable states
-//        if !matches!(target_job.state, JobState::Error | JobState::TimedOut) {
+//        if !matches!(target_job.state, BackgroundJobState::Error | BackgroundJobState::TimedOut) {
 //            tracing::warn!(?id, "job is not in a state that can be retried");
 //            return Err(JobQueueError::Unknown);
 //        }
@@ -304,7 +294,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        // no retries remaining mark the job as dead
 //        if target_job.current_attempt >= target_job.maximum_attempts {
 //            tracing::warn!(?id, "job failed with no more attempts remaining");
-//            target_job.state = JobState::Dead;
+//            target_job.state = BackgroundJobState::Dead;
 //            return Ok(None);
 //        }
 //
@@ -317,7 +307,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        new_job.previous_id = Some(target_job.id);
 //
 //        new_job.current_attempt += 1;
-//        new_job.state = JobState::Retry;
+//        new_job.state = BackgroundJobState::Retry;
 //        new_job.started_at = None;
 //        new_job.scheduled_at = OffsetDateTime::now_utc();
 //
@@ -334,7 +324,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        Ok(Some(new_id))
 //    }
 //
-//    async fn update_state(&self, id: BackgroundJobId, new_state: JobState) -> Result<(), JobQueueError> {
+//    async fn update_state(&self, id: BackgroundJobId, new_state: BackgroundJobState) -> Result<(), JobQueueError> {
 //        let mut jobs = self.jobs.lock().await;
 //
 //        let job = match jobs.get_mut(&id) {
@@ -342,19 +332,19 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //            None => return Err(JobQueueError::UnknownJob(id)),
 //        };
 //
-//        if job.state != JobState::InProgress {
+//        if job.state != BackgroundJobState::InProgress {
 //            tracing::error!("only in progress jobs are allowed to transition to other states");
 //            return Err(JobQueueError::Unknown);
 //        }
 //
 //        match new_state {
 //            // this state should only exist when the job is first created
-//            JobState::New => {
+//            BackgroundJobState::New => {
 //                tracing::error!("can't transition an existing job to the New state");
 //                return Err(JobQueueError::Unknown);
 //            }
 //            // this is an internal transition that happens automatically when the job is picked up
-//            JobState::InProgress => {
+//            BackgroundJobState::InProgress => {
 //                tracing::error!("only the job store may transition a job to the InProgress state");
 //                return Err(JobQueueError::Unknown);
 //            }

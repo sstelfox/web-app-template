@@ -72,7 +72,7 @@ where
                 // todo: save panic message into the job.error and save it back to the memory
                 // store somehow...
                 //self.store
-                //    .update_state(job.id, JobState::Panicked)
+                //    .update_state(job.id, BackgroundJobState::Panicked)
                 //    .await
                 //    .map_err(WorkerError::UpdateJobStatusFailed)?;
 
@@ -86,7 +86,7 @@ where
         //match job_result {
         //    Ok(_) => {
         //        self.store
-        //            .update_state(job.id, JobState::Complete)
+        //            .update_state(job.id, BackgroundJobState::Complete)
         //            .await
         //            .map_err(WorkerError::UpdateJobStatusFailed)?;
         //    }
@@ -94,7 +94,7 @@ where
         //        tracing::error!("job failed with error: {err}");
 
         //        self.store
-        //            .update_state(job.id, JobState::Error)
+        //            .update_state(job.id, BackgroundJobState::Error)
         //            .await
         //            .map_err(WorkerError::UpdateJobStatusFailed)?;
 

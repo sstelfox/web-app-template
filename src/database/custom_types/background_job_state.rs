@@ -5,14 +5,12 @@ use sqlx::error::BoxDynError;
 use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
 use sqlx::{Decode, Encode, Sqlite, Type};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum BackgroundJobState {
-    New,
-    Started,
-    Retrying,
+    Scheduled,
     Cancelled,
-    Failed,
     Complete,
+    Dead,
 }
 
 impl Decode<'_, Sqlite> for BackgroundJobState {
@@ -42,12 +40,10 @@ impl Type<Sqlite> for BackgroundJobState {
 impl Display for BackgroundJobState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let msg = match self {
-            BackgroundJobState::New => "new",
-            BackgroundJobState::Started => "started",
-            BackgroundJobState::Retrying => "retrying",
+            BackgroundJobState::Scheduled => "scheduled",
             BackgroundJobState::Cancelled => "cancelled",
-            BackgroundJobState::Failed => "failed",
             BackgroundJobState::Complete => "complete",
+            BackgroundJobState::Dead => "dead",
         };
 
         f.write_str(msg)
@@ -59,12 +55,10 @@ impl TryFrom<&str> for BackgroundJobState {
 
     fn try_from(val: &str) -> Result<Self, BackgroundJobStateError> {
         let variant = match val {
-            "new" => BackgroundJobState::New,
-            "started" => BackgroundJobState::Started,
-            "retrying" => BackgroundJobState::Retrying,
+            "scheduled" => BackgroundJobState::Scheduled,
             "cancelled" => BackgroundJobState::Cancelled,
-            "failed" => BackgroundJobState::Failed,
             "complete" => BackgroundJobState::Complete,
+            "dead" => BackgroundJobState::Dead,
             _ => return Err(BackgroundJobStateError::InvalidStateValue),
         };
 
