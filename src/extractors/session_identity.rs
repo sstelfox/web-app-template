@@ -73,9 +73,10 @@ where
         // todo: some sanity checks on the cookie (path, security, is web only)
 
         let raw_cookie_val = session_cookie.value();
-        if raw_cookie_val.len() != 150 { // 22 bytes digest, 128 bytes hmac
-             // invalid session length
-             return Err(SessionIdentityError::EncodingError)?;
+        if raw_cookie_val.len() != 150 {
+            // 22 bytes digest, 128 bytes hmac
+            // invalid session length
+            return Err(SessionIdentityError::EncodingError)?;
         }
 
         let (session_id_b64, authentication_tag_b64) = raw_cookie_val.split_at(22);

@@ -1,10 +1,16 @@
+mod sqlite_store;
+
+pub use sqlite_store::SqliteStore;
+
 use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::Future;
 
-use crate::background_jobs::{BackgroundJob, JobExecError, BackgroundJobId, BackgroundRunId, JobLike};
+use crate::background_jobs::{
+    BackgroundJob, BackgroundJobId, BackgroundRunId, CaughtPanic, JobLike,
+};
 use crate::database::custom_types::BackgroundJobState;
 
 pub(crate) type ExecuteJobFn<Context> = Arc<
@@ -16,7 +22,17 @@ pub(crate) type ExecuteJobFn<Context> = Arc<
         + Sync,
 >;
 
-pub(crate) type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;
+#[derive(Debug, thiserror::Error)]
+pub enum JobExecError {
+    #[error("job deserialization failed: {0}")]
+    DeserializationFailed(#[from] serde_json::Error),
+
+    #[error("job execution failed: {0}")]
+    ExecutionFailed(String),
+
+    #[error("job panicked: {0}")]
+    Panicked(#[from] CaughtPanic),
+}
 
 #[async_trait]
 pub trait JobStore: Send + Sync + 'static {
@@ -41,7 +57,11 @@ pub trait JobStore: Send + Sync + 'static {
 
     async fn retry(&self, id: BackgroundJobId) -> Result<Option<BackgroundRunId>, JobStoreError>;
 
-    async fn update_state(&self, id: BackgroundJobId, new_state: BackgroundJobState) -> Result<(), JobStoreError>;
+    async fn update_state(
+        &self,
+        id: BackgroundJobId,
+        new_state: BackgroundJobState,
+    ) -> Result<(), JobStoreError>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -49,3 +69,5 @@ pub enum JobStoreError {
     #[error("unable to find job with ID {0}")]
     UnknownJob(BackgroundJobId),
 }
+
+pub(crate) type StateFn<Context> = Arc<dyn Fn() -> Context + Send + Sync>;

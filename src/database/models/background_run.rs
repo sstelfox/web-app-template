@@ -1,6 +1,8 @@
 use time::OffsetDateTime;
 
-use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundRunId, BackgroundRunState};
+use crate::database::custom_types::{
+    Attempt, BackgroundJobId, BackgroundRunId, BackgroundRunState,
+};
 
 #[derive(sqlx::FromRow)]
 pub struct BackgroundRun {

@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use tokio::sync::watch::Receiver;
 
-use crate::background_jobs::{MAXIMUM_CHECK_DELAY, CatchPanicFuture, ExecuteJobFn, BackgroundJob, JobStore, JobStoreError, QueueConfig, StateFn};
+use crate::background_jobs::{
+    BackgroundJob, CatchPanicFuture, ExecuteJobFn, JobStore, JobStoreError, QueueConfig, StateFn,
+    MAXIMUM_CHECK_DELAY,
+};
 
 pub struct Worker<Context, S>
 where

@@ -3,13 +3,15 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::Future;
 use futures::future::join_all;
+use futures::Future;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
-use crate::background_jobs::{ExecuteJobFn, JobExecError, JobLike, JobStore, QueueConfig, StateFn, Worker};
+use crate::background_jobs::{
+    ExecuteJobFn, JobExecError, JobLike, JobStore, QueueConfig, StateFn, Worker,
+};
 
 const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 

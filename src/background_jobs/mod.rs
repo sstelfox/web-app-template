@@ -10,14 +10,14 @@ mod worker_pool;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
 pub use queue_config::QueueConfig;
-use stores::{ExecuteJobFn, JobStore, JobStoreError, StateFn};
+use stores::{ExecuteJobFn, JobExecError, JobStore, JobStoreError, StateFn};
 use worker::Worker;
 
 use std::time::Duration;
 
 use axum::async_trait;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::database::custom_types::{BackgroundJobId, BackgroundRunId};
 use crate::database::models::BackgroundJob;
@@ -63,18 +63,6 @@ where
     ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError> {
         S::enqueue(connection, self).await
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum JobExecError {
-    #[error("job deserialization failed: {0}")]
-    DeserializationFailed(#[from] serde_json::Error),
-
-    #[error("job execution failed: {0}")]
-    ExecutionFailed(String),
-
-    #[error("job panicked: {0}")]
-    Panicked(#[from] CaughtPanic),
 }
 
 //fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
