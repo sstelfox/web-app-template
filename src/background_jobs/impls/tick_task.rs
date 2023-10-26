@@ -42,6 +42,10 @@ impl TickMessage {
             time: OffsetDateTime::now_utc(),
         }
     }
+
+    pub fn time(&self) -> OffsetDateTime {
+        self.time
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

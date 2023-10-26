@@ -11,6 +11,7 @@ use axum::{Server, ServiceExt};
 use bincode::Options;
 use http::uri::PathAndQuery;
 use http::{header, Request};
+use time::OffsetDateTime;
 use tokio::sync::watch;
 use tower::ServiceBuilder;
 use tower_http::request_id::MakeRequestUuid;
@@ -24,6 +25,7 @@ use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::{Level, Span};
 
 use crate::app::{State, StateSetupError};
+use crate::background_jobs::impls::TickMessage;
 use crate::extractors::SessionIdentity;
 use crate::{auth, health_check};
 
@@ -277,7 +279,15 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                         }
                     }
                 }
-                _ => continue,
+                SystemEvent::Tick => {
+                    match bin_code_config.deserialize::<TickMessage>(&payload) {
+                        Ok(event) => serde_json::to_value(&ClientTick::from(event)).ok(),
+                        Err(err) => {
+                            tracing::warn!("failed to decode tick on event bus: {err}");
+                            None
+                        }
+                    }
+                }
             };
 
             let response = BusToClientMessage {
@@ -337,4 +347,18 @@ struct BusToClientMessage {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     decoded: Option<serde_json::Value>,
+}
+
+/// We use a different encoding of time when communicating outside of our applications as the byte
+/// serialized version is more efficient but not a standard others want to interact with.
+#[derive(Serialize)]
+struct ClientTick {
+    #[serde(with = "time::serde::rfc3339")]
+    time: OffsetDateTime,
+}
+
+impl From<TickMessage> for ClientTick {
+    fn from(value: TickMessage) -> Self {
+        Self { time: value.time() }
+    }
 }
