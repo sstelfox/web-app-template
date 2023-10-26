@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use tokio::sync::watch::Receiver;
 
-use crate::background_jobs::{MAXIMUM_CHECK_DELAY, CatchPanicFuture, ExecuteJobFn, BackgroundJob, JobQueueError, JobStore, QueueConfig, StateFn};
+use crate::background_jobs::{MAXIMUM_CHECK_DELAY, CatchPanicFuture, ExecuteJobFn, BackgroundJob, JobStore, JobStoreError, QueueConfig, StateFn};
 
 pub struct Worker<Context, S>
 where
@@ -171,13 +171,13 @@ pub enum WorkerError {
     PayloadMissing,
 
     #[error("failed to enqueue a failed job for re-execution: {0}")]
-    RetryJobFailed(JobQueueError),
+    RetryJobFailed(JobStoreError),
 
     #[error("error while attempting to retrieve the next job: {0}")]
-    StoreUnavailable(JobQueueError),
+    StoreUnavailable(JobStoreError),
 
     #[error("failed to update job status with store: {0}")]
-    UpdateJobStatusFailed(JobQueueError),
+    UpdateJobStatusFailed(JobStoreError),
 
     #[error("during execution of a dequeued job, encountered unregistered job '{0}'")]
     UnregisteredJobName(String),

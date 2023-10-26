@@ -8,8 +8,9 @@ use sqlx::{Decode, Encode, Sqlite, Type};
 #[derive(Clone, Copy, Debug)]
 pub enum BackgroundJobState {
     Scheduled,
-    Cancelled,
+    Active,
     Complete,
+    Cancelled,
     Dead,
 }
 
@@ -41,8 +42,9 @@ impl Display for BackgroundJobState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let msg = match self {
             BackgroundJobState::Scheduled => "scheduled",
-            BackgroundJobState::Cancelled => "cancelled",
+            BackgroundJobState::Active => "active",
             BackgroundJobState::Complete => "complete",
+            BackgroundJobState::Cancelled => "cancelled",
             BackgroundJobState::Dead => "dead",
         };
 
@@ -56,10 +58,11 @@ impl TryFrom<&str> for BackgroundJobState {
     fn try_from(val: &str) -> Result<Self, BackgroundJobStateError> {
         let variant = match val {
             "scheduled" => BackgroundJobState::Scheduled,
-            "cancelled" => BackgroundJobState::Cancelled,
+            "active" => BackgroundJobState::Active,
             "complete" => BackgroundJobState::Complete,
+            "cancelled" => BackgroundJobState::Cancelled,
             "dead" => BackgroundJobState::Dead,
-            _ => return Err(BackgroundJobStateError::InvalidStateValue),
+            _ => return Err(BackgroundJobStateError::InvalidStateValue(val.to_string())),
         };
 
         Ok(variant)
@@ -68,6 +71,6 @@ impl TryFrom<&str> for BackgroundJobState {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BackgroundJobStateError {
-    #[error("attempted to decode unknown state value")]
-    InvalidStateValue,
+    #[error("attempted to decode unknown state value '{0}'")]
+    InvalidStateValue(String),
 }

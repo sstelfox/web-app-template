@@ -10,7 +10,7 @@ mod worker_pool;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
 pub use queue_config::QueueConfig;
-use stores::{ExecuteJobFn, JobStore, StateFn};
+use stores::{ExecuteJobFn, JobStore, JobStoreError, StateFn};
 use worker::Worker;
 
 use std::cmp::Ordering;
@@ -21,7 +21,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 
-use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, BackgroundRunId};
+use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, BackgroundRunId, BackgroundRunState};
 
 const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -50,7 +50,7 @@ pub trait JobLikeExt {
     async fn enqueue<S: JobStore>(
         self,
         connection: &mut S::Connection,
-    ) -> Result<Option<BackgroundJobId>, JobQueueError>;
+    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>;
 }
 
 #[async_trait]
@@ -61,7 +61,7 @@ where
     async fn enqueue<S: JobStore>(
         self,
         connection: &mut S::Connection,
-    ) -> Result<Option<BackgroundJobId>, JobQueueError> {
+    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError> {
         S::enqueue(connection, self).await
     }
 }
@@ -98,8 +98,6 @@ pub struct BackgroundRun {
     finished_at: Option<OffsetDateTime>,
 }
 
-use crate::database::custom_types::BackgroundRunState;
-
 #[derive(Debug, thiserror::Error)]
 pub enum JobExecError {
     #[error("job deserialization failed: {0}")]
@@ -110,15 +108,6 @@ pub enum JobExecError {
 
     #[error("job panicked: {0}")]
     Panicked(#[from] CaughtPanic),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum JobQueueError {
-    #[error("unable to find job with ID {0}")]
-    UnknownJob(BackgroundJobId),
-
-    #[error("I lazily hit one of the queue errors I haven't implemented yet")]
-    Unknown,
 }
 
 fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
@@ -171,7 +160,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //    async fn enqueue<T: JobLike>(
 //        conn: &mut Self::Connection,
 //        job: T,
-//    ) -> Result<Option<BackgroundJobId>, JobQueueError> {
+//    ) -> Result<Option<BackgroundJobId>, JobStoreError> {
 //        let unique_key = job.unique_key().await;
 //
 //        if let Some(new_key) = &unique_key {
@@ -181,7 +170,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        }
 //
 //        let id = BackgroundJobId::from(Uuid::new_v4());
-//        let payload = serde_json::to_value(job).map_err(|_| JobQueueError::Unknown)?;
+//        let payload = serde_json::to_value(job).map_err(|_| JobStoreError::Unknown)?;
 //
 //        let job = Job {
 //            id,
@@ -210,7 +199,7 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        &self,
 //        queue_name: &str,
 //        job_names: &[&str],
-//    ) -> Result<Option<Job>, JobQueueError> {
+//    ) -> Result<Option<Job>, JobStoreError> {
 //        let mut jobs = self.jobs.lock().await;
 //        let mut next_job = None;
 //
@@ -270,18 +259,18 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        Ok(next_job)
 //    }
 //
-//    async fn retry(&self, id: BackgroundJobId) -> Result<Option<BackgroundJobId>, JobQueueError> {
+//    async fn retry(&self, id: BackgroundJobId) -> Result<Option<BackgroundJobId>, JobStoreError> {
 //        let mut jobs = self.jobs.lock().await;
 //
 //        let target_job = match jobs.get_mut(&id) {
 //            Some(t) => t,
-//            None => return Err(JobQueueError::UnknownJob(id)),
+//            None => return Err(JobStoreError::UnknownJob(id)),
 //        };
 //
 //        // these states are the only retryable states
 //        if !matches!(target_job.state, BackgroundJobState::Error | BackgroundJobState::TimedOut) {
 //            tracing::warn!(?id, "job is not in a state that can be retried");
-//            return Err(JobQueueError::Unknown);
+//            return Err(JobStoreError::Unknown);
 //        }
 //
 //        // no retries remaining mark the job as dead
@@ -317,29 +306,29 @@ fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
 //        Ok(Some(new_id))
 //    }
 //
-//    async fn update_state(&self, id: BackgroundJobId, new_state: BackgroundJobState) -> Result<(), JobQueueError> {
+//    async fn update_state(&self, id: BackgroundJobId, new_state: BackgroundJobState) -> Result<(), JobStoreError> {
 //        let mut jobs = self.jobs.lock().await;
 //
 //        let job = match jobs.get_mut(&id) {
 //            Some(t) => t,
-//            None => return Err(JobQueueError::UnknownJob(id)),
+//            None => return Err(JobStoreError::UnknownJob(id)),
 //        };
 //
 //        if job.state != BackgroundJobState::InProgress {
 //            tracing::error!("only in progress jobs are allowed to transition to other states");
-//            return Err(JobQueueError::Unknown);
+//            return Err(JobStoreError::Unknown);
 //        }
 //
 //        match new_state {
 //            // this state should only exist when the job is first created
 //            BackgroundJobState::New => {
 //                tracing::error!("can't transition an existing job to the New state");
-//                return Err(JobQueueError::Unknown);
+//                return Err(JobStoreError::Unknown);
 //            }
 //            // this is an internal transition that happens automatically when the job is picked up
 //            BackgroundJobState::InProgress => {
 //                tracing::error!("only the job store may transition a job to the InProgress state");
-//                return Err(JobQueueError::Unknown);
+//                return Err(JobStoreError::Unknown);
 //            }
 //            _ => (),
 //        }
