@@ -17,7 +17,7 @@ pub mod utils;
 
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
-pub async fn background_workers(mut shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
+pub async fn background_workers(mut _shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
     todo!()
     //let mts = jobs::MemoryJobStore::default();
 

@@ -1,3 +1,4 @@
+mod attempt;
 mod background_job_id;
 mod background_job_state;
 mod background_run_id;
@@ -10,6 +11,7 @@ mod provider_id;
 mod session_id;
 mod user_id;
 
+pub use attempt::Attempt;
 pub use background_job_id::BackgroundJobId;
 pub use background_job_state::{BackgroundJobState, BackgroundJobStateError};
 pub use background_run_id::BackgroundRunId;

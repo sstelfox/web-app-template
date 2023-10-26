@@ -45,13 +45,13 @@ where
     async fn run(&self, job: BackgroundJob) -> Result<(), WorkerError> {
         let deserialize_and_run_job_fn = self
             .job_registry
-            .get(job.name.as_str())
-            .ok_or(WorkerError::UnregisteredJobName(job.name))?
+            .get(job.name())
+            .ok_or(WorkerError::UnregisteredJobName(job.name().to_string()))?
             .clone();
 
         // create a new JobRun for the job
 
-        let payload = job.payload.ok_or(WorkerError::PayloadMissing)?.clone();
+        let payload = job.payload().ok_or(WorkerError::PayloadMissing)?.clone();
         let safe_runner = CatchPanicFuture::wrap({
             let context = (self.context_data_fn)();
             async move { deserialize_and_run_job_fn(payload, context).await }
@@ -64,7 +64,7 @@ where
         // chance that the worker is corrupted in some way by the panic so I should set a flag on
         // this worker and handle two consecutive panics as a worker problem. The second job
         // triggering the panic should be presumed innocent and restored to a runnable state.
-        let job_result = match safe_runner.await {
+        let _job_result = match safe_runner.await {
             Ok(tr) => tr,
             Err(err) => {
                 tracing::error!("job panicked: {err}");

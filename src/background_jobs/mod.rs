@@ -13,15 +13,14 @@ pub use queue_config::QueueConfig;
 use stores::{ExecuteJobFn, JobStore, JobStoreError, StateFn};
 use worker::Worker;
 
-use std::cmp::Ordering;
 use std::time::Duration;
 
 use axum::async_trait;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use time::OffsetDateTime;
 
-use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, BackgroundRunId, BackgroundRunState};
+use crate::database::custom_types::{BackgroundJobId, BackgroundRunId};
+use crate::database::models::BackgroundJob;
 
 const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -35,8 +34,8 @@ pub trait JobLike: Serialize + DeserializeOwned + Sync + Send + 'static {
 
     const QUEUE_NAME: &'static str = "default";
 
-    type Error: std::error::Error;
     type Context: Clone + Send + 'static;
+    type Error: std::error::Error;
 
     async fn run(&self, ctx: Self::Context) -> Result<(), Self::Error>;
 
@@ -66,38 +65,6 @@ where
     }
 }
 
-#[derive(sqlx::FromRow)]
-pub struct BackgroundJob {
-    pub id: BackgroundJobId,
-
-    name: String,
-    queue_name: String,
-
-    unique_key: Option<String>,
-    state: BackgroundJobState,
-
-    current_attempt: usize,
-    maximum_attempts: usize,
-
-    payload: Option<serde_json::Value>,
-
-    scheduled_at: OffsetDateTime,
-    attempt_run_at: OffsetDateTime,
-}
-
-#[derive(sqlx::FromRow)]
-pub struct BackgroundRun {
-    pub id: BackgroundRunId,
-
-    background_job_id: BackgroundJobId,
-    state: BackgroundRunState,
-
-    output: Option<serde_json::Value>,
-
-    started_at: OffsetDateTime,
-    finished_at: Option<OffsetDateTime>,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum JobExecError {
     #[error("job deserialization failed: {0}")]
@@ -110,12 +77,12 @@ pub enum JobExecError {
     Panicked(#[from] CaughtPanic),
 }
 
-fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
-    match a.attempt_run_at.cmp(&b.attempt_run_at) {
-        Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
-        ord => ord,
-    }
-}
+//fn sort_jobs(a: &BackgroundJob, b: &BackgroundJob) -> Ordering {
+//    match a.attempt_run_at.cmp(&b.attempt_run_at) {
+//        Ordering::Equal => a.scheduled_at.cmp(&b.scheduled_at),
+//        ord => ord,
+//    }
+//}
 
 //#[derive(Clone, Default)]
 //pub struct MemoryJobStore {

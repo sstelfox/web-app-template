@@ -202,7 +202,7 @@ mod test {
             axum::routing::get(|Path(provider): Path<LoginProvider>| async move {
                 (
                     StatusCode::OK,
-                    serde_json::to_value(&provider).expect("valid").to_string(),
+                    serde_json::to_value(provider).expect("valid").to_string(),
                 )
                     .into_response()
             }),
