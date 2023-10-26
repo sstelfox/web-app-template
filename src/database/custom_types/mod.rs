@@ -1,8 +1,8 @@
 mod background_job_id;
 mod background_job_state;
 mod background_run_id;
+mod background_run_state;
 mod did;
-mod job_run_result;
 mod login_provider;
 mod login_provider_config;
 mod oauth_provider_account_id;
@@ -14,7 +14,7 @@ pub use background_job_id::BackgroundJobId;
 pub use background_job_state::{BackgroundJobState, BackgroundJobStateError};
 pub use background_run_id::BackgroundRunId;
 pub use did::{Did, DidError};
-pub use job_run_result::{JobRunResult, JobRunResultError};
+pub use background_run_state::{BackgroundRunState, BackgroundRunStateError};
 pub use login_provider::{LoginProvider, LoginProviderError};
 pub use login_provider_config::LoginProviderConfig;
 pub use oauth_provider_account_id::{OAuthProviderAccountId, OAuthProviderAccountIdError};

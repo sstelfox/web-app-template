@@ -66,7 +66,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(sqlx::FromRow)]
 pub struct BackgroundJob {
     pub id: BackgroundJobId,
 
@@ -90,7 +90,7 @@ pub struct BackgroundRun {
     pub id: BackgroundRunId,
 
     background_job_id: BackgroundJobId,
-    state: JobRunState,
+    state: BackgroundRunState,
 
     output: Option<serde_json::Value>,
 
@@ -98,14 +98,7 @@ pub struct BackgroundRun {
     finished_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug)]
-pub enum JobRunState {
-    Running,
-    Success,
-    Errored,
-    Panicked,
-    TimedOut,
-}
+use crate::database::custom_types::BackgroundRunState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum JobExecError {
