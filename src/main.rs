@@ -52,7 +52,7 @@ async fn main() {
 
     let (graceful_waiter, shutdown_rx) = web_app_template::graceful_shutdown_blocker();
     let worker_handle =
-        web_app_template::background_workers(state.database(), shutdown_rx.clone()).await;
+        web_app_template::background_workers(state.clone(), shutdown_rx.clone()).await;
     let http_handle = web_app_template::http_server(
         *config.listen_addr(),
         config.log_level(),

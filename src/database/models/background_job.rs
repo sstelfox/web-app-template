@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use time::OffsetDateTime;
 
 use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundJobState};

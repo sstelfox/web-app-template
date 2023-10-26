@@ -17,17 +17,16 @@ pub mod http_server;
 pub mod llm;
 pub mod utils;
 
-use crate::database::Database;
-
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 pub async fn background_workers(
-    database: Database,
+    state: app::State,
     mut shutdown_rx: watch::Receiver<()>,
 ) -> JoinHandle<()> {
-    let sqlite_store = background_jobs::SqliteStore::new(database.clone());
+    let database = state.database();
+    let store = state.task_store();
 
-    background_jobs::WorkerPool::new(sqlite_store, move || database.clone())
+    background_jobs::WorkerPool::new(store, move || database.clone())
         .configure_queue(background_jobs::QueueConfig::new("default"))
         .start(async move {
             let _ = shutdown_rx.changed().await;

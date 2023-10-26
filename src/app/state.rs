@@ -10,20 +10,22 @@ use sha2::Digest;
 use crate::app::{
     Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey, UploadStore,
 };
+use crate::background_jobs::SqliteStore;
 use crate::database::custom_types::LoginProvider;
 use crate::database::{Database, DatabaseSetupError};
 use crate::event_bus::EventBus;
 
 #[derive(Clone)]
-pub struct State {
+pub struct AppState {
     database: Database,
     event_bus: EventBus,
     secrets: Secrets,
+
     service_verifier: ServiceVerificationKey,
     upload_directory: PathBuf,
 }
 
-impl State {
+impl AppState {
     pub fn database(&self) -> Database {
         self.database.clone()
     }
@@ -32,7 +34,7 @@ impl State {
         self.event_bus.clone()
     }
 
-    pub async fn from_config(config: &Config) -> Result<Self, StateSetupError> {
+    pub async fn from_config(config: &Config) -> Result<Self, AppStateSetupError> {
         let database = Database::connect(&config.database_url()).await?;
         let event_bus = EventBus::new();
 
@@ -63,40 +65,44 @@ impl State {
         self.service_verifier.clone()
     }
 
-    pub fn upload_store(&self) -> Result<UploadStore, StateError> {
+    pub fn task_store(&self) -> SqliteStore {
+        SqliteStore::new(self.database())
+    }
+
+    pub fn upload_store(&self) -> Result<UploadStore, AppStateError> {
         let local_fs = LocalFileSystem::new_with_prefix(&self.upload_directory)
-            .map_err(StateError::UploadStoreUnavailable)?;
+            .map_err(AppStateError::UploadStoreUnavailable)?;
 
         Ok(UploadStore::new(local_fs))
     }
 }
 
-impl FromRef<State> for Database {
-    fn from_ref(state: &State) -> Self {
+impl FromRef<AppState> for Database {
+    fn from_ref(state: &AppState) -> Self {
         state.database()
     }
 }
 
-impl FromRef<State> for Secrets {
-    fn from_ref(state: &State) -> Self {
+impl FromRef<AppState> for Secrets {
+    fn from_ref(state: &AppState) -> Self {
         state.secrets()
     }
 }
 
-impl FromRef<State> for ServiceVerificationKey {
-    fn from_ref(state: &State) -> Self {
+impl FromRef<AppState> for ServiceVerificationKey {
+    fn from_ref(state: &AppState) -> Self {
         state.service_verifier()
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum StateError {
+pub enum AppStateError {
     #[error("unable to get a handle on the upload store: {0}")]
     UploadStoreUnavailable(object_store::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum StateSetupError {
+pub enum AppStateSetupError {
     #[error("private service key could not be loaded: {0}")]
     InvalidServiceKey(jwt_simple::Error),
 
@@ -132,19 +138,19 @@ fn fingerprint_key(keys: &ES384KeyPair) -> String {
 
 fn load_or_create_service_key(
     private_path: &PathBuf,
-) -> Result<ServiceSigningKey, StateSetupError> {
+) -> Result<ServiceSigningKey, AppStateSetupError> {
     let mut session_key_raw = if private_path.exists() {
         let key_bytes =
-            std::fs::read(private_path).map_err(StateSetupError::UnreadableServiceKey)?;
+            std::fs::read(private_path).map_err(AppStateSetupError::UnreadableServiceKey)?;
         let private_pem = String::from_utf8_lossy(&key_bytes);
 
-        ES384KeyPair::from_pem(&private_pem).map_err(StateSetupError::InvalidServiceKey)?
+        ES384KeyPair::from_pem(&private_pem).map_err(AppStateSetupError::InvalidServiceKey)?
     } else {
         let new_key = ES384KeyPair::generate();
         let private_pem = new_key.to_pem().expect("fresh keys to export");
 
         std::fs::write(private_path, private_pem)
-            .map_err(StateSetupError::ServiceKeyWriteFailed)?;
+            .map_err(AppStateSetupError::ServiceKeyWriteFailed)?;
 
         let public_spki = new_key
             .public_key()
@@ -152,7 +158,7 @@ fn load_or_create_service_key(
             .expect("fresh key to have public component");
         let mut public_path = private_path.clone();
         public_path.set_extension("public");
-        std::fs::write(public_path, public_spki).map_err(StateSetupError::PublicKeyWriteFailed)?;
+        std::fs::write(public_path, public_spki).map_err(AppStateSetupError::PublicKeyWriteFailed)?;
 
         new_key
     };
@@ -164,7 +170,7 @@ fn load_or_create_service_key(
     fingerprint_path.set_extension("fingerprint");
     if !fingerprint_path.exists() {
         std::fs::write(fingerprint_path, fingerprint)
-            .map_err(StateSetupError::FingerprintWriteFailed)?;
+            .map_err(AppStateSetupError::FingerprintWriteFailed)?;
     }
 
     Ok(ServiceSigningKey::new(session_key_raw))
