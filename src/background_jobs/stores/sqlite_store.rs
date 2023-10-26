@@ -5,14 +5,15 @@ use crate::background_jobs::stores::{JobStore, JobStoreError};
 use crate::background_jobs::JobLike;
 use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, BackgroundRunId};
 use crate::database::models::BackgroundJob;
+use crate::database::Database;
 
 pub struct SqliteStore {
-    pool: SqlitePool,
+    database: Database,
 }
 
 impl SqliteStore {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+    pub fn new(database: Database) -> Self {
+        Self { database }
     }
 }
 

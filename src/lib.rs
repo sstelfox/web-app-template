@@ -17,9 +17,16 @@ pub mod http_server;
 pub mod llm;
 pub mod utils;
 
+use crate::database::Database;
+
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
-pub async fn background_workers(mut _shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
+pub async fn background_workers(
+    pool: Database,
+    mut _shutdown_rx: watch::Receiver<()>,
+) -> JoinHandle<()> {
+    let _sqlite_store = background_jobs::SqliteStore::new(pool);
+
     todo!()
     //let mts = jobs::MemoryJobStore::default();
 

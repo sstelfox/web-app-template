@@ -10,6 +10,7 @@ mod worker_pool;
 
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
 pub use queue_config::QueueConfig;
+pub use stores::sqlite_store::SqliteStore;
 use stores::{ExecuteJobFn, JobExecError, JobStore, JobStoreError, StateFn};
 use worker::Worker;
 

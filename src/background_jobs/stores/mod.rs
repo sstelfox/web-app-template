@@ -1,6 +1,4 @@
-mod sqlite_store;
-
-pub use sqlite_store::SqliteStore;
+pub(crate) mod sqlite_store;
 
 use std::pin::Pin;
 use std::sync::Arc;
