@@ -1,3 +1,4 @@
+// todo: rename WorkerConfig
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct QueueConfig {
     name: &'static str,

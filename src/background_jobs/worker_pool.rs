@@ -25,8 +25,8 @@ where
     job_store: S,
     job_registry: BTreeMap<&'static str, ExecuteJobFn<Context>>,
 
-    queue_jobs: BTreeMap<&'static str, Vec<&'static str>>,
-    worker_queues: BTreeMap<&'static str, QueueConfig>,
+    worker_queues: BTreeMap<&'static str, Vec<&'static str>>,
+    worker_configs: BTreeMap<&'static str, QueueConfig>,
 }
 
 impl<Context, S> WorkerPool<Context, S>
@@ -34,8 +34,9 @@ where
     Context: Clone + Send + 'static,
     S: JobStore + Clone,
 {
-    pub fn configure_queue(mut self, config: QueueConfig) -> Self {
-        self.worker_queues.insert(config.name(), config);
+    // todo: make this add_workers
+    pub fn add_workers(mut self, config: QueueConfig) -> Self {
+        self.worker_configs.insert(config.name(), config);
         self
     }
 
@@ -49,7 +50,7 @@ where
             job_store,
             job_registry: BTreeMap::new(),
 
-            queue_jobs: BTreeMap::new(),
+            worker_configs: BTreeMap::new(),
             worker_queues: BTreeMap::new(),
         }
     }
@@ -58,7 +59,7 @@ where
     where
         TL: JobLike<Context = Context>,
     {
-        self.queue_jobs
+        self.worker_queues
             .entry(TL::QUEUE_NAME)
             .or_default()
             .push(TL::JOB_NAME);
@@ -73,8 +74,8 @@ where
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        for (queue_name, queue_tracked_jobs) in self.queue_jobs.iter() {
-            if !self.worker_queues.contains_key(queue_name) {
+        for (queue_name, queue_tracked_jobs) in self.worker_queues.iter() {
+            if !self.worker_configs.contains_key(queue_name) {
                 return Err(WorkerPoolError::QueueNotConfigured(
                     queue_name,
                     queue_tracked_jobs.clone(),
@@ -85,7 +86,7 @@ where
         let (inner_shutdown_tx, inner_shutdown_rx) = watch::channel(());
         let mut worker_handles = Vec::new();
 
-        for (queue_name, queue_config) in self.worker_queues.iter() {
+        for (queue_name, queue_config) in self.worker_configs.iter() {
             for idx in 0..(queue_config.worker_count()) {
                 let worker_name = format!("worker-{queue_name}-{idx}");
 

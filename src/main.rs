@@ -51,8 +51,13 @@ async fn main() {
     };
 
     let (graceful_waiter, shutdown_rx) = web_app_template::graceful_shutdown_blocker();
-    let worker_handle =
+
+    let mut all_handles = Vec::new();
+
+    let worker_handles =
         web_app_template::background_workers(state.clone(), shutdown_rx.clone()).await;
+    all_handles.extend(worker_handles);
+
     let http_handle = web_app_template::http_server(
         *config.listen_addr(),
         config.log_level(),
@@ -60,16 +65,11 @@ async fn main() {
         shutdown_rx.clone(),
     )
     .await;
+    all_handles.push(http_handle);
 
     let _ = graceful_waiter.await;
 
-    if (timeout(
-        FINAL_SHUTDOWN_TIMEOUT,
-        join_all(vec![worker_handle, http_handle]),
-    )
-    .await)
-        .is_err()
-    {
+    if (timeout(FINAL_SHUTDOWN_TIMEOUT, join_all(all_handles)).await).is_err() {
         tracing::error!("hit final shutdown timeout. exiting with remaining work in progress");
         std::process::exit(4);
     }

@@ -10,7 +10,7 @@ use sha2::Digest;
 use crate::app::{
     Config, ProviderCredential, Secrets, ServiceSigningKey, ServiceVerificationKey, UploadStore,
 };
-use crate::background_jobs::SqliteStore;
+use crate::background_jobs::{BasicTaskContext, BasicTaskStore, EventTaskContext, EventTaskStore};
 use crate::database::custom_types::LoginProvider;
 use crate::database::{Database, DatabaseSetupError};
 use crate::event_bus::EventBus;
@@ -65,8 +65,14 @@ impl AppState {
         self.service_verifier.clone()
     }
 
-    pub fn task_store(&self) -> SqliteStore {
-        SqliteStore::new(self.database())
+    pub fn basic_task_store(&self) -> BasicTaskStore {
+        let context = BasicTaskContext::new(self.database());
+        BasicTaskStore::new(context)
+    }
+
+    pub fn event_task_store(&self) -> EventTaskStore {
+        let context = EventTaskContext::new(self.database(), self.event_bus());
+        EventTaskStore::new(context)
     }
 
     pub fn upload_store(&self) -> Result<UploadStore, AppStateError> {

@@ -21,18 +21,31 @@ pub mod utils;
 
 pub async fn background_workers(
     state: app::State,
-    mut shutdown_rx: watch::Receiver<()>,
-) -> JoinHandle<()> {
-    let database = state.database();
-    let store = state.task_store();
-
-    background_jobs::WorkerPool::new(store, move || database.clone())
-        .configure_queue(background_jobs::QueueConfig::new("default"))
+    shutdown_rx: watch::Receiver<()>,
+) -> Vec<JoinHandle<()>> {
+    let basic_store = state.basic_task_store();
+    let basic_context = basic_store.context();
+    let mut basic_shutdown_rx = shutdown_rx.clone();
+    let basic_handle = background_jobs::WorkerPool::new(basic_store, move || basic_context.clone())
+        .add_workers(background_jobs::QueueConfig::new("basic"))
         .start(async move {
-            let _ = shutdown_rx.changed().await;
+            let _ = basic_shutdown_rx.changed().await;
         })
         .await
-        .expect("worker start up to succeed")
+        .expect("basic background workers to start up");
+
+    let event_store = state.event_task_store();
+    let event_context = event_store.context();
+    let mut event_shutdown_rx = shutdown_rx;
+    let event_handle = background_jobs::WorkerPool::new(event_store, move || event_context.clone())
+        .add_workers(background_jobs::QueueConfig::new("evented"))
+        .start(async move {
+            let _ = event_shutdown_rx.changed().await;
+        })
+        .await
+        .expect("evented background workers to start up");
+
+    vec![basic_handle, event_handle]
 }
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:

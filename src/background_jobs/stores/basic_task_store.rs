@@ -8,18 +8,33 @@ use crate::database::models::BackgroundJob;
 use crate::database::Database;
 
 #[derive(Clone)]
-pub struct SqliteStore {
+pub struct BasicTaskContext {
     database: Database,
 }
 
-impl SqliteStore {
+impl BasicTaskContext {
     pub fn new(database: Database) -> Self {
         Self { database }
     }
 }
 
+#[derive(Clone)]
+pub struct BasicTaskStore {
+    context: BasicTaskContext,
+}
+
+impl BasicTaskStore {
+    pub fn context(&self) -> BasicTaskContext {
+        self.context.clone()
+    }
+
+    pub fn new(context: BasicTaskContext) -> Self {
+        Self { context }
+    }
+}
+
 #[async_trait]
-impl JobStore for SqliteStore {
+impl JobStore for BasicTaskStore {
     type Connection = SqlitePool;
 
     //async fn cancel(&self, id: BackgroundJobId) -> Result<(), JobStoreError> {
@@ -33,7 +48,7 @@ impl JobStore for SqliteStore {
     where
         Self: Sized,
     {
-        let mut conn = pool.acquire().await.map_err(SqliteStoreError::ConnError)?;
+        let mut conn = pool.acquire().await.map_err(BasicStoreError::ConnError)?;
         let unique_key = task.unique_key().await;
 
         if let Some(key) = &unique_key {
@@ -42,7 +57,7 @@ impl JobStore for SqliteStore {
             }
         }
 
-        let _transaction = pool.begin().await.map_err(SqliteStoreError::ConnError)?;
+        let _transaction = pool.begin().await.map_err(BasicStoreError::ConnError)?;
 
         todo!()
     }
@@ -69,7 +84,7 @@ impl JobStore for SqliteStore {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum SqliteStoreError {
+pub enum BasicStoreError {
     #[error("failed to acquire connection from pool: {0}")]
     ConnError(sqlx::Error),
 
@@ -77,8 +92,8 @@ pub enum SqliteStoreError {
     TransactionError(sqlx::Error),
 }
 
-impl From<SqliteStoreError> for JobStoreError {
-    fn from(value: SqliteStoreError) -> Self {
+impl From<BasicStoreError> for JobStoreError {
+    fn from(value: BasicStoreError) -> Self {
         JobStoreError::StoreBackendUnavailable(value.into())
     }
 }
