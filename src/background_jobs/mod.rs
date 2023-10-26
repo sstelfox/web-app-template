@@ -13,6 +13,7 @@ pub use queue_config::QueueConfig;
 pub use stores::sqlite_store::SqliteStore;
 use stores::{ExecuteJobFn, JobExecError, JobStore, JobStoreError, StateFn};
 use worker::Worker;
+pub use worker_pool::WorkerPool;
 
 use std::time::Duration;
 

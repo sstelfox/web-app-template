@@ -114,6 +114,11 @@ where
         let shutdown_guard = tokio::spawn(async move {
             // Wait until we receive a shutdown signal directly or the channel errors out due to
             // the other side being dropped
+            //
+            // todo: we should switch to select here that includes the worker_handles. If one of
+            // them dies I want it to be captured, and ideally started back up again but that would
+            // require more plumbing. For now a worker panic should be caught as a worker pool
+            // error and ultimately a server shutdown
             let _ = shutdown_signal.await;
 
             // In either case, its time to shut things down. Let's try and notify our workers for

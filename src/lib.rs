@@ -22,22 +22,18 @@ use crate::database::Database;
 //const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 pub async fn background_workers(
-    pool: Database,
-    mut _shutdown_rx: watch::Receiver<()>,
+    database: Database,
+    mut shutdown_rx: watch::Receiver<()>,
 ) -> JoinHandle<()> {
-    let _sqlite_store = background_jobs::SqliteStore::new(pool);
+    let sqlite_store = background_jobs::SqliteStore::new(database.clone());
 
-    todo!()
-    //let mts = jobs::MemoryJobStore::default();
-
-    //background_jobs::WorkerPool::new(mts, move || ())
-    //    .register_job_type::<background_jobs::impls::TestJob<()>>()
-    //    .configure_queue(background_jobs::QueueConfig::new("default"))
-    //    .start(async move {
-    //        let _ = shutdown_rx.changed().await;
-    //    })
-    //    .await
-    //    .expect("worker start up to succeed")
+    background_jobs::WorkerPool::new(sqlite_store, move || database.clone())
+        .configure_queue(background_jobs::QueueConfig::new("default"))
+        .start(async move {
+            let _ = shutdown_rx.changed().await;
+        })
+        .await
+        .expect("worker start up to succeed")
 }
 
 /// Follow k8s signal handling rules for these different signals. The order of shutdown events are:

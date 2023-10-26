@@ -61,9 +61,6 @@ async fn main() {
     )
     .await;
 
-    //for num in [78, 23, 102].iter() {
-    //}
-
     let _ = graceful_waiter.await;
 
     if (timeout(

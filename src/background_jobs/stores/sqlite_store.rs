@@ -7,6 +7,7 @@ use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, Backgro
 use crate::database::models::BackgroundJob;
 use crate::database::Database;
 
+#[derive(Clone)]
 pub struct SqliteStore {
     database: Database,
 }
