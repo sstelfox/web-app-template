@@ -42,9 +42,23 @@ async fn main() {
     web_app_template::register_panic_logger();
     web_app_template::report_version();
 
+    let state = match web_app_template::app::State::from_config(&config).await {
+        Ok(s) => s,
+        Err(err) => {
+            tracing::error!("failed to initialize state: {err}");
+            std::process::exit(3);
+        }
+    };
+
     let (graceful_waiter, shutdown_rx) = web_app_template::graceful_shutdown_blocker();
     let worker_handle = web_app_template::background_workers(shutdown_rx.clone()).await;
-    let http_handle = web_app_template::http_server(config, shutdown_rx.clone()).await;
+    let http_handle = web_app_template::http_server(
+        *config.listen_addr(),
+        config.log_level(),
+        state,
+        shutdown_rx.clone(),
+    )
+    .await;
 
     //for num in [78, 23, 102].iter() {
     //}
@@ -59,7 +73,7 @@ async fn main() {
         .is_err()
     {
         tracing::error!("hit final shutdown timeout. exiting with remaining work in progress");
-        std::process::exit(3);
+        std::process::exit(4);
     }
 }
 

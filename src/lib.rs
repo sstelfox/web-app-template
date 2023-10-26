@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -89,9 +91,14 @@ pub fn graceful_shutdown_blocker() -> (JoinHandle<()>, watch::Receiver<()>) {
     (handle, rx)
 }
 
-pub async fn http_server(config: app::Config, shutdown_rx: watch::Receiver<()>) -> JoinHandle<()> {
+pub async fn http_server(
+    listen_addr: SocketAddr,
+    log_level: tracing::Level,
+    state: app::State,
+    shutdown_rx: watch::Receiver<()>,
+) -> JoinHandle<()> {
     tokio::spawn(async move {
-        match http_server::run(config, shutdown_rx).await {
+        match http_server::run(listen_addr, log_level, state, shutdown_rx).await {
             Ok(_) => tracing::info!("shutting down normally"),
             Err(err) => tracing::error!("http server exited with an error: {err}"),
         }

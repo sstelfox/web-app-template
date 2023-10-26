@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use axum::error_handling::HandleErrorLayer;
@@ -22,7 +23,7 @@ use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tower_http::{LatencyUnit, ServiceBuilderExt};
 use tracing::{Level, Span};
 
-use crate::app::{Config, State, StateSetupError};
+use crate::app::{State, StateSetupError};
 use crate::extractors::SessionIdentity;
 use crate::{auth, health_check};
 
@@ -106,7 +107,9 @@ fn filter_path_and_query(path_and_query: &PathAndQuery) -> String {
 }
 
 pub async fn run(
-    config: Config,
+    listen_addr: SocketAddr,
+    log_level: Level,
+    state: State,
     mut shutdown_rx: watch::Receiver<()>,
 ) -> Result<(), HttpServerError> {
     let trace_layer = TraceLayer::new_for_http()
@@ -114,7 +117,7 @@ pub async fn run(
         .on_response(
             DefaultOnResponse::new()
                 .include_headers(false)
-                .level(config.log_level())
+                .level(log_level)
                 .latency_unit(LatencyUnit::Micros),
         )
         .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros));
@@ -161,7 +164,6 @@ pub async fn run(
     let static_assets =
         ServeDir::new("dist").not_found_service(error_handlers::not_found_handler.into_service());
 
-    let state = State::from_config(&config).await?;
     let root_router = Router::new()
         .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
@@ -174,8 +176,8 @@ pub async fn run(
 
     let app = middleware_stack.service(root_router);
 
-    tracing::info!(addr = ?config.listen_addr(), "server listening");
-    Server::bind(config.listen_addr())
+    tracing::info!(addr = ?listen_addr, "server listening");
+    Server::bind(&listen_addr)
         .serve(app.into_make_service())
         .with_graceful_shutdown(async move {
             let _ = shutdown_rx.changed().await;
