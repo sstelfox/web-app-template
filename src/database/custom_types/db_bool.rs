@@ -1,5 +1,3 @@
-
-
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
 use sqlx::sqlite::{SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
@@ -21,11 +19,7 @@ impl Decode<'_, Sqlite> for DbBool {
 
 impl Encode<'_, Sqlite> for DbBool {
     fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'_>>) -> IsNull {
-        let inner_val = if self.0 {
-            1
-        } else {
-            0
-        };
+        let inner_val = if self.0 { 1 } else { 0 };
 
         args.push(SqliteArgumentValue::Int(inner_val));
         IsNull::No

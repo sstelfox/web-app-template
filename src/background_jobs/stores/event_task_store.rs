@@ -16,6 +16,14 @@ pub struct EventTaskContext {
 }
 
 impl EventTaskContext {
+    pub fn database(&self) -> &Database {
+        &self.database
+    }
+
+    pub fn event_bus(&self) -> &EventBus {
+        &self.event_bus
+    }
+
     pub fn new(database: Database, event_bus: EventBus) -> Self {
         Self {
             database,

@@ -39,6 +39,7 @@ pub async fn background_workers(
     let mut event_shutdown_rx = shutdown_rx;
     let event_handle = background_jobs::WorkerPool::new(event_store, move || event_context.clone())
         .add_workers(background_jobs::QueueConfig::new("evented"))
+        .register_job_type::<background_jobs::impls::TickTask>()
         .start(async move {
             let _ = event_shutdown_rx.changed().await;
         })

@@ -164,7 +164,8 @@ fn load_or_create_service_key(
             .expect("fresh key to have public component");
         let mut public_path = private_path.clone();
         public_path.set_extension("public");
-        std::fs::write(public_path, public_spki).map_err(AppStateSetupError::PublicKeyWriteFailed)?;
+        std::fs::write(public_path, public_spki)
+            .map_err(AppStateSetupError::PublicKeyWriteFailed)?;
 
         new_key
     };

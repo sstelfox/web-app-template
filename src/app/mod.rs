@@ -1,7 +1,7 @@
-mod state;
 mod config;
 mod secrets;
 mod service_verification_key;
+mod state;
 mod upload_store;
 mod version;
 

@@ -9,7 +9,10 @@ use crate::database::custom_types::DbBool;
 pub struct UniqueTaskKey(String);
 
 impl UniqueTaskKey {
-    pub async fn is_active(&self, conn: &mut sqlx::SqliteConnection) -> Result<bool, UniqueTaskKeyError> {
+    pub async fn is_active(
+        &self,
+        conn: &mut sqlx::SqliteConnection,
+    ) -> Result<bool, UniqueTaskKeyError> {
         sqlx::query_scalar!(
             r#"SELECT COALESCE((
                    SELECT 1 FROM background_jobs
@@ -22,6 +25,12 @@ impl UniqueTaskKey {
         .await
         .map(|r| r.into())
         .map_err(UniqueTaskKeyError::ActiveLookupFailed)
+    }
+}
+
+impl From<&str> for UniqueTaskKey {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
     }
 }
 

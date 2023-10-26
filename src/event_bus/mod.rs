@@ -54,6 +54,7 @@ pub enum EventBusError {
 #[non_exhaustive]
 pub enum SystemEvent {
     TestEvent,
+    Tick,
     UserRegistration,
 }
 

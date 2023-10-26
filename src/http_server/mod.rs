@@ -277,6 +277,7 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                         }
                     }
                 }
+                _ => continue,
             };
 
             let response = BusToClientMessage {
