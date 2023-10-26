@@ -9,9 +9,10 @@ use sqlx::{Decode, Encode, Sqlite, Type};
 pub enum BackgroundRunState {
     Running,
     Completed,
+    Cancelled,
     Errored,
-    Panicked,
     TimedOut,
+    Panicked,
 }
 
 impl Decode<'_, Sqlite> for BackgroundRunState {
@@ -43,9 +44,10 @@ impl Display for BackgroundRunState {
         let msg = match self {
             BackgroundRunState::Running => "running",
             BackgroundRunState::Completed => "completed",
+            BackgroundRunState::Cancelled => "cancelled",
             BackgroundRunState::Errored => "errored",
-            BackgroundRunState::Panicked => "panicked",
             BackgroundRunState::TimedOut => "timed_out",
+            BackgroundRunState::Panicked => "panicked",
         };
 
         f.write_str(msg)
@@ -59,10 +61,11 @@ impl TryFrom<&str> for BackgroundRunState {
         let variant = match val {
             "running" => BackgroundRunState::Running,
             "completed" => BackgroundRunState::Completed,
+            "cancelled" => BackgroundRunState::Cancelled,
             "errored" => BackgroundRunState::Errored,
-            "panicked" => BackgroundRunState::Panicked,
             "timed_out" => BackgroundRunState::TimedOut,
-            _ => return Err(BackgroundRunStateError::InvalidStateType),
+            "panicked" => BackgroundRunState::Panicked,
+            _ => return Err(BackgroundRunStateError::InvalidStateType(val.to_string())),
         };
 
         Ok(variant)
@@ -71,6 +74,6 @@ impl TryFrom<&str> for BackgroundRunState {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BackgroundRunStateError {
-    #[error("attempted to decode unknown background run state type")]
-    InvalidStateType,
+    #[error("attempted to decode unknown background run state type '{0}'")]
+    InvalidStateType(String),
 }

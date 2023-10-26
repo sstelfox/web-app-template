@@ -62,7 +62,7 @@ impl TryFrom<&str> for BackgroundJobState {
             "complete" => BackgroundJobState::Complete,
             "cancelled" => BackgroundJobState::Cancelled,
             "dead" => BackgroundJobState::Dead,
-            _ => return Err(BackgroundJobStateError::InvalidStateValue(val.to_string())),
+            _ => return Err(BackgroundJobStateError::InvalidType(val.to_string())),
         };
 
         Ok(variant)
@@ -72,5 +72,5 @@ impl TryFrom<&str> for BackgroundJobState {
 #[derive(Debug, thiserror::Error)]
 pub enum BackgroundJobStateError {
     #[error("attempted to decode unknown state value '{0}'")]
-    InvalidStateValue(String),
+    InvalidType(String),
 }
