@@ -46,6 +46,9 @@ pub async fn background_workers(
         .await
         .expect("evented background workers to start up");
 
+    // todo: need to figure out a way to ensure all reoccuring jobs are actually scheduled
+    // todo: need to implement recurring tasks and set the tick task to run every minute or so
+
     vec![basic_handle, event_handle]
 }
 
