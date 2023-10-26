@@ -89,7 +89,7 @@ CREATE TABLE background_jobs (
   state TEXT NOT NULL,
 
   current_attempt INTEGER NOT NULL DEFAULT 1 CHECK(current_attempt > 0),
-  maximum_attempts INTEGER NOT NULL CHECK(maximum_attempt > 0),
+  maximum_attempts INTEGER NOT NULL CHECK(maximum_attempts > 0),
 
   payload BLOB,
 
@@ -115,7 +115,7 @@ CREATE TABLE background_runs (
     REFERENCES background_jobs(id)
     ON DELETE CASCADE,
 
-  attempt INTEGER NOT NULL DEFAULT 1 CHECK(current_attempt > 0),
+  attempt INTEGER NOT NULL DEFAULT 1 CHECK(attempt > 0),
   state TEXT NOT NULL,
 
   output BLOB,
