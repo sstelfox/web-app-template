@@ -64,6 +64,12 @@ pub trait JobStore: Send + Sync + 'static {
 
 #[derive(Debug, thiserror::Error)]
 pub enum JobStoreError {
+    #[error("detected corruption in database: {0}")]
+    DataCorruption(Box<dyn std::error::Error>),
+
+    #[error("the store backend experienced an error: {0}")]
+    StoreBackendUnavailable(Box<dyn std::error::Error>),
+
     #[error("unable to find job with ID {0}")]
     UnknownJob(BackgroundJobId),
 }

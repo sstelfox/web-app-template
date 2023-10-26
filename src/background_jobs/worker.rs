@@ -134,7 +134,7 @@ where
                 .map_err(WorkerError::StoreUnavailable)?;
 
             if let Some(job) = next_job {
-                tracing::info!(id = ?job.id, "starting execution of job");
+                tracing::info!(id = ?job.id(), "starting execution of job");
                 self.run(job).await?;
                 continue;
             }

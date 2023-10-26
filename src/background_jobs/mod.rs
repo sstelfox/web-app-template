@@ -11,7 +11,8 @@ mod worker_pool;
 use catch_panic_future::{CatchPanicFuture, CaughtPanic};
 pub use queue_config::QueueConfig;
 pub use stores::sqlite_store::SqliteStore;
-use stores::{ExecuteJobFn, JobExecError, JobStore, JobStoreError, StateFn};
+use stores::{ExecuteJobFn, JobExecError, JobStore, StateFn};
+pub use stores::JobStoreError;
 use worker::Worker;
 pub use worker_pool::WorkerPool;
 
@@ -21,7 +22,7 @@ use axum::async_trait;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::database::custom_types::{BackgroundJobId, BackgroundRunId};
+use crate::database::custom_types::{BackgroundJobId, BackgroundRunId, UniqueTaskKey};
 use crate::database::models::BackgroundJob;
 
 const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -41,7 +42,7 @@ pub trait JobLike: Serialize + DeserializeOwned + Sync + Send + 'static {
 
     async fn run(&self, ctx: Self::Context) -> Result<(), Self::Error>;
 
-    async fn unique_key(&self) -> Option<String> {
+    async fn unique_key(&self) -> Option<UniqueTaskKey> {
         None
     }
 }

@@ -6,7 +6,7 @@ use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundJobState
 
 #[derive(sqlx::FromRow)]
 pub struct BackgroundJob {
-    pub id: BackgroundJobId,
+    id: BackgroundJobId,
 
     name: String,
     queue_name: String,
@@ -24,6 +24,10 @@ pub struct BackgroundJob {
 }
 
 impl BackgroundJob {
+    pub fn id(&self) -> BackgroundJobId {
+        self.id
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }

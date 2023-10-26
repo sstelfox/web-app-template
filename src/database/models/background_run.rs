@@ -8,7 +8,7 @@ use crate::database::custom_types::{
 
 #[derive(sqlx::FromRow)]
 pub struct BackgroundRun {
-    pub id: BackgroundRunId,
+    id: BackgroundRunId,
 
     attempt: Attempt,
     background_job_id: BackgroundJobId,

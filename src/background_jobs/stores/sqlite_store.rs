@@ -27,12 +27,23 @@ impl JobStore for SqliteStore {
     //}
 
     async fn enqueue<T: JobLike>(
-        _conn: &mut Self::Connection,
-        _task: T,
+        pool: &mut Self::Connection,
+        task: T,
     ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>
     where
         Self: Sized,
     {
+        let mut conn = pool.acquire().await.map_err(SqliteStoreError::ConnError)?;
+        let unique_key = task.unique_key().await;
+
+        if let Some(key) = &unique_key {
+            if key.is_active(&mut conn).await? {
+                return Ok(None);
+            }
+        }
+
+        let _transaction = pool.begin().await.map_err(SqliteStoreError::ConnError)?;
+
         todo!()
     }
 
@@ -54,5 +65,20 @@ impl JobStore for SqliteStore {
         _new_state: BackgroundJobState,
     ) -> Result<(), JobStoreError> {
         todo!()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SqliteStoreError {
+    #[error("failed to acquire connection from pool: {0}")]
+    ConnError(sqlx::Error),
+
+    #[error("an error occurred with a transaction operation: {0}")]
+    TransactionError(sqlx::Error),
+}
+
+impl From<SqliteStoreError> for JobStoreError {
+    fn from(value: SqliteStoreError) -> Self {
+        JobStoreError::StoreBackendUnavailable(value.into())
     }
 }
