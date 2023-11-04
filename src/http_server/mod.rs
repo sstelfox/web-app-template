@@ -27,7 +27,7 @@ use tracing::{Level, Span};
 use crate::app::{State, StateSetupError};
 use crate::background_jobs::impls::TickMessage;
 use crate::extractors::SessionIdentity;
-use crate::{auth, health_check};
+use crate::{auth, pages, health_check};
 
 mod error_handlers;
 
@@ -170,9 +170,9 @@ pub async fn run(
         .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
         .nest("/_status", health_check::router(state.clone()))
-        .route("/", get(home_handler))
         .route("/events", get(event_bus_handler))
         .route("/events/test", get(test_event_handler))
+        .nest("/", pages::router(state.clone()))
         .with_state(state)
         .fallback_service(static_assets);
 
@@ -197,12 +197,6 @@ pub enum HttpServerError {
 
     #[error("state initialization failed: {0}")]
     StateInitializationFailed(#[from] StateSetupError),
-}
-
-use crate::pages::HomeTemplate;
-
-pub async fn home_handler(session: SessionIdentity) -> Response {
-    HomeTemplate { session }.into_response()
 }
 
 use crate::event_bus::{SystemEvent, TestEvent};
