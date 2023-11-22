@@ -34,7 +34,7 @@ const MAXIMUM_CHECK_DELAY: Duration = Duration::from_millis(250);
 pub trait JobLike: Serialize + DeserializeOwned + Sync + Send + 'static {
     const JOB_NAME: &'static str;
 
-    const MAX_ATTEMPTS: usize = 3;
+    const MAX_ATTEMPTS: u8 = 3;
 
     const QUEUE_NAME: &'static str = "default";
 

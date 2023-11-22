@@ -7,13 +7,13 @@ use time::OffsetDateTime;
 use crate::database::custom_types::UserId;
 use crate::database::Database;
 
-pub struct CreateUser {
-    email: String,
-    display_name: String,
+pub struct CreateUser<'a> {
+    email: &'a str,
+    display_name: &'a str,
 }
 
-impl CreateUser {
-    pub fn new(email: String, display_name: String) -> Self {
+impl<'a> CreateUser<'a> {
+    pub fn new(email: &'a str, display_name: &'a str) -> Self {
         Self {
             email,
             display_name,

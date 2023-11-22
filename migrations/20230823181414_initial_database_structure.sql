@@ -94,7 +94,7 @@ CREATE TABLE background_jobs (
   payload BLOB,
 
   scheduled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  attempt_run_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  attempt_run_at TIMESTAMP NOT NULL
 );
 
 CREATE INDEX idx_background_jobs_on_attempt_run_at ON background_jobs(attempt_run_at);

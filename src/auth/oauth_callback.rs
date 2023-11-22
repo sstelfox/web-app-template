@@ -105,7 +105,7 @@ pub async fn handler(
                 return Err(OAuthCallbackError::AlternateProvider);
             }
 
-            let new_user_id = CreateUser::new(user_info.email.clone(), user_info.name)
+            let new_user_id = CreateUser::new(&user_info.email, &user_info.name)
                 .save(&database)
                 .await
                 .map_err(OAuthCallbackError::UserCreationFailed)?;
