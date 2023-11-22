@@ -5,7 +5,7 @@ use std::ops::Deref;
 use time::OffsetDateTime;
 
 use crate::database::custom_types::UserId;
-use crate::database::Database;
+use crate::database::DatabaseConnection;
 
 pub struct CreateUser<'a> {
     email: &'a str,
@@ -20,7 +20,7 @@ impl<'a> CreateUser<'a> {
         }
     }
 
-    pub async fn save(self, database: &Database) -> Result<UserId, UserError> {
+    pub async fn save(self, database: &mut DatabaseConnection) -> Result<UserId, UserError> {
         sqlx::query_scalar!(
             r#"INSERT INTO users (email, display_name)
                 VALUES (LOWER($1), $2)
@@ -28,7 +28,7 @@ impl<'a> CreateUser<'a> {
             self.email,
             self.display_name,
         )
-        .fetch_one(database.deref())
+        .fetch_one(&mut *database)
         .await
         .map_err(UserError::SaveFailed)
     }

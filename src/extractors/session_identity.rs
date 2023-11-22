@@ -110,7 +110,12 @@ where
         let session_id = SessionId::from(Uuid::from_bytes_le(session_id_bytes));
 
         let database = Database::from_ref(state);
-        let maybe_db_session = Session::locate(&database, session_id)
+        let mut conn = database
+            .acquire()
+            .await
+            .map_err(SessionIdentityError::DatabaseConnection)?;
+
+        let maybe_db_session = Session::locate(&mut conn, session_id)
             .await
             .map_err(SessionIdentityError::LookupFailed)?;
 
@@ -148,6 +153,9 @@ pub enum SessionIdentityError {
 
     #[error("a UUID in the database was corrupted and can not be parsed")]
     CorruptDatabaseId(uuid::Error),
+
+    #[error("issue with database connection: {0}")]
+    DatabaseConnection(sqlx::Error),
 
     #[error("cookie was not encoded into the correct format")]
     EncodingError,

@@ -111,7 +111,7 @@ pub async fn handler(
             }
 
             let new_user_id = CreateUser::new(&user_info.email, &user_info.name)
-                .save(&database)
+                .save(&mut conn)
                 .await
                 .map_err(OAuthCallbackError::UserCreationFailed)?;
 
@@ -144,7 +144,7 @@ pub async fn handler(
     // todo: store client IP and user_agent in the session if they're available as well
 
     let session_id = new_session
-        .create(&database)
+        .create(&mut conn)
         .await
         .map_err(OAuthCallbackError::SessionCreationFailed)?;
 

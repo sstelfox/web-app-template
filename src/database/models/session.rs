@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 
 use crate::auth::SESSION_TTL;
 use crate::database::custom_types::{OAuthProviderAccountId, SessionId, UserId};
-use crate::database::Database;
+use crate::database::DatabaseConnection;
 
 #[derive(Debug)]
 pub struct CreateSession {
@@ -36,7 +36,7 @@ impl CreateSession {
         self
     }
 
-    pub async fn create(self, database: &Database) -> Result<SessionId, SessionError> {
+    pub async fn create(self, conn: &mut DatabaseConnection) -> Result<SessionId, SessionError> {
         sqlx::query_scalar!(
             r#"INSERT INTO sessions
                 (user_id, oauth_provider_account_id, client_ip, user_agent, expires_at)
@@ -48,7 +48,7 @@ impl CreateSession {
             self.user_agent,
             self.expires_at,
         )
-        .fetch_one(database.deref())
+        .fetch_one(&mut *conn)
         .await
         .map_err(SessionError::SaveFailed)
     }
@@ -97,11 +97,11 @@ impl Session {
         self.created_at
     }
 
-    pub async fn delete(database: &Database, id: SessionId) -> Result<(), sqlx::Error> {
+    pub async fn delete(conn: &mut DatabaseConnection, id: SessionId) -> Result<(), sqlx::Error> {
         let id_str = id.to_string();
 
         sqlx::query!("DELETE FROM sessions WHERE id = $1;", id_str)
-            .execute(database.deref())
+            .execute(&mut *conn)
             .await?;
 
         Ok(())
@@ -115,7 +115,10 @@ impl Session {
         self.id
     }
 
-    pub async fn locate(database: &Database, id: SessionId) -> Result<Option<Self>, sqlx::Error> {
+    pub async fn locate(
+        conn: &mut DatabaseConnection,
+        id: SessionId,
+    ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Self,
             r#"SELECT
@@ -130,7 +133,7 @@ impl Session {
                  WHERE id = $1;"#,
             id
         )
-        .fetch_optional(database.deref())
+        .fetch_optional(&mut *conn)
         .await
     }
 
