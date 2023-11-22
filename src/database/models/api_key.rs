@@ -1,6 +1,6 @@
 use time::OffsetDateTime;
 
-use crate::database::custom_types::{ApiKeyId, UserId};
+use crate::database::custom_types::{ApiKeyId, Fingerprint, UserId};
 
 #[derive(sqlx::FromRow)]
 pub struct ApiKey {
@@ -12,4 +12,10 @@ pub struct ApiKey {
     public_key: Vec<u8>,
 
     created_at: OffsetDateTime,
+}
+
+impl ApiKey {
+    pub fn from_fingerprint(fingerprint: &Fingerprint) -> Result<ApiKey, &str> {
+        todo!()
+    }
 }

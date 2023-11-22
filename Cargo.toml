@@ -49,6 +49,7 @@ tracing-futures = { version = "^0.2", default-features = false, features = ["std
 tracing-subscriber = { version = "^0.3", default-features = false, features = ["env-filter", "fmt", "local-time", "time", "tracing"] }
 
 candle-core = { git = "https://github.com/huggingface/candle.git", version = "^0.3" }
+hex = "^0.4"
 
 [dev-dependencies]
 bytes = "^1.4"

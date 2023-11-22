@@ -15,6 +15,8 @@ use jwt_simple::prelude::*;
 use regex::Regex;
 use uuid::Uuid;
 
+use crate::database::custom_types::Fingerprint;
+use crate::database::models::ApiKey;
 use crate::database::Database;
 
 /// Defines the maximum length of time we consider any individual token valid in seconds. If the
@@ -62,13 +64,20 @@ where
         let unvalidated_header =
             Token::decode_metadata(raw_token).map_err(ApiKeyIdentityError::CorruptHeader)?;
 
-        let _key_id = match unvalidated_header.key_id() {
+        let key_id = match unvalidated_header.key_id() {
             Some(kid) if key_validator.is_match(kid) => kid.to_string(),
             Some(_) => return Err(ApiKeyIdentityError::InvalidKeyId),
             None => return Err(ApiKeyIdentityError::MissingKeyId),
         };
 
-        let _database = Database::from_ref(state);
+        let database = Database::from_ref(state);
+        let mut conn = database
+            .acquire()
+            .await
+            .map_err(ApiKeyIdentityError::DatabaseUnavailable)?;
+
+        let fingerprint = Fingerprint::from_hex_str(&key_id).expect("valid fingerprint");
+        let _api_key = ApiKey::from_fingerprint(&fingerprint);
 
         // todo create a generic "SessionKeyProvider" that takes a key ID and returns an
         //   appropriate verification key, should use that instead of a JwtKey directly
@@ -118,6 +127,9 @@ where
 pub enum ApiKeyIdentityError {
     #[error("provided JWT had an invalid or corrupt header")]
     CorruptHeader(jwt_simple::Error),
+
+    #[error("database connection error: {0}")]
+    DatabaseUnavailable(sqlx::Error),
 
     #[error("key ID included in JWT header did not match our expected format")]
     InvalidKeyId,
