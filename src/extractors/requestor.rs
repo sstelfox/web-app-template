@@ -1,16 +1,15 @@
 use async_trait::async_trait;
 use axum::extract::FromRequestParts;
-use axum::RequestPartsExt;
 use axum::response::{IntoResponse, Response};
-use http::{HeaderValue, StatusCode};
+use axum::RequestPartsExt;
 use http::request::Parts;
+use http::{HeaderValue, StatusCode};
 
 pub struct Requestor {
     do_not_track: bool,
 
     //client_ip: std::net::IpAddr,
     //user_agent: String,
-
     referrer: Option<String>,
 }
 
@@ -58,4 +57,4 @@ where
 //pub enum RequestorError {
 //}
 //
-//impl IntoResponse for 
+//impl IntoResponse for

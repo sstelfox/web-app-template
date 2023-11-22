@@ -1,4 +1,3 @@
-
 use time::OffsetDateTime;
 
 use crate::database::custom_types::{
@@ -18,4 +17,10 @@ pub struct BackgroundRun {
 
     started_at: OffsetDateTime,
     finished_at: Option<OffsetDateTime>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum BackgroundJobError {
+    #[error("failed to save background run: {0}")]
+    SaveFailed(sqlx::Error),
 }

@@ -27,7 +27,7 @@ use tracing::{Level, Span};
 use crate::app::{State, StateSetupError};
 use crate::background_jobs::impls::TickMessage;
 use crate::extractors::SessionIdentity;
-use crate::{auth, pages, health_check};
+use crate::{auth, health_check, pages};
 
 mod error_handlers;
 
@@ -273,15 +273,13 @@ async fn event_bus_stream_handler(stream: WebSocket, state: State) {
                         }
                     }
                 }
-                SystemEvent::Tick => {
-                    match bin_code_config.deserialize::<TickMessage>(&payload) {
-                        Ok(event) => serde_json::to_value(&ClientTick::from(event)).ok(),
-                        Err(err) => {
-                            tracing::warn!("failed to decode tick on event bus: {err}");
-                            None
-                        }
+                SystemEvent::Tick => match bin_code_config.deserialize::<TickMessage>(&payload) {
+                    Ok(event) => serde_json::to_value(&ClientTick::from(event)).ok(),
+                    Err(err) => {
+                        tracing::warn!("failed to decode tick on event bus: {err}");
+                        None
                     }
-                }
+                },
             };
 
             let response = BusToClientMessage {

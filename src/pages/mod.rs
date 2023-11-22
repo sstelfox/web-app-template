@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use askama::Template;
-use axum::Router;
+use axum::headers::ContentType;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::headers::ContentType;
+use axum::Router;
 use http::{HeaderValue, StatusCode};
 
 use crate::app::AppState;

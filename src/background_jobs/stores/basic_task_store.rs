@@ -48,7 +48,7 @@ impl JobStore for BasicTaskStore {
     where
         Self: Sized,
     {
-        let mut conn = pool.begin().await.map_err(BasicStoreError::ConnError)?;
+        let mut conn = pool.begin().await.map_err(BasicStoreError::Connection)?;
         let unique_key = job.unique_key().await;
 
         if let Some(key) = &unique_key {
@@ -61,9 +61,9 @@ impl JobStore for BasicTaskStore {
             CreateBackgroundJob::now(JL::JOB_NAME, JL::QUEUE_NAME, unique_key.as_ref(), &job)
                 .save(&mut conn)
                 .await
-                .map_err(BasicStoreError::BackgroundJobError)?;
+                .map_err(BasicStoreError::BackgroundJob)?;
 
-        conn.commit().await.map_err(BasicStoreError::ConnError)?;
+        conn.commit().await.map_err(BasicStoreError::Transaction)?;
 
         todo!()
     }
@@ -92,13 +92,13 @@ impl JobStore for BasicTaskStore {
 #[derive(Debug, thiserror::Error)]
 pub enum BasicStoreError {
     #[error("background job query failed: {0}")]
-    BackgroundJobError(BackgroundJobError),
+    BackgroundJob(BackgroundJobError),
 
     #[error("failed to acquire connection from pool: {0}")]
-    ConnError(sqlx::Error),
+    Connection(sqlx::Error),
 
     #[error("an error occurred with a transaction operation: {0}")]
-    TransactionError(sqlx::Error),
+    Transaction(sqlx::Error),
 }
 
 impl From<BasicStoreError> for JobStoreError {
