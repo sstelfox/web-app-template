@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use crate::background_jobs::stores::{JobStore, JobStoreError};
 use crate::background_jobs::JobLike;
 use crate::database::custom_types::{BackgroundJobId, BackgroundJobState, BackgroundRunId};
-use crate::database::models::BackgroundJob;
+use crate::database::models::{BackgroundJob, BackgroundJobError, CreateBackgroundJob};
 use crate::database::Database;
 
 #[derive(Clone)]
@@ -41,15 +41,15 @@ impl JobStore for BasicTaskStore {
     //    self.update_state(id, BackgroundJobState::Cancelled).await
     //}
 
-    async fn enqueue<T: JobLike>(
+    async fn enqueue<JL: JobLike>(
         pool: &mut Self::Connection,
-        task: T,
+        job: JL,
     ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>
     where
         Self: Sized,
     {
-        let mut conn = pool.acquire().await.map_err(BasicStoreError::ConnError)?;
-        let unique_key = task.unique_key().await;
+        let mut conn = pool.begin().await.map_err(BasicStoreError::ConnError)?;
+        let unique_key = job.unique_key().await;
 
         if let Some(key) = &unique_key {
             if key.is_active(&mut conn).await? {
@@ -57,7 +57,13 @@ impl JobStore for BasicTaskStore {
             }
         }
 
-        let _transaction = pool.begin().await.map_err(BasicStoreError::ConnError)?;
+        let _background_job_id =
+            CreateBackgroundJob::now(JL::JOB_NAME, JL::QUEUE_NAME, unique_key.as_ref(), &job)
+                .save(&mut conn)
+                .await
+                .map_err(BasicStoreError::BackgroundJobError)?;
+
+        conn.commit().await.map_err(BasicStoreError::ConnError)?;
 
         todo!()
     }
@@ -65,7 +71,7 @@ impl JobStore for BasicTaskStore {
     async fn next(
         &self,
         _queue_name: &str,
-        _task_names: &[&str],
+        _job_names: &[&str],
     ) -> Result<Option<BackgroundJob>, JobStoreError> {
         todo!()
     }
@@ -85,6 +91,9 @@ impl JobStore for BasicTaskStore {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BasicStoreError {
+    #[error("background job query failed: {0}")]
+    BackgroundJobError(BackgroundJobError),
+
     #[error("failed to acquire connection from pool: {0}")]
     ConnError(sqlx::Error),
 

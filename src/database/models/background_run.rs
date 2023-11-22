@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 use time::OffsetDateTime;
 
@@ -6,6 +5,7 @@ use crate::database::custom_types::{
     Attempt, BackgroundJobId, BackgroundRunId, BackgroundRunState,
 };
 
+#[allow(dead_code)]
 #[derive(sqlx::FromRow)]
 pub struct BackgroundRun {
     id: BackgroundRunId,

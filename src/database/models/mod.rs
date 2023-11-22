@@ -5,7 +5,7 @@ mod oauth_state;
 mod session;
 mod user;
 
-pub use background_job::BackgroundJob;
+pub use background_job::{BackgroundJob, BackgroundJobError, CreateBackgroundJob};
 pub use background_run::BackgroundRun;
 pub use oauth_provider_account::{
     CreateOAuthProviderAccount, OAuthProviderAccount, OAuthProviderAccountError,

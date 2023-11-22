@@ -1,28 +1,60 @@
-#![allow(dead_code)]
-
 use std::ops::Deref;
 
 use time::OffsetDateTime;
 
 use crate::background_jobs::JobLike;
-use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundJobState};
+use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundJobState, UniqueTaskKey};
 use crate::database::Database;
 
 pub struct CreateBackgroundJob<'a, JL>
 where
     JL: JobLike,
 {
-    pub name: &'a str,
-    pub queue_name: &'a str,
+    name: &'a str,
+    queue_name: &'a str,
 
-    pub unique_key: Option<&'a str>,
-    pub task: &'a JL,
+    unique_key: Option<&'a UniqueTaskKey>,
+    task: &'a JL,
 
-    pub attempt_run_at: OffsetDateTime,
+    attempt_run_at: OffsetDateTime,
 }
 
 impl<'a, JL: JobLike> CreateBackgroundJob<'a, JL> {
-    pub async fn save(self, database: &Database) -> Result<BackgroundJobId, BackgroundJobError> {
+    pub fn now(
+        name: &'a str,
+        queue_name: &'a str,
+        unique_key: Option<&'a UniqueTaskKey>,
+        task: &'a JL,
+    ) -> Self {
+        Self::run_at(
+            name,
+            queue_name,
+            unique_key,
+            task,
+            OffsetDateTime::now_utc(),
+        )
+    }
+
+    pub fn run_at(
+        name: &'a str,
+        queue_name: &'a str,
+        unique_key: Option<&'a UniqueTaskKey>,
+        task: &'a JL,
+        attempt_run_at: OffsetDateTime,
+    ) -> Self {
+        Self {
+            name,
+            queue_name,
+            unique_key,
+            task,
+            attempt_run_at,
+        }
+    }
+
+    pub async fn save(
+        self,
+        conn: &mut sqlx::SqliteConnection,
+    ) -> Result<BackgroundJobId, BackgroundJobError> {
         let payload = serde_json::to_string(self.task)
             .map_err(BackgroundJobError::PayloadSerializationFailed)?;
 
@@ -40,12 +72,13 @@ impl<'a, JL: JobLike> CreateBackgroundJob<'a, JL> {
             payload,
             self.attempt_run_at,
         )
-        .fetch_one(database.deref())
+        .fetch_one(&mut *conn)
         .await
         .map_err(BackgroundJobError::SaveFailed)
     }
 }
 
+#[allow(dead_code)]
 #[derive(sqlx::FromRow)]
 pub struct BackgroundJob {
     id: BackgroundJobId,
@@ -53,7 +86,7 @@ pub struct BackgroundJob {
     name: String,
     queue_name: String,
 
-    unique_key: Option<String>,
+    unique_key: Option<UniqueTaskKey>,
     state: BackgroundJobState,
 
     current_attempt: Attempt,
