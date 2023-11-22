@@ -37,6 +37,9 @@ pub enum JobExecError {
 pub trait JobStore: Send + Sync + 'static {
     type Connection: Send;
 
+    // todo: I need to make the identifier type a trait parameter, and disconnect the database
+    // background job type from the background jobs themselves...
+
     async fn cancel(&self, id: BackgroundJobId) -> Result<(), JobStoreError> {
         self.update_state(id, BackgroundJobState::Cancelled).await
     }
@@ -44,7 +47,7 @@ pub trait JobStore: Send + Sync + 'static {
     async fn enqueue<T: JobLike>(
         conn: &mut Self::Connection,
         task: T,
-    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>
+    ) -> Result<BackgroundJobId, JobStoreError>
     where
         Self: Sized;
 

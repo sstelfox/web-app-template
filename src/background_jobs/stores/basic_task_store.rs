@@ -44,7 +44,7 @@ impl JobStore for BasicTaskStore {
     async fn enqueue<JL: JobLike>(
         pool: &mut Self::Connection,
         job: JL,
-    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>
+    ) -> Result<BackgroundJobId, JobStoreError>
     where
         Self: Sized,
     {
@@ -52,12 +52,12 @@ impl JobStore for BasicTaskStore {
         let unique_key = job.unique_key().await;
 
         if let Some(key) = &unique_key {
-            if key.is_active(&mut conn).await? {
-                return Ok(None);
+            if let Some(existing_id) = key.existing(&mut conn).await? {
+                return Ok(existing_id);
             }
         }
 
-        let _background_job_id =
+        let background_job_id =
             CreateBackgroundJob::now(JL::JOB_NAME, JL::QUEUE_NAME, unique_key.as_ref(), &job)
                 .save(&mut conn)
                 .await
@@ -65,7 +65,7 @@ impl JobStore for BasicTaskStore {
 
         conn.commit().await.map_err(BasicStoreError::Transaction)?;
 
-        todo!()
+        Ok(background_job_id)
     }
 
     async fn next(

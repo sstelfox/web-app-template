@@ -1,10 +1,9 @@
 use std::fmt::{self, Display, Formatter};
-use std::ops::Deref;
 
 use uuid::Uuid;
 
 use crate::database::custom_types::{Did, LoginProvider, ProviderId};
-use crate::database::{Database, DatabaseConnection};
+use crate::database::DatabaseConnection;
 
 #[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(transparent)]

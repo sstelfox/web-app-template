@@ -58,7 +58,7 @@ impl JobStore for EventTaskStore {
     async fn enqueue<T: JobLike>(
         _pool: &mut Self::Connection,
         _task: T,
-    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>
+    ) -> Result<BackgroundJobId, JobStoreError>
     where
         Self: Sized,
     {

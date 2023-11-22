@@ -1,10 +1,8 @@
-use std::ops::Deref;
-
 use time::OffsetDateTime;
 
 use crate::background_jobs::JobLike;
 use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundJobState, UniqueTaskKey};
-use crate::database::{Database, DatabaseConnection};
+use crate::database::DatabaseConnection;
 
 pub struct CreateBackgroundJob<'a, JL>
 where

@@ -1,7 +1,4 @@
-use std::str::FromStr;
-
 use askama::Template;
-use axum::headers::ContentType;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;

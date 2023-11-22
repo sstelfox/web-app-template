@@ -1,7 +1,3 @@
-#![allow(dead_code)]
-
-use std::ops::Deref;
-
 use time::OffsetDateTime;
 
 use crate::database::custom_types::UserId;

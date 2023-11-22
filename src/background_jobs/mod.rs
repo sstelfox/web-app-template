@@ -53,7 +53,7 @@ pub trait JobLikeExt {
     async fn enqueue<S: JobStore>(
         self,
         connection: &mut S::Connection,
-    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError>;
+    ) -> Result<BackgroundJobId, JobStoreError>;
 }
 
 #[async_trait]
@@ -64,7 +64,7 @@ where
     async fn enqueue<S: JobStore>(
         self,
         connection: &mut S::Connection,
-    ) -> Result<Option<(BackgroundJobId, BackgroundRunId)>, JobStoreError> {
+    ) -> Result<BackgroundJobId, JobStoreError> {
         S::enqueue(connection, self).await
     }
 }

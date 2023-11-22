@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::background_jobs::JobStoreError;
-use crate::database::custom_types::DbBool;
+use crate::database::custom_types::BackgroundJobId;
 use crate::database::DatabaseConnection;
 
 #[derive(Deserialize, Serialize, sqlx::Type)]
@@ -10,21 +10,18 @@ use crate::database::DatabaseConnection;
 pub struct UniqueTaskKey(String);
 
 impl UniqueTaskKey {
-    pub async fn is_active(
+    pub async fn existing(
         &self,
         conn: &mut DatabaseConnection,
-    ) -> Result<bool, UniqueTaskKeyError> {
+    ) -> Result<Option<BackgroundJobId>, UniqueTaskKeyError> {
         sqlx::query_scalar!(
-            r#"SELECT COALESCE((
-                   SELECT 1 FROM background_jobs
-                       WHERE unique_key = $1 AND state IN ('scheduled', 'active')
-                       LIMIT 1
-               ), 0) AS 'exists!: DbBool';"#,
+            r#"SELECT id as 'id: BackgroundJobId' FROM background_jobs
+                   WHERE unique_key = $1 AND state IN ('scheduled', 'active')
+                   LIMIT 1;"#,
             self,
         )
-        .fetch_one(&mut *conn)
+        .fetch_optional(&mut *conn)
         .await
-        .map(|r| r.into())
         .map_err(UniqueTaskKeyError::ActiveLookupFailed)
     }
 }

@@ -13,6 +13,10 @@ impl Attempt {
     pub fn next(self) -> Self {
         Self(self.0 + 1)
     }
+
+    pub fn zero() -> Self {
+        Self(0)
+    }
 }
 
 impl Decode<'_, Sqlite> for Attempt {

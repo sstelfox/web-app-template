@@ -1,11 +1,10 @@
 use std::fmt::{self, Display, Formatter};
-use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::database::custom_types::Did;
-use crate::database::{Database, DatabaseConnection};
+use crate::database::DatabaseConnection;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(transparent)]
@@ -13,14 +12,14 @@ pub struct UserId(Did);
 
 impl UserId {
     pub async fn from_email(
-        database: &mut DatabaseConnection,
+        conn: &mut DatabaseConnection,
         email: &str,
     ) -> Result<Option<Self>, UserIdError> {
         sqlx::query_scalar!(
             "SELECT id as 'id: UserId' FROM users WHERE email = LOWER($1);",
             email,
         )
-        .fetch_optional(&mut *database)
+        .fetch_optional(&mut *conn)
         .await
         .map_err(UserIdError::LookupFailed)
     }
