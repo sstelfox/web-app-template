@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+mod api_key_id;
 mod attempt;
 mod background_job_id;
 mod background_job_state;
@@ -15,6 +16,7 @@ mod session_id;
 mod unique_task_key;
 mod user_id;
 
+pub use api_key_id::ApiKeyId;
 pub use attempt::Attempt;
 pub use background_job_id::BackgroundJobId;
 pub use background_job_state::{BackgroundJobState, BackgroundJobStateError};
