@@ -12,12 +12,12 @@ const FINAL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[tokio::main]
 async fn main() {
-    use web_app_template::llm::hugging_face;
+    //use web_app_template::llm::hugging_face;
 
-    let vers = hugging_face::check_safetensor_model_version(hugging_face::EMBEDDING_MODEL)
-        .await
-        .expect("valid");
-    println!("{:?}", vers);
+    //let vers = hugging_face::check_safetensor_model_version(hugging_face::EMBEDDING_MODEL)
+    //    .await
+    //    .expect("valid");
+    //println!("{:?}", vers);
 
     let config = match Config::from_env_and_args() {
         Ok(c) => c,
@@ -54,9 +54,9 @@ async fn main() {
 
     let mut all_handles = Vec::new();
 
-    let worker_handles =
-        web_app_template::background_workers(state.clone(), shutdown_rx.clone()).await;
-    all_handles.extend(worker_handles);
+    //let worker_handles =
+    //    web_app_template::background_workers(state.clone(), shutdown_rx.clone()).await;
+    //all_handles.extend(worker_handles);
 
     let http_handle = web_app_template::http_server(
         *config.listen_addr(),
