@@ -99,7 +99,7 @@ pub async fn handler(
                 return Err(OAuthCallbackError::UnverifiedEmail);
             }
 
-            let existing_user = UserId::from_email(&database, &user_info.email)
+            let existing_user = UserId::from_email(&mut conn, &user_info.email)
                 .await
                 .map_err(OAuthCallbackError::UserCheckFailed)?;
 
