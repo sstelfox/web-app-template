@@ -4,7 +4,7 @@ use time::OffsetDateTime;
 
 use crate::background_jobs::JobLike;
 use crate::database::custom_types::{Attempt, BackgroundJobId, BackgroundJobState, UniqueTaskKey};
-use crate::database::Database;
+use crate::database::{Database, DatabaseConnection};
 
 pub struct CreateBackgroundJob<'a, JL>
 where
@@ -53,7 +53,7 @@ impl<'a, JL: JobLike> CreateBackgroundJob<'a, JL> {
 
     pub async fn save(
         self,
-        conn: &mut sqlx::SqliteConnection,
+        conn: &mut DatabaseConnection,
     ) -> Result<BackgroundJobId, BackgroundJobError> {
         let payload = serde_json::to_string(self.task)
             .map_err(BackgroundJobError::PayloadSerializationFailed)?;

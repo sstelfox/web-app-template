@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO background_jobs (name, queue_name, unique_key, state,\n                       current_attempt, maximum_attempts, payload, attempt_run_at)\n                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n                   RETURNING id as 'id: BackgroundJobId';",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: BackgroundJobId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0ef6026640cb601021383f813c48cfde74aa188e86562de7113d2c2cba08c272"
+}

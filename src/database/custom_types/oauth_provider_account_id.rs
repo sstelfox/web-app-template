@@ -4,7 +4,7 @@ use std::ops::Deref;
 use uuid::Uuid;
 
 use crate::database::custom_types::{Did, LoginProvider, ProviderId};
-use crate::database::Database;
+use crate::database::{Database, DatabaseConnection};
 
 #[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(transparent)]
@@ -12,7 +12,7 @@ pub struct OAuthProviderAccountId(Did);
 
 impl OAuthProviderAccountId {
     pub async fn from_provider_account_id(
-        database: &Database,
+        conn: &mut DatabaseConnection,
         provider: LoginProvider,
         provider_account_id: ProviderId,
     ) -> Result<Option<Self>, OAuthProviderAccountIdError> {
@@ -23,7 +23,7 @@ impl OAuthProviderAccountId {
             provider,
             provider_account_id,
         )
-        .fetch_optional(database.deref())
+        .fetch_optional(&mut *conn)
         .await
         .map_err(OAuthProviderAccountIdError::LookupFailed)
     }

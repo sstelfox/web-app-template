@@ -79,8 +79,13 @@ pub async fn handler(
 
     // out of provider specific land for the most part
 
+    let mut conn = database
+        .acquire()
+        .await
+        .map_err(OAuthCallbackError::DatabaseUnavailable)?;
+
     let maybe_provider_account_id = OAuthProviderAccountId::from_provider_account_id(
-        &database,
+        &mut conn,
         provider,
         user_info.google_id.clone(),
     )
@@ -207,6 +212,9 @@ pub enum OAuthCallbackError {
 
     #[error("successful login from an unauthorized provider for existing account")]
     AlternateProvider,
+
+    #[error("unable to perform database operation: {0}")]
+    DatabaseUnavailable(sqlx::Error),
 
     #[error("failed to query the database for a provider account: {0}")]
     FailedAccountLookup(OAuthProviderAccountIdError),

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::background_jobs::JobStoreError;
 use crate::database::custom_types::DbBool;
+use crate::database::DatabaseConnection;
 
 #[derive(Deserialize, Serialize, sqlx::Type)]
 #[serde(transparent)]
@@ -11,7 +12,7 @@ pub struct UniqueTaskKey(String);
 impl UniqueTaskKey {
     pub async fn is_active(
         &self,
-        conn: &mut sqlx::SqliteConnection,
+        conn: &mut DatabaseConnection,
     ) -> Result<bool, UniqueTaskKeyError> {
         sqlx::query_scalar!(
             r#"SELECT COALESCE((

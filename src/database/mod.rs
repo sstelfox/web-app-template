@@ -13,6 +13,8 @@ use sqlx::SqlitePool;
 #[derive(Clone)]
 pub struct Database(SqlitePool);
 
+pub type DatabaseConnection = sqlx::SqliteConnection;
+
 impl Database {
     pub async fn connect(db_url: &url::Url) -> Result<Self, DatabaseSetupError> {
         // todo: I should figure out a way to delay the actual connection and running of migrations,
