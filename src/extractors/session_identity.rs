@@ -15,12 +15,15 @@ use crate::auth::{LOGIN_PATH, SESSION_COOKIE_NAME};
 use crate::database::custom_types::{OAuthProviderAccountId, SessionId, UserId};
 use crate::database::models::Session;
 use crate::database::Database;
+use crate::extractors::Requestor;
 use crate::utils::remove_cookie;
 
 pub struct SessionIdentity {
     id: SessionId,
     provider_account_id: OAuthProviderAccountId,
     user_id: UserId,
+
+    requestor: Requestor,
 
     created_at: OffsetDateTime,
     expires_at: OffsetDateTime,
@@ -52,6 +55,7 @@ impl SessionIdentity {
 impl<S> FromRequestParts<S> for SessionIdentity
 where
     Database: FromRef<S>,
+    Requestor: FromRequestParts<S, Rejection = ()>,
     ServiceVerificationKey: FromRef<S>,
     S: Send + Sync,
 {
@@ -132,10 +136,14 @@ where
             return Err(SessionIdentityError::SessionExpired);
         }
 
+        let requestor = Requestor::from_request_parts(parts, state).await;
+
         Ok(SessionIdentity {
             id: db_session.id(),
             provider_account_id: db_session.oauth_provider_account_id(),
             user_id: db_session.user_id(),
+
+            requestor: requestor.expect("infallible"),
 
             created_at: db_session.created_at(),
             expires_at: db_session.expires_at(),

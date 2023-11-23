@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use axum::extract::FromRequestParts;
 use axum::response::{IntoResponse, Response};
-use axum::RequestPartsExt;
+use axum::{RequestPartsExt, TypedHeader};
 use http::request::Parts;
 use http::{HeaderValue, StatusCode};
 
@@ -37,17 +37,25 @@ where
     type Rejection = ();
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let requestor = Self {
-            // default to do-not-track until I'm parsing the header correctly
-            do_not_track: true,
+        let mut requestor = Self {
+            do_not_track: false,
             referrer: None,
         };
 
-        //if let Ok(TypedHeader(Referer(referrer))) = parts
-        //    .extract::<TypedHeader<Referer>>()
-        //    .await {
-        //    requestor.referrer = Some(referrer);
-        //}
+        for val in parts.headers.get_all(http::header::REFERER) {
+            if let Ok(new_ref) = val.to_str() {
+                requestor.referrer = match requestor.referrer {
+                    Some(referrer) => Some([&referrer, new_ref].join("-/-")),
+                    None => Some(new_ref.to_string()),
+                };
+            }
+        }
+
+        if let Some(dnt_val) = parts.headers.get(http::header::DNT) {
+            if dnt_val == "1" {
+                requestor.do_not_track = true;
+            }
+        }
 
         Ok(requestor)
     }
