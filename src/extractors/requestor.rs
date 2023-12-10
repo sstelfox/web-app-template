@@ -10,6 +10,7 @@ pub struct Requestor {
 
     //client_ip: std::net::IpAddr,
     //user_agent: String,
+
     referrer: Option<String>,
 }
 
@@ -33,7 +34,6 @@ impl<S> FromRequestParts<S> for Requestor
 where
     S: Send + Sync,
 {
-    //type Rejection = RequestorError;
     type Rejection = ();
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
@@ -60,9 +60,3 @@ where
         Ok(requestor)
     }
 }
-
-//#[derive(Debug, thiserror::Error)]
-//pub enum RequestorError {
-//}
-//
-//impl IntoResponse for
