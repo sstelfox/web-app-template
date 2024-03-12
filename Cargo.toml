@@ -46,7 +46,8 @@ axum = { version = "^0.7", features = [
   "tracing",
   "ws",
 ] }
-axum-extra = { version = "^0.9", features = ["cookie", "form"] }
+axum-extra = { version = "^0.9", features = ["cookie", "form", "typed-header"] }
+headers = "^0.4"
 http = "^1"
 hyper = "^1"
 lettre = { version = "^0.11", features = [

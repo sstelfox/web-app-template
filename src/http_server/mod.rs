@@ -26,7 +26,7 @@ use tracing::{Level, Span};
 
 use crate::app::{State, StateSetupError};
 use crate::background_jobs::impls::TickMessage;
-//use crate::extractors::SessionIdentity;
+use crate::extractors::SessionIdentity;
 use crate::{auth, health_check, pages};
 
 mod error_handlers;
@@ -124,63 +124,62 @@ pub async fn run(
         )
         .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros));
 
-    // todo
-    // The order of these layers and configuration extensions was carefully chosen as they will see
-    // the requests to responses effectively in the order they're defined.
-    //let middleware_stack = ServiceBuilder::new()
-    //    // Tracing and log handling get setup before anything else
-    //    .layer(trace_layer)
-    //    .layer(HandleErrorLayer::new(error_handlers::server_error_handler))
-    //    // From here on out our requests might be logged, ensure any sensitive headers are stripped
-    //    // before we do any logging
-    //    .layer(SetSensitiveRequestHeadersLayer::from_shared(
-    //        SENSITIVE_HEADERS.into(),
-    //    ))
-    //    // If requests are queued or take longer than this duration we want the cut them off
-    //    // regardless of any other protections that are inplace
-    //    .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-    //    // If any future services or middleware indicate they're not available, reject them with a
-    //    // service too busy error
-    //    .load_shed()
-    //    // Restrict the number of concurrent in flight requests, desired value for this is going to
-    //    // vary from service to service, make sure it reflects the number of concurrent requests
-    //    // your service can handle.
-    //    .concurrency_limit(1024)
-    //    // Make sure our request has a unique identifier if we don't already have one. This does
-    //    // allow our upstream to arbitrarily set headers so this service should have protection
-    //    // against arbitrary untrusted injections of this header.
-    //    .set_x_request_id(MakeRequestUuid)
-    //    .propagate_x_request_id()
-    //    // By default limit any request to this size. Individual handlers can opt-out of this limit
-    //    // if they so choose (such as an upload handler).
-    //    .layer(DefaultBodyLimit::max(REQUEST_MAX_SIZE))
-    //    // Our clients should only ever be sending us JSON requests, any other type is an error.
-    //    // This won't be true of all APIs and this will accept the wildcards sent by most clients.
-    //    // Debatable whether I actually want this...
-    //    .layer(ValidateRequestHeaderLayer::accept("application/json"))
-    //    // Finally make sure any responses successfully generated from our service is also
-    //    // filtering out any sensitive headers from our logs.
-    //    .layer(SetSensitiveResponseHeadersLayer::from_shared(
-    //        SENSITIVE_HEADERS.into(),
-    //    ));
-
-    // todo
-    //let static_assets = ServeDir::new("dist").not_found(error_handlers::not_found_handler);
+    let static_assets = ServeDir::new("dist").not_found_service(error_handlers::not_found_handler);
 
     let root_router = Router::new()
         .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
         .nest("/_status", health_check::router(state.clone()))
-        // todo
-        //    .route("/events", get(event_bus_handler))
-        //    .route("/events/test", get(test_event_handler))
+        .route("/events", get(event_bus_handler))
+        .route("/events/test", get(test_event_handler))
         .nest("/", pages::router(state.clone()))
-        .with_state(state);
-    // todo
-    //    .fallback_service(static_assets);
-
-    // todo
-    //let app = middleware_stack.service(root_router);
+        .with_state(state)
+        // todo
+        //.fallback_service(static_assets);
+        // The order of these layers and configuration extensions was carefully chosen as they will see
+        // the requests to responses effectively in the order they're defined.
+        //
+        // Tracing and log handling get setup before anything else
+        .layer(trace_layer)
+        //.layer(HandleErrorLayer::new(error_handlers::server_error_handler))
+        // From here on out our requests might be logged, ensure any sensitive headers are stripped
+        // before we do any logging
+        .layer(SetSensitiveRequestHeadersLayer::from_shared(
+            SENSITIVE_HEADERS.into(),
+        ))
+        // If requests are queued or take longer than this duration we want the cut them off
+        // regardless of any other protections that are inplace
+        // todo
+        //.timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        // If any future services or middleware indicate they're not available, reject them with a
+        // service too busy error
+        // todo
+        //.load_shed()
+        // Restrict the number of concurrent in flight requests, desired value for this is going to
+        // vary from service to service, make sure it reflects the number of concurrent requests
+        // your service can handle.
+        // todo
+        //.concurrency_limit(1024)
+        // Make sure our request has a unique identifier if we don't already have one. This does
+        // allow our upstream to arbitrarily set headers so this service should have protection
+        // against arbitrary untrusted injections of this header.
+        // todo
+        //.set_x_request_id(MakeRequestUuid)
+        // todo
+        //.propagate_x_request_id()
+        // By default limit any request to this size. Individual handlers can opt-out of this limit
+        // if they so choose (such as an upload handler).
+        .layer(DefaultBodyLimit::max(REQUEST_MAX_SIZE))
+        // Our clients should only ever be sending us JSON requests, any other type is an error.
+        // This won't be true of all APIs and this will accept the wildcards sent by most clients.
+        // Debatable whether I actually want this...
+        // todo
+        //.layer(ValidateRequestHeaderLayer::accept("application/json"))
+        // Finally make sure any responses successfully generated from our service is also
+        // filtering out any sensitive headers from our logs.
+        .layer(SetSensitiveResponseHeadersLayer::from_shared(
+            SENSITIVE_HEADERS.into(),
+        ));
 
     tracing::info!(addr = ?listen_addr, "server listening");
     let listener = tokio::net::TcpListener::bind(listen_addr).await?;
@@ -206,32 +205,30 @@ pub enum HttpServerError {
 use crate::event_bus::{SystemEvent, TestEvent};
 use axum::http::StatusCode;
 
-// todo
-//async fn test_event_handler(
-//    session: SessionIdentity,
-//    axum::extract::State(state): axum::extract::State<State>,
-//) -> Response {
-//    let _ = state.event_bus().send(
-//        SystemEvent::TestEvent,
-//        &TestEvent {
-//            session_id: session.id(),
-//        },
-//    );
-//    (StatusCode::NO_CONTENT, ()).into_response()
-//}
+async fn test_event_handler(
+    session: SessionIdentity,
+    axum::extract::State(state): axum::extract::State<State>,
+) -> Response {
+    let _ = state.event_bus().send(
+        SystemEvent::TestEvent,
+        &TestEvent {
+            session_id: session.id(),
+        },
+    );
+    (StatusCode::NO_CONTENT, ()).into_response()
+}
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use futures::{SinkExt, StreamExt};
 use serde::Serialize;
 
-// todo
-//async fn event_bus_handler(
-//    _session: SessionIdentity,
-//    upgrade_request: WebSocketUpgrade,
-//    axum::extract::State(state): axum::extract::State<State>,
-//) -> Response {
-//    upgrade_request.on_upgrade(|sock| event_bus_stream_handler(sock, state))
-//}
+async fn event_bus_handler(
+    _session: SessionIdentity,
+    upgrade_request: WebSocketUpgrade,
+    axum::extract::State(state): axum::extract::State<State>,
+) -> Response {
+    upgrade_request.on_upgrade(|sock| event_bus_stream_handler(sock, state))
+}
 
 use crate::event_bus::UserRegistration;
 
