@@ -1,8 +1,8 @@
 # Web App Template
 
-* Rust
-* Axum
-* Either Sqlite or Postgres
+- Rust
+- Axum
+- Either Sqlite or Postgres
 
 ## Development Environment
 

@@ -3,18 +3,18 @@
 // todo: build this dynmically based on hostname and scheme
 const websocket = new WebSocket("ws://127.0.0.1:3000/events");
 
-websocket.onopen = function() {
+websocket.onopen = function () {
   console.log("event bus websocket connection opened");
   // if I need to send some message on initialization...
   //websocket.send(data);
-}
+};
 
-websocket.onclose = function() {
+websocket.onclose = function () {
   // todo: should handle automatic connection retrying...
   console.log("event bus websocket connection closed");
-}
+};
 
-websocket.onmessage = function(event) {
+websocket.onmessage = function (event) {
   console.log(event);
 
   const raw_data = event.data;
@@ -40,7 +40,9 @@ websocket.onmessage = function(event) {
   const decoded_col = document.createElement("td");
 
   if (data.decoded) {
-    const decoded_content = document.createTextNode(JSON.stringify(data.decoded));
+    const decoded_content = document.createTextNode(
+      JSON.stringify(data.decoded),
+    );
     decoded_col.appendChild(decoded_content);
   }
 
@@ -48,23 +50,23 @@ websocket.onmessage = function(event) {
 
   const event_list = document.getElementById("event-list");
   event_list.appendChild(base_row_node);
-}
+};
 
 const test_event_btn = document.getElementById("test-event");
 if (test_event_btn) {
-  test_event_btn.addEventListener('click', function(event) {
+  test_event_btn.addEventListener("click", function (event) {
     event.preventDefault();
 
-    fetch('/events/test')
-    .then(function(response) {
-      if (!response.ok) {
-        return response.json().then(function(responseJson) {
-          throw new Error(responseJson);
-        });
-      }
-    })
-    .catch(function(error) {
-      console.log('creating test event failed: ', error);
-    });
+    fetch("/events/test")
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().then(function (responseJson) {
+            throw new Error(responseJson);
+          });
+        }
+      })
+      .catch(function (error) {
+        console.log("creating test event failed: ", error);
+      });
   });
 }

@@ -1,18 +1,18 @@
-{% extends "layout.html" %}
-
-{% block title %}Home{% endblock %}
-
-{% block content %}
+{% extends "layout.html" %} {% block title %}Home{% endblock %} {% block content
+%}
 <table>
-  <caption>Current session details</caption>
+  <caption>
+    Current session details
+  </caption>
   <colgroup>
-    <col style="text-align: right;" />
+    <col style="text-align: right" />
   </colgroup>
   <tbody>
     <tr>
       <th scope="row">User ID</th>
       <td>{{ session.user_id() }}</td>
     </tr>
+    <tr>
       <th scope="row">Provider Account ID</th>
       <td>{{ session.provider_account_id() }}</td>
     </tr>
@@ -34,7 +34,9 @@
 <a href="#" target="_blank" id="test-event">Send Test Event</a>
 
 <table>
-  <caption>Live Events</caption>
+  <caption>
+    Live Events
+  </caption>
   <thead>
     <tr>
       <th scope="col">Event Type</th>
@@ -43,11 +45,8 @@
       <th scope="col">Deserialized</th>
     </tr>
   </thead>
-  <tbody id="event-list">
-  </tbody>
+  <tbody id="event-list"></tbody>
 </table>
-{% endblock %}
-
-{% block trailing_script %}
+{% endblock %} {% block trailing_script %}
 <script async type="text/javascript" src="/js/event_subscription.js"></script>
 {% endblock %}
