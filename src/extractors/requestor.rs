@@ -1,9 +1,6 @@
 use async_trait::async_trait;
 use axum::extract::FromRequestParts;
-use axum::response::{IntoResponse, Response};
-use axum::RequestPartsExt;
 use http::request::Parts;
-use http::{HeaderValue, StatusCode};
 
 pub struct Requestor {
     do_not_track: bool,
