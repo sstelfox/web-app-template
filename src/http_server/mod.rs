@@ -124,9 +124,16 @@ pub async fn run(
         )
         .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros));
 
-    let static_assets = ServeDir::new("dist").not_found_service(error_handlers::not_found_handler);
+    // todo: need to turn not_found_handler into its own service...
+    let static_assets =
+        ServeDir::new("dist").not_found_service(error_handlers::not_found_handler.into_service());
 
+    // todo: I think I can switch my sub-routers with different states using nest_service while
+    // still having a global set of layers applied now...
     let root_router = Router::new()
+        // order matters here, we inject a single dynamic asset mixed in with our static ones
+        .route("/assets/css/metrics.css", get(pages::css_metrics_handler))
+        .nest_service("/assets", static_assets)
         .nest("/auth", auth::router(state.clone()))
         //.nest("/api/v1", api::router(app_state.clone()))
         .nest("/_status", health_check::router(state.clone()))
@@ -134,8 +141,7 @@ pub async fn run(
         .route("/events/test", get(test_event_handler))
         .nest("/", pages::router(state.clone()))
         .with_state(state)
-        // todo
-        //.fallback_service(static_assets);
+        .fallback(error_handlers::not_found_handler)
         // The order of these layers and configuration extensions was carefully chosen as they will see
         // the requests to responses effectively in the order they're defined.
         //

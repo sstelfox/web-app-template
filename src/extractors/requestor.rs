@@ -11,6 +11,10 @@ pub struct Requestor {
 }
 
 impl Requestor {
+    pub fn is_private(&self) -> bool {
+        self.do_not_track
+    }
+
     /// Used for various internal source tracking and security measures. When the user agent send a
     /// Do-Not-Track signal we respect that and only return the referrer if it matches our origin.
     ///
