@@ -164,7 +164,7 @@ pub async fn handler(
     let session_value = [session_enc, auth_tag].join("");
 
     cookie_jar = cookie_jar.add(
-        Cookie::build(SESSION_COOKIE_NAME, session_value)
+        Cookie::build((SESSION_COOKIE_NAME, session_value))
             .http_only(true)
             .expires(expires_at)
             .same_site(SameSite::Lax)

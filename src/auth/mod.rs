@@ -29,6 +29,7 @@ pub fn router(state: State) -> Router<State> {
 }
 
 pub async fn select_provider_handler() -> Response {
+    // todo: switch to templates
     Html(
         r#"<!DOCTYPE html>
     <html>

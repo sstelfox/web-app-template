@@ -1,6 +1,8 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use axum_extra::TypedHeader;
+use headers::ContentType;
 
 use crate::pages::NotFoundTemplate;
 
@@ -29,9 +31,6 @@ pub async fn server_error_handler(error: tower::BoxError) -> Response {
     let msg = serde_json::json!({"status": "error", "message": "unknown server error"});
     (StatusCode::INTERNAL_SERVER_ERROR, Json(msg)).into_response()
 }
-
-use axum::headers::ContentType;
-use axum::TypedHeader;
 
 pub async fn not_found_handler(TypedHeader(content_type): TypedHeader<ContentType>) -> Response {
     let content_type = content_type.to_string();
