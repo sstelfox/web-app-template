@@ -4,9 +4,11 @@ use axum::Router;
 
 use crate::app::State;
 
-mod login;
+// todo
+//mod login;
 mod logout;
-mod oauth_callback;
+// todo
+//mod oauth_callback;
 mod oauth_client;
 
 pub use oauth_client::{OAuthClient, OAuthClientError};
@@ -21,14 +23,16 @@ pub const SESSION_TTL: u64 = 28 * 24 * 60 * 60;
 
 pub fn router(state: State) -> Router<State> {
     Router::new()
-        .route("/callback/:provider", get(oauth_callback::handler))
-        .route("/login", get(select_provider_handler))
-        .route("/login/:provider", get(login::handler))
+        // todo
+        //.route("/callback/:provider", get(oauth_callback::handler))
+        //.route("/login", get(select_provider_handler))
+        //.route("/login/:provider", get(login::handler))
         .route("/logout", get(logout::handler))
         .with_state(state)
 }
 
 pub async fn select_provider_handler() -> Response {
+    // todo: switch to templates
     Html(
         r#"<!DOCTYPE html>
     <html>

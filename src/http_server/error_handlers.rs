@@ -30,18 +30,16 @@ pub async fn server_error_handler(error: tower::BoxError) -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, Json(msg)).into_response()
 }
 
-use axum::headers::ContentType;
-use axum::TypedHeader;
-
-pub async fn not_found_handler(TypedHeader(content_type): TypedHeader<ContentType>) -> Response {
-    let content_type = content_type.to_string();
-
-    match content_type.as_str() {
-        "application/json" => {
-            let err_msg = serde_json::json!({"msg": "not found"});
-            (StatusCode::NOT_FOUND, Json(err_msg)).into_response()
-        }
-        "text/html" => (StatusCode::NOT_FOUND, NotFoundTemplate).into_response(),
-        _ => (StatusCode::NOT_FOUND, "not found").into_response(),
-    }
-}
+// todo
+//pub async fn not_found_handler(TypedHeader(content_type): TypedHeader<ContentType>) -> Response {
+//    let content_type = content_type.to_string();
+//
+//    match content_type.as_str() {
+//        "application/json" => {
+//            let err_msg = serde_json::json!({"msg": "not found"});
+//            (StatusCode::NOT_FOUND, Json(err_msg)).into_response()
+//        }
+//        "text/html" => (StatusCode::NOT_FOUND, NotFoundTemplate).into_response(),
+//        _ => (StatusCode::NOT_FOUND, "not found").into_response(),
+//    }
+//}

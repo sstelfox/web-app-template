@@ -3,14 +3,11 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-use axum::extract::rejection::TypedHeaderRejection;
-use axum::extract::{FromRef, FromRequestParts, TypedHeader};
-use axum::headers::authorization::Bearer;
-use axum::headers::Authorization;
-use axum::http::StatusCode;
+use axum::extract::{FromRef, FromRequestParts};
 use axum::response::{IntoResponse, Response};
 use axum::{async_trait, Json, RequestPartsExt};
 use http::request::Parts;
+use http::StatusCode;
 use jwt_simple::prelude::*;
 use regex::Regex;
 use uuid::Uuid;

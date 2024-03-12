@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
@@ -17,7 +18,7 @@ pub mod http_server;
 pub mod llm;
 pub mod utils;
 
-//const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
+const REQUEST_GRACE_PERIOD: Duration = Duration::from_secs(10);
 
 pub async fn background_workers(
     state: app::State,
@@ -91,13 +92,14 @@ pub fn graceful_shutdown_blocker() -> (JoinHandle<()>, watch::Receiver<()>) {
             _ = sigint.recv() => {
                 tracing::debug!("gracefully exiting immediately on SIGINT");
             }
-            _ = sigterm.recv() => tracing::debug!("initiaing graceful shutdown with delay on SIGTERM"),
+            _ = sigterm.recv() => {
+                // todo: this is the desired k8s behavior... but for our current usage, we don't have
+                // layers of proxies that require information progagation. This just increases the errors
+                // visible during deploys
+                tokio::time::sleep(REQUEST_GRACE_PERIOD).await;
+                tracing::debug!("initiaing graceful shutdown with delay on SIGTERM");
+            }
         }
-
-        // todo: this is the desired k8s behavior... but for our current usage, we don't have
-        // layers of proxies that require information progagation. This just increases the errors
-        // visible during deploys
-        //tokio::time::sleep(REQUEST_GRACE_PERIOD).await
 
         // Time to start signaling any services that care about gracefully shutting down that the
         // time is at hand.

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+// todo: record ip address of session login source
+// todo: implement remembered device as part of sessions
 //use std::net::IpAddr;
 use std::time::Duration;
 
