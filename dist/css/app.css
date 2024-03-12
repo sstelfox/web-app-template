@@ -1,3 +1,27 @@
+@font-face {
+  font-family: InterVariable;
+
+  font-style: normal;
+
+  font-weight: 100 900;
+
+  font-display: swap;
+
+  src: url('/assets/fonts/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: InterVariable;
+
+  font-style: italic;
+
+  font-weight: 100 900;
+
+  font-display: swap;
+
+  src: url('/assets/fonts/InterVariable-Italic.woff2') format('woff2');
+}
+
 /*
 ! tailwindcss v3.4.1 | MIT License | https://tailwindcss.com
 */
@@ -552,31 +576,9 @@ video {
   display: table;
 }
 
-@font-face {
-  font-family: InterVariable;
-
-  font-style: normal;
-
-  font-weight: 100 900;
-
-  font-display: swap;
-
-  src: url('/assets/fonts/InterVariable.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: InterVariable;
-
-  font-style: italic;
-
-  font-weight: 100 900;
-
-  font-display: swap;
-
-  src: url('/assets/fonts/InterVariable-Italic.woff2') format('woff2');
-}
-
+/**
 body {
   background: #131313;
   color: #9f9f9f;
 }
+*/

@@ -8,8 +8,16 @@ fn report_build_profile() {
 fn report_enabled_features() {
     let mut enabled_features: Vec<&str> = Vec::new();
 
-    if cfg!(feature = "sqlite") {
-        enabled_features.push("sqlite");
+    if cfg!(feature = "cuda") {
+        enabled_features.push("cuda");
+    }
+
+    if cfg!(feature = "cudann") {
+        enabled_features.push("cudann");
+    }
+
+    if cfg!(feature = "nccl") {
+        enabled_features.push("nccl");
     }
 
     if enabled_features.is_empty() {
