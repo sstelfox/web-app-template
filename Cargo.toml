@@ -143,7 +143,7 @@ path = "src/main.rs"
 all-features = true
 
 [features]
-default = ["cuda", "cudann", "nccl"]
+default = []
 cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
 cudann = ["candle-core/cudnn"]
 nccl = ["cuda", "cudarc/nccl", "dep:half"]

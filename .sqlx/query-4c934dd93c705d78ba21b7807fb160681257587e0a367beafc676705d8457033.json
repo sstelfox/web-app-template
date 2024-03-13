@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO background_runs (background_job_id, attempt, state, started_at)\n                   VALUES ($1, $2, $3, $4)\n                   RETURNING id as 'id: BackgroundRunId';",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: BackgroundRunId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4c934dd93c705d78ba21b7807fb160681257587e0a367beafc676705d8457033"
+}

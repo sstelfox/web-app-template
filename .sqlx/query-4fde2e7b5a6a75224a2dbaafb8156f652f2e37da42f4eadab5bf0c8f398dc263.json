@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as 'id: BackgroundJobId' FROM background_jobs\n                   WHERE unique_key = $1 AND state IN ('scheduled', 'active')\n                   LIMIT 1;",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: BackgroundJobId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4fde2e7b5a6a75224a2dbaafb8156f652f2e37da42f4eadab5bf0c8f398dc263"
+}
