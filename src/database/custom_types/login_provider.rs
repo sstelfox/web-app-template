@@ -215,7 +215,7 @@ mod test {
         let successful_response = app.clone().oneshot(successful_request).await.unwrap();
 
         assert_eq!(successful_response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(successful_response.into_body())
+        let body = axum::body::to_bytes(successful_response.into_body(), usize::MAX)
             .await
             .unwrap();
         assert_eq!(&body[..], b"\"google\"");

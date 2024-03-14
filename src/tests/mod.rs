@@ -1,6 +1,7 @@
 mod helpers;
 
 pub(crate) mod prelude {
+    pub(crate) use crate::tests::helpers::*;
     pub(crate) use crate::tests::MockState;
 }
 

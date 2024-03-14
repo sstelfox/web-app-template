@@ -44,7 +44,12 @@ impl ModelVersion {
 /// # Examples
 ///
 /// ```rust,no_run
-/// let model_version = check_safetensor_model_version("thenlper/gte-base").await?;
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #   use web_app_template::llm::hugging_face::check_safetensor_model_version;
+///     let model_version = check_safetensor_model_version("thenlper/gte-base").await?;
+/// #   Ok(())
+/// # }
 /// ```
 ///
 /// # Note
@@ -110,6 +115,20 @@ pub async fn check_safetensor_model_version(model: &str) -> Result<ModelVersion,
     })
 }
 
+/// Converts a response header into the unquoted string. In general Etag headers
+/// shouldn't be used to identify a specific version only whether it has changed
+/// or not. The [`ModelVersion::commit`] attribute should be used for version
+/// identification.
+///
+/// # Arguments
+///
+/// * `etag` - The [`HeaderValue`] returned in the etag header from a huggingface
+///   repo response.
+///
+/// # Note
+///
+/// In the future this function may start returning a digest over the raw etag
+/// string to prevent accidental misuse.
 fn clean_etag(etag: &HeaderValue) -> Result<String, HuggingFaceError> {
     etag.to_str()
         .map_err(HuggingFaceError::InvalidHeaderValue)

@@ -15,7 +15,6 @@ thiserror = "^1"
 tokio = { version = "^1", features = [
   "macros",
   "net",
-  "rt",
   "rt-multi-thread",
   "signal",
   "sync",
@@ -131,6 +130,7 @@ reqwest = { version = "^0.11", default-features = false, features = [
   "json",
   "multipart",
 ] }
+tokio = { version = "^1", features = ["test-util"] }
 
 [lib]
 path = "src/lib.rs"
@@ -141,6 +141,9 @@ path = "src/main.rs"
 
 [package.metadata.docs.rs]
 all-features = true
+# Give us a cfg feature to allow enabling doc_cfg feature indicators when
+# documentation is pushed to docs.rs
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = []

@@ -1,3 +1,1 @@
-mod hugging_face;
-
-pub use hugging_face::ModelVersion;
+pub mod hugging_face;

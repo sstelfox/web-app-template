@@ -22,7 +22,10 @@ mod tests {
         let response = handler().await;
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body()).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+
         assert_eq!(&body[..], b"{\"status\":\"ok\"}");
     }
 }
