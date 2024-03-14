@@ -17,9 +17,3 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Can't get tailwind darkmode working yet.. */
-body {
-  background: #131313;
-  color: #9f9f9f;
-}

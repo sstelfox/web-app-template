@@ -125,8 +125,10 @@ pub async fn run(
         .on_failure(DefaultOnFailure::new().latency_unit(LatencyUnit::Micros));
 
     // todo: need to turn not_found_handler into its own service...
-    let static_assets =
-        ServeDir::new("dist").not_found_service(error_handlers::not_found_handler.into_service());
+    let static_assets = ServeDir::new("dist")
+        .precompressed_br()
+        .precompressed_gzip()
+        .not_found_service(error_handlers::not_found_handler.into_service());
 
     // todo: I think I can switch my sub-routers with different states using nest_service while
     // still having a global set of layers applied now...

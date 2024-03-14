@@ -1,22 +1,63 @@
 <!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" context="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" context="width=device-width, initial-scale=1.0" />
 
     <title>{% block title %}Default Title{% endblock %}</title>
 
-    <link rel="icon" type="image/png" href="/assets/favicon.png">
-    <link rel="stylesheet" type="text/css" href="/assets/css/app.css">
-    <link rel="stylesheet" type="text/css" href="/assets/css/metrics.css">
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/app.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/metrics.css" />
 
-    <script src="/assets/js/htmx.min.js.gz"></script>
+    <script src="/assets/js/htmx.min.js"></script>
+
+    <script defer src="/assets/js/brands.js"></script>
+    <script defer src="/assets/js/solid.js"></script>
+    <script defer src="/assets/js/fontawesome.js"></script>
 
     {% block head %}{% endblock %}
   </head>
 
   <body>
-    <div id="content">{% block content %}{% endblock %}</div>
+    {% block full_body %}
+    <div class="navbar bg-base-100">
+      <div class="flex-1">
+        <a href="/" class="btn btn-ghost text-xl">Web App Template</a>
+      </div>
+
+      <div class="flex-none gap-2 navbar-end">
+        <div class="form-control">
+          <input type="text" placeholder="Search" class="input input-bordered w-24 md:w-auto" />
+        </div>
+
+        <div class="dropdown dropdown-end">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+            <div class="w-10 rounded-full">
+              <img alt="Tailwind CSS Navbar component" src="https://daisyui.com/images/stock/photo-1534528741775-53994a69daeb.jpg" />
+            </div>
+          </div>
+
+          <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+            <li>
+              <a class="justify-between">Profile <span class="badge">New</span></a>
+            </li>
+            <li><a>Settings</a></li>
+            <li><a href="/auth/logout">Logout</a></li>
+          </ul>
+        </div>
+
+        <button class="btn btn-ghost btn-circle">
+          <div class="indicator">
+            <i class="fa-solid fa-bell fa-2xl"></i>
+            <span class="badge badge-xs badge-secondary indicator-item">3</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    {% block content %}{% endblock %}
+    {% endblock %}
   </body>
 
   {% block trailing_script %}{% endblock %}
