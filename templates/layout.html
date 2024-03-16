@@ -19,11 +19,11 @@
     {% block head %}{% endblock %}
   </head>
 
-  <body>
+  <body class="h-screen flex flex-col">
     {% block full_body %}
-    <div class="navbar bg-base-100">
+    <nav class="navbar bg-base-300 p-4">
       <div class="flex-1">
-        <a href="/" class="btn btn-ghost text-xl">Web App Template</a>
+        <a href="/" class="text-xl">Web App Template</a>
       </div>
 
       <div class="flex-none gap-2 navbar-end">
@@ -34,11 +34,18 @@
         <div class="dropdown dropdown-end">
           <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
             <div class="w-10 rounded-full">
-              <img alt="Tailwind CSS Navbar component" src="https://daisyui.com/images/stock/photo-1534528741775-53994a69daeb.jpg" />
+              <img alt="cute forest creature avatar" src="/assets/imgs/critter-avatar.webp" />
             </div>
           </div>
 
-          <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+          <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-md dropdown-content bg-base-200 rounded-box w-52">
+            <li>
+              <label class="swap swap-rotate">
+                <input type="checkbox" value="wireframe" class="theme-controller"/>
+                <i class="fas fa-moon swap-off"></i>
+                <i class="fas fa-sun swap-on"></i>
+              </label>
+            </li>
             <li>
               <a class="justify-between">Profile <span class="badge">New</span></a>
             </li>
@@ -46,18 +53,84 @@
             <li><a href="/auth/logout">Logout</a></li>
           </ul>
         </div>
-
-        <button class="btn btn-ghost btn-circle">
-          <div class="indicator">
-            <i class="fa-solid fa-bell fa-2xl"></i>
-            <span class="badge badge-xs badge-secondary indicator-item">3</span>
-          </div>
-        </button>
       </div>
-    </div>
+    </nav>
 
-    {% block content %}{% endblock %}
-    {% endblock %}
+    <div class="flex flex-1">
+      <aside class="bg-base-300 text-white w-64">
+        <div class="join join-vertical w-full">
+          <div class="collapse collapse-arrow join-item">
+            <input type="radio" name="side-nav" checked="checked" />
+            <div class="collapse-title text-xl font-medium">Activity</div>
+
+            <div class="collapse-content bg-base-200">
+              <ul class="p-4">
+                <li><a href="#">Dashboard</a></li>
+                <li><a href="#">Metrics</a></li>
+                <li><a href="#">Logs</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="collapse collapse-arrow join-item">
+            <input type="radio" name="side-nav" />
+            <div class="collapse-title text-xl font-medium">Tasks</div>
+
+            <div class="collapse-content bg-base-200">
+              <ul class="p-4">
+                <li><a href="#">New Request</a></li>
+                <li><a href="#">Project Status</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="collapse collapse-arrow join-item">
+            <input type="radio" name="side-nav" />
+            <div class="collapse-title text-xl font-medium">Data</div>
+
+            <div class="collapse-content bg-base-200">
+              <ul class="p-4">
+                <li><a href="#">Data Lakes</a></li>
+                <li><a href="#">Direct Query</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="collapse collapse-arrow join-item">
+            <input type="radio" name="side-nav" />
+            <div class="collapse-title text-xl font-medium">Tools</div>
+
+            <div class="collapse-content bg-base-200">
+              <ul class="p-4">
+                <li><a href="#">Prompt Refiner</a></li>
+                <li><a href="#">Human Feedback</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="collapse collapse-arrow join-item">
+            <input type="radio" name="side-nav" />
+            <div class="collapse-title text-xl font-medium">Settings</div>
+
+            <div class="collapse-content bg-base-200">
+              <ul class="p-4">
+                <li><a href="#">Agents</a></li>
+                <li><a href="#">Models</a></li>
+                <li><a href="#">Tools</a></li>
+                <li><a href="#">Workflows</a></li>
+                <li><a href="#">System</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="bg-base-100 flex-1 p-4">
+
+        {% block content %}{% endblock %}
+        {% endblock %}
+      </main>
+    </div>
   </body>
 
   {% block trailing_script %}{% endblock %}
