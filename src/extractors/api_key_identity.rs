@@ -112,6 +112,13 @@ where
         //    return Err(Self::Rejection::NonceMissing);
         //}
 
+        // TODO: When the JWT is validated we should record the issued_at timestamp and record it
+        // associated to the specific API key. Future requests should compare against the issued
+        // time to prevent replay attacks from old tokens. We do keep the token age short to limit
+        // the possibility of this happening and should also check based on IP. Might want to treat
+        // these as sessions of a sort even to capture the same kind of metrics and streamline
+        // authorization checks into a single session type.
+
         //// todo: validate subject is present, do I need any extra validation?
         //tracing::info!("{claims:?}");
         //let user_id = match &claims.subject {
