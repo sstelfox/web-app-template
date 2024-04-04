@@ -145,6 +145,7 @@ pub fn register_panic_logger() {
 
 pub fn report_version() {
     let version = app::Version::new();
+
     tracing::info!(
         build_profile = ?version.build_profile,
         features = ?version.features,
