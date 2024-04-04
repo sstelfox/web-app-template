@@ -39,29 +39,14 @@ uuid = { version = "^1", features = ["fast-rng", "serde", "v4"] }
 
 askama = { version = "^0.12", features = ["with-axum", "mime"] }
 askama_axum = "^0.4"
-axum = { version = "^0.7", features = [
-  "http2",
-  "macros",
-  "multipart",
-  "tracing",
-  "ws",
-] }
+axum = { version = "^0.7", features = ["http2", "macros", "tracing", "ws"] }
 axum-extra = { version = "^0.9", features = ["cookie", "form", "typed-header"] }
 headers = "^0.4"
 http = "^1"
 hyper = "^1"
-lettre = { version = "^0.11", features = [
-  "tokio1-rustls-tls",
-  "pool",
-  "smtp-transport",
-  "tracing",
-  "hostname",
-  "builder",
-  "dkim",
-], default-features = false }
 oauth2 = "^4"
 object_store = "^0.9"
-reqwest = { version = "^0.11", default-features = false, features = ["json"] }
+reqwest = { version = "^0.12", default-features = false, features = ["json"] }
 sqlx = { version = "^0.7", default-features = false, features = [
   "macros",
   "migrate",
@@ -123,13 +108,7 @@ half = { version = "^2", features = [
 
 [dev-dependencies]
 bytes = "^1.4"
-lettre = { version = "^0.11", features = [
-  "file-transport",
-], default-features = false }
-reqwest = { version = "^0.11", default-features = false, features = [
-  "json",
-  "multipart",
-] }
+reqwest = { version = "^0.12", default-features = false, features = ["json"] }
 tokio = { version = "^1", features = ["test-util"] }
 
 [lib]
