@@ -23,7 +23,7 @@
 }
 
 /*
-! tailwindcss v3.4.1 | MIT License | https://tailwindcss.com
+! tailwindcss v3.4.3 | MIT License | https://tailwindcss.com
 */
 
 /*
@@ -235,6 +235,8 @@ textarea {
   /* 1 */
   line-height: inherit;
   /* 1 */
+  letter-spacing: inherit;
+  /* 1 */
   color: inherit;
   /* 1 */
   margin: 0;
@@ -258,9 +260,9 @@ select {
 */
 
 button,
-[type='button'],
-[type='reset'],
-[type='submit'] {
+input:where([type='button']),
+input:where([type='reset']),
+input:where([type='submit']) {
   -webkit-appearance: button;
   /* 1 */
   background-color: transparent;
@@ -474,7 +476,7 @@ video {
   color: var(--fallback-bc,oklch(var(--bc)/1));
 }
 
-@supports not (color: oklch(0 0 0)) {
+@supports not (color: oklch(0% 0 0)) {
   :root {
     color-scheme: light;
     --fallback-p: #491eff;
@@ -532,31 +534,31 @@ html {
 
 :root {
   color-scheme: dark;
-  --pc: 0.149408 0.031656 39.94703;
-  --sc: 0.145075 0.035531 2.72034;
-  --ac: 0.142589 0.033336 299.844533;
-  --inc: 0.171119 0.017054 206.015183;
-  --suc: 0.171122 0.017172 144.77874;
-  --wac: 0.171139 0.016961 74.427797;
-  --erc: 0.171023 0.015778 16.886379;
+  --pc: 14.9408% 0.031656 39.94703;
+  --sc: 14.5075% 0.035531 2.72034;
+  --ac: 14.2589% 0.033336 299.844533;
+  --inc: 17.1119% 0.017054 206.015183;
+  --suc: 17.1122% 0.017172 144.77874;
+  --wac: 17.1139% 0.016961 74.427797;
+  --erc: 17.1023% 0.015778 16.886379;
   --animation-btn: 0.25s;
   --animation-input: .2s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
   --tab-border: 1px;
-  --p: 0.747039 0.158278 39.94703;
-  --s: 0.725375 0.177654 2.72034;
-  --a: 0.712947 0.166678 299.844533;
-  --n: 0.26 0.019 237.69;
-  --nc: 0.7 0.019 237.69;
-  --b1: 0.22 0.019 237.69;
-  --b2: 0.2 0.019 237.69;
-  --b3: 0.18 0.019 237.69;
-  --bc: 0.773835 0.043586 245.096534;
-  --in: 0.855596 0.085271 206.015183;
-  --su: 0.855609 0.08586 144.77874;
-  --wa: 0.855695 0.084806 74.427797;
-  --er: 0.855116 0.07889 16.886379;
+  --p: 74.7039% 0.158278 39.94703;
+  --s: 72.5375% 0.177654 2.72034;
+  --a: 71.2947% 0.166678 299.844533;
+  --n: 26% 0.019 237.69;
+  --nc: 70% 0.019 237.69;
+  --b1: 22% 0.019 237.69;
+  --b2: 20% 0.019 237.69;
+  --b3: 18% 0.019 237.69;
+  --bc: 77.3835% 0.043586 245.096534;
+  --in: 85.5596% 0.085271 206.015183;
+  --su: 85.5609% 0.08586 144.77874;
+  --wa: 85.5695% 0.084806 74.427797;
+  --er: 85.5116% 0.07889 16.886379;
   --rounded-box: 1.2rem;
   --rounded-btn: 0.8rem;
   --rounded-badge: 0.4rem;
@@ -565,31 +567,31 @@ html {
 
 [data-theme=sunset] {
   color-scheme: dark;
-  --pc: 0.149408 0.031656 39.94703;
-  --sc: 0.145075 0.035531 2.72034;
-  --ac: 0.142589 0.033336 299.844533;
-  --inc: 0.171119 0.017054 206.015183;
-  --suc: 0.171122 0.017172 144.77874;
-  --wac: 0.171139 0.016961 74.427797;
-  --erc: 0.171023 0.015778 16.886379;
+  --pc: 14.9408% 0.031656 39.94703;
+  --sc: 14.5075% 0.035531 2.72034;
+  --ac: 14.2589% 0.033336 299.844533;
+  --inc: 17.1119% 0.017054 206.015183;
+  --suc: 17.1122% 0.017172 144.77874;
+  --wac: 17.1139% 0.016961 74.427797;
+  --erc: 17.1023% 0.015778 16.886379;
   --animation-btn: 0.25s;
   --animation-input: .2s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
   --tab-border: 1px;
-  --p: 0.747039 0.158278 39.94703;
-  --s: 0.725375 0.177654 2.72034;
-  --a: 0.712947 0.166678 299.844533;
-  --n: 0.26 0.019 237.69;
-  --nc: 0.7 0.019 237.69;
-  --b1: 0.22 0.019 237.69;
-  --b2: 0.2 0.019 237.69;
-  --b3: 0.18 0.019 237.69;
-  --bc: 0.773835 0.043586 245.096534;
-  --in: 0.855596 0.085271 206.015183;
-  --su: 0.855609 0.08586 144.77874;
-  --wa: 0.855695 0.084806 74.427797;
-  --er: 0.855116 0.07889 16.886379;
+  --p: 74.7039% 0.158278 39.94703;
+  --s: 72.5375% 0.177654 2.72034;
+  --a: 71.2947% 0.166678 299.844533;
+  --n: 26% 0.019 237.69;
+  --nc: 70% 0.019 237.69;
+  --b1: 22% 0.019 237.69;
+  --b2: 20% 0.019 237.69;
+  --b3: 18% 0.019 237.69;
+  --bc: 77.3835% 0.043586 245.096534;
+  --in: 85.5596% 0.085271 206.015183;
+  --su: 85.5609% 0.08586 144.77874;
+  --wa: 85.5695% 0.084806 74.427797;
+  --er: 85.5116% 0.07889 16.886379;
   --rounded-box: 1.2rem;
   --rounded-btn: 0.8rem;
   --rounded-badge: 0.4rem;
@@ -598,31 +600,31 @@ html {
 
 :root:has(input.theme-controller[value=sunset]:checked) {
   color-scheme: dark;
-  --pc: 0.149408 0.031656 39.94703;
-  --sc: 0.145075 0.035531 2.72034;
-  --ac: 0.142589 0.033336 299.844533;
-  --inc: 0.171119 0.017054 206.015183;
-  --suc: 0.171122 0.017172 144.77874;
-  --wac: 0.171139 0.016961 74.427797;
-  --erc: 0.171023 0.015778 16.886379;
+  --pc: 14.9408% 0.031656 39.94703;
+  --sc: 14.5075% 0.035531 2.72034;
+  --ac: 14.2589% 0.033336 299.844533;
+  --inc: 17.1119% 0.017054 206.015183;
+  --suc: 17.1122% 0.017172 144.77874;
+  --wac: 17.1139% 0.016961 74.427797;
+  --erc: 17.1023% 0.015778 16.886379;
   --animation-btn: 0.25s;
   --animation-input: .2s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
   --tab-border: 1px;
-  --p: 0.747039 0.158278 39.94703;
-  --s: 0.725375 0.177654 2.72034;
-  --a: 0.712947 0.166678 299.844533;
-  --n: 0.26 0.019 237.69;
-  --nc: 0.7 0.019 237.69;
-  --b1: 0.22 0.019 237.69;
-  --b2: 0.2 0.019 237.69;
-  --b3: 0.18 0.019 237.69;
-  --bc: 0.773835 0.043586 245.096534;
-  --in: 0.855596 0.085271 206.015183;
-  --su: 0.855609 0.08586 144.77874;
-  --wa: 0.855695 0.084806 74.427797;
-  --er: 0.855116 0.07889 16.886379;
+  --p: 74.7039% 0.158278 39.94703;
+  --s: 72.5375% 0.177654 2.72034;
+  --a: 71.2947% 0.166678 299.844533;
+  --n: 26% 0.019 237.69;
+  --nc: 70% 0.019 237.69;
+  --b1: 22% 0.019 237.69;
+  --b2: 20% 0.019 237.69;
+  --b3: 18% 0.019 237.69;
+  --bc: 77.3835% 0.043586 245.096534;
+  --in: 85.5596% 0.085271 206.015183;
+  --su: 85.5609% 0.08586 144.77874;
+  --wa: 85.5695% 0.084806 74.427797;
+  --er: 85.5116% 0.07889 16.886379;
   --rounded-box: 1.2rem;
   --rounded-btn: 0.8rem;
   --rounded-badge: 0.4rem;
@@ -631,32 +633,32 @@ html {
 
 [data-theme=wireframe] {
   color-scheme: light;
-  --bc: 0.2 0 0;
-  --pc: 0.156521 0 0;
-  --sc: 0.156521 0 0;
-  --ac: 0.156521 0 0;
-  --nc: 0.188014 0 0;
-  --inc: 0.890403 0.062643 264.052021;
-  --suc: 0.90395 0.035372 142.495339;
-  --wac: 0.141626 0.019994 108.702381;
-  --erc: 0.125591 0.051537 29.233885;
+  --bc: 20% 0 0;
+  --pc: 15.6521% 0 0;
+  --sc: 15.6521% 0 0;
+  --ac: 15.6521% 0 0;
+  --nc: 18.8014% 0 0;
+  --inc: 89.0403% 0.062643 264.052021;
+  --suc: 90.395% 0.035372 142.495339;
+  --wac: 14.1626% 0.019994 108.702381;
+  --erc: 12.5591% 0.051537 29.233885;
   --animation-btn: 0.25s;
   --animation-input: .2s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
   --tab-border: 1px;
   font-family: Chalkboard,comic sans ms,'sans-serif';
-  --p: 0.782604 0 0;
-  --s: 0.782604 0 0;
-  --a: 0.782604 0 0;
-  --n: 0.94007 0 0;
-  --b1: 1 0 0;
-  --b2: 0.949119 0 0;
-  --b3: 0.897547 0 0;
-  --in: 0.452014 0.313214 264.052021;
-  --su: 0.519752 0.176858 142.495339;
-  --wa: 0.708131 0.099969 108.702381;
-  --er: 0.627955 0.257683 29.233885;
+  --p: 78.2604% 0 0;
+  --s: 78.2604% 0 0;
+  --a: 78.2604% 0 0;
+  --n: 94.007% 0 0;
+  --b1: 100% 0 0;
+  --b2: 94.9119% 0 0;
+  --b3: 89.7547% 0 0;
+  --in: 45.2014% 0.313214 264.052021;
+  --su: 51.9752% 0.176858 142.495339;
+  --wa: 70.8131% 0.099969 108.702381;
+  --er: 62.7955% 0.257683 29.233885;
   --rounded-box: 0.2rem;
   --rounded-btn: 0.2rem;
   --rounded-badge: 0.2rem;
@@ -665,32 +667,32 @@ html {
 
 :root:has(input.theme-controller[value=wireframe]:checked) {
   color-scheme: light;
-  --bc: 0.2 0 0;
-  --pc: 0.156521 0 0;
-  --sc: 0.156521 0 0;
-  --ac: 0.156521 0 0;
-  --nc: 0.188014 0 0;
-  --inc: 0.890403 0.062643 264.052021;
-  --suc: 0.90395 0.035372 142.495339;
-  --wac: 0.141626 0.019994 108.702381;
-  --erc: 0.125591 0.051537 29.233885;
+  --bc: 20% 0 0;
+  --pc: 15.6521% 0 0;
+  --sc: 15.6521% 0 0;
+  --ac: 15.6521% 0 0;
+  --nc: 18.8014% 0 0;
+  --inc: 89.0403% 0.062643 264.052021;
+  --suc: 90.395% 0.035372 142.495339;
+  --wac: 14.1626% 0.019994 108.702381;
+  --erc: 12.5591% 0.051537 29.233885;
   --animation-btn: 0.25s;
   --animation-input: .2s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
   --tab-border: 1px;
   font-family: Chalkboard,comic sans ms,'sans-serif';
-  --p: 0.782604 0 0;
-  --s: 0.782604 0 0;
-  --a: 0.782604 0 0;
-  --n: 0.94007 0 0;
-  --b1: 1 0 0;
-  --b2: 0.949119 0 0;
-  --b3: 0.897547 0 0;
-  --in: 0.452014 0.313214 264.052021;
-  --su: 0.519752 0.176858 142.495339;
-  --wa: 0.708131 0.099969 108.702381;
-  --er: 0.627955 0.257683 29.233885;
+  --p: 78.2604% 0 0;
+  --s: 78.2604% 0 0;
+  --a: 78.2604% 0 0;
+  --n: 94.007% 0 0;
+  --b1: 100% 0 0;
+  --b2: 94.9119% 0 0;
+  --b3: 89.7547% 0 0;
+  --in: 45.2014% 0.313214 264.052021;
+  --su: 51.9752% 0.176858 142.495339;
+  --wa: 70.8131% 0.099969 108.702381;
+  --er: 62.7955% 0.257683 29.233885;
   --rounded-box: 0.2rem;
   --rounded-btn: 0.2rem;
   --rounded-badge: 0.2rem;
@@ -745,6 +747,10 @@ html {
   --tw-backdrop-opacity:  ;
   --tw-backdrop-saturate:  ;
   --tw-backdrop-sepia:  ;
+  --tw-contain-size:  ;
+  --tw-contain-layout:  ;
+  --tw-contain-paint:  ;
+  --tw-contain-style:  ;
 }
 
 ::backdrop {
@@ -795,6 +801,10 @@ html {
   --tw-backdrop-opacity:  ;
   --tw-backdrop-saturate:  ;
   --tw-backdrop-sepia:  ;
+  --tw-contain-size:  ;
+  --tw-contain-layout:  ;
+  --tw-contain-paint:  ;
+  --tw-contain-style:  ;
 }
 
 .avatar {
@@ -1120,7 +1130,7 @@ html {
     }
   }
 
-  @supports not (color: oklch(0 0 0)) {
+  @supports not (color: oklch(0% 0 0)) {
     .btn:hover {
       background-color: var(--btn-color, var(--fallback-b2));
       border-color: var(--btn-color, var(--fallback-b2));
@@ -1136,7 +1146,7 @@ html {
     border-color: transparent;
   }
 
-  @supports (color: oklch(0 0 0)) {
+  @supports (color: oklch(0% 0 0)) {
     .btn-ghost:hover {
       background-color: var(--fallback-bc,oklch(var(--bc)/0.2));
     }
@@ -1195,7 +1205,7 @@ html {
     outline-offset: 2px;
   }
 
-  @supports (color: oklch(0 0 0)) {
+  @supports (color: oklch(0% 0 0)) {
     :where(.menu li:not(.menu-title, .disabled) > *:not(ul, details, .menu-title)):not(.active, .btn):hover, :where(.menu li:not(.menu-title, .disabled) > details > summary:not(.menu-title)):not(.active, .btn):hover {
       background-color: var(--fallback-bc,oklch(var(--bc)/0.1));
     }
@@ -1520,7 +1530,7 @@ html {
   transform: scale(var(--btn-focus-scale, 0.97));
 }
 
-@supports not (color: oklch(0 0 0)) {
+@supports not (color: oklch(0% 0 0)) {
   .btn {
     background-color: var(--btn-color, var(--fallback-b2));
     border-color: var(--btn-color, var(--fallback-b2));
@@ -1559,7 +1569,7 @@ html {
   outline-color: var(--fallback-p,oklch(var(--p)/1));
 }
 
-@supports (color: oklch(0 0 0)) {
+@supports (color: oklch(0% 0 0)) {
   .btn-primary {
     --btn-color: var(--p);
   }
@@ -1673,7 +1683,6 @@ html {
 }
 
 .checkbox:checked,
-  .checkbox[checked="true"],
   .checkbox[aria-checked="true"] {
   background-repeat: no-repeat;
   animation: checkmark var(--animation-input, 0.2s) ease-out;
@@ -2490,11 +2499,6 @@ details.collapse summary::-webkit-details-marker {
 
 .font-medium {
   font-weight: 500;
-}
-
-.text-white {
-  --tw-text-opacity: 1;
-  color: rgb(255 255 255 / var(--tw-text-opacity));
 }
 
 .shadow {
