@@ -93,9 +93,9 @@ tracing-subscriber = { version = "^0.3", default-features = false, features = [
 ] }
 
 # ML Core
-candle-core = { git = "https://github.com/huggingface/candle.git", version = "^0.4" }
-candle-nn = { git = "https://github.com/huggingface/candle.git", version = "^0.4" }
-candle-transformers = { git = "https://github.com/huggingface/candle.git", version = "^0.4" }
+candle-core = "^0.4"
+candle-nn = "^0.4"
+candle-transformers = "^0.4"
 hf-hub = "^0.3"
 llm-samplers = "^0.0"
 tokenizers = "^0.15"
