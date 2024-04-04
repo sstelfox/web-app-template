@@ -3,13 +3,11 @@
 {% block title %}Home{% endblock %}
 
 {% block content %}
-<table>
-  <caption>
-    Current session details
-  </caption>
+<table class="table">
   <colgroup>
     <col style="text-align: right" />
   </colgroup>
+
   <tbody>
     <tr>
       <th scope="row">User ID</th>
@@ -37,9 +35,6 @@
 <a href="#" target="_blank" id="test-event" class="btn btn-secondary">Send Test Event</a>
 
 <table>
-  <caption>
-    Live Events
-  </caption>
   <thead>
     <tr>
       <th scope="col">Event Type</th>
@@ -48,8 +43,11 @@
       <th scope="col">Deserialized</th>
     </tr>
   </thead>
+
   <tbody id="event-list"></tbody>
 </table>
-{% endblock %} {% block trailing_script %}
+{% endblock %}
+
+{% block trailing_script %}
 <script async type="text/javascript" src="/assets/js/event_subscription.js"></script>
 {% endblock %}
